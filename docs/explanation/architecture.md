@@ -1,0 +1,114 @@
+# Architecture
+
+hallmark checks whether a message comes from the domain it claims, and explains how it decided. The [requirements](../reference/requirements.md) list what hallmark must do, and the [ADRs](../adr/README.md) record each decision.
+
+## The parts
+
+```mermaid
+flowchart LR
+    subgraph callers["Callers"]
+        milter["hallmark-milter, on Tokio inside an MTA"]
+        demo["Browser demo, through hallmark-wasm"]
+        tests["Tests and bug reports, from snapshots"]
+    end
+    subgraph core["hallmark core"]
+        spf["SPF"]
+        dkim["DKIM and DKIM2"]
+        dmarc["DMARC"]
+        ar["Authentication-Results"]
+        trace["Trace recorder"]
+    end
+    callers -->|"envelope, header fields, body chunks, DNS answers, time"| core
+    core -->|"DNS questions, results, trace, header fields to add"| callers
+```
+
+The core sits in the middle and talks to nothing on its own. Everything outside it arrives through its callers. hallmark-milter brings mail from an MTA and answers DNS questions with a native resolver. The demo brings a pasted message and answers through DNS over HTTPS or through records pasted into the page. Tests answer from saved snapshots. The same core code runs in all three ([ADR 0001](../adr/0001-the-core-does-no-io-and-the-caller-drives-it.md)).
+
+DMARC builds on the other two. It takes the SPF result for the MAIL FROM domain and the DKIM result for each signature, finds the author domain in the From header field, and checks whether any authenticated domain aligns with it.
+
+## The caller drives each check
+
+A check is a state machine. The caller feeds it input in the order mail arrives, and the check answers with the DNS questions it needs next. It never waits: when it needs an answer it doesn't have, it says so and returns.
+
+```mermaid
+sequenceDiagram
+    participant MTA
+    participant Milter as hallmark-milter
+    participant Check as hallmark check
+    participant DNS as Resolver
+    MTA->>Milter: MAIL FROM and RCPT TO
+    Milter->>Check: envelope
+    Check-->>Milter: SPF questions
+    Milter->>DNS: resolve SPF questions
+    MTA->>Milter: header fields, one at a time
+    Milter->>Check: header fields
+    Check-->>Milter: DKIM key and DMARC policy questions
+    Milter->>DNS: resolve them while the body arrives
+    MTA->>Milter: body chunks of up to 65,535 bytes
+    Milter->>Check: each chunk, released after the call
+    DNS-->>Milter: answers
+    Milter->>Check: answers, in any order
+    MTA->>Milter: end of message
+    Milter->>Check: end of message
+    Check-->>Milter: results, trace, header fields to add
+    Milter->>MTA: Authentication-Results and signatures
+```
+
+This shape has three effects:
+
+- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver the caller implements.
+- DNS lookups overlap the body. The DKIM selectors and the DMARC domain are known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
+- Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere.
+
+## Streaming without holding the body
+
+An MTA hands a milter the body in fixed-size chunks and cuts wherever the buffer fills: in the middle of a word, among trailing spaces, or between the `\r` and `\n` of a line ending. A body hash depends on canonicalization, and canonicalization depends on where lines end, so the canonicalizer can't decide about the last bytes of a chunk until the next chunk arrives.
+
+The canonicalizer carries a small state from one chunk to the next instead of the bytes themselves:
+
+| Pending at the end of a chunk | State kept | Settled when |
+|---|---|---|
+| Spaces or tabs (relaxed) | One flag | Text follows: one space is hashed. A line ending follows: they are dropped. |
+| A `\r` without its `\n` | One flag | The next byte shows whether a line ended |
+| Empty lines | A count of line endings not yet hashed | Text follows: they are all hashed. The body ends: they are dropped. |
+
+The state stays the same size however large the message is, and the core never keeps a chunk after the call that delivered it. Tests feed each message split at every chunk size, from 1 byte to the whole message, and require the same hash every time (STR-005).
+
+Header fields arrive whole, one per call, so they need no carry-over. The core does keep all header fields of a message, because DKIM picks signed fields from the bottom up and DKIM2 header recipes rebuild earlier header sets. The header limits (SAF-002) bound that memory.
+
+## DKIM2 chains in one pass
+
+A DKIM2 hop that changes a message records a recipe for undoing the change. To check the signature of an earlier hop, the verifier rebuilds that hop's version of the body from the current one and hashes it. Draft-09 §5.1 and §5.2 require the copy steps of a recipe to be in ascending order and not to overlap, so each earlier version takes its lines from the version after it in the order they stream past.
+
+```mermaid
+flowchart LR
+    stream["Current body, as it streams"] --> v3["Hash of the current version"]
+    stream --> r3["Recipe of hop 3: copies and inserted text"]
+    r3 --> v2["Hash of version 2"]
+    r3 --> r2["Recipe of hop 2"]
+    r2 --> v1["Hash of version 1"]
+```
+
+Each rebuild keeps only its position in its recipe, and the text of the recipe's insert steps, which arrived with the header fields. One pass over the body checks the whole chain, with no storage and no random access (DK2-006). Recipe line numbers count the raw body, including the empty lines at its end ([ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md)).
+
+## The trace
+
+The code that makes each decision records it in the trace at that moment ([ADR 0002](../adr/0002-the-code-that-decides-writes-the-trace.md)). A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it.
+
+```mermaid
+flowchart TD
+    check["DMARC check for void.invalid"] --> spf["SPF for MAIL FROM"]
+    check --> dkim["DKIM signature d=void.invalid"]
+    check --> policy["Policy discovery under RFC 9989"]
+    spf --> inc["include: answer and lookup count"]
+    dkim --> key["Key record lookup"]
+    dkim --> bh["Body hash: computed and stated"]
+    policy --> walk["Tree walk steps"]
+    check --> align["Alignment of each identifier"]
+```
+
+Because the trace comes from the deciding code, it can't disagree with the result. Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes and counts unless the caller asks for content, and private keys never appear at all.
+
+## Where hallmark-milter fits
+
+hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks, feeds each piece to a hallmark check, resolves DNS with a native resolver, and adds the Authentication-Results field and the signatures at the end of the message. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).
