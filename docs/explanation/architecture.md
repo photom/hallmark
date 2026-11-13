@@ -76,6 +76,47 @@ The state stays the same size however large the message is, and the core never k
 
 Header fields arrive whole, one per call, so they need no carry-over. The core does keep all header fields of a message, because DKIM picks signed fields from the bottom up and DKIM2 header recipes rebuild earlier header sets. The header limits (SAF-002) bound that memory.
 
+## Reading header fields
+
+DKIM, DKIM2 and DMARC read header fields, and SPF reads only the envelope. Each kind of field has its own grammar. hallmark keeps the raw header section and parses it in two layers ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)).
+
+```mermaid
+flowchart LR
+    raw["Header section, raw bytes kept"] --> split["Field splitter"]
+    split --> tags["Tag=value lists"]
+    split --> ar["Authentication-Results"]
+    split --> from["From field"]
+    tags --> dkim["DKIM and DKIM2"]
+    from --> addr["Address parsers"]
+    env["MAIL FROM, RCPT TO, decoded mf= and rt="] --> addr
+```
+
+For fields that arrive one at a time from a milter, hallmark first rebuilds those bytes from each name and value (STR-008). The field splitter finds where each field starts and ends. A field is a pair of positions in the raw bytes, so splitting copies nothing, and `simple` canonicalization hashes those bytes unchanged. A parser that needs the unfolded value of a folded field builds it from the same bytes. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parsers, described in the next section.
+
+No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and hallmark ignores a DKIM-Signature field that doesn't parse, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
+
+## Reading addresses
+
+hallmark reads addresses in two grammars. Header fields follow RFC 5322, with display names, comments, groups and the obsolete forms of §4.4. The SMTP envelope follows RFC 5321, with angle brackets, the null path `<>` and source routes. The checks then compare what they found across both: DMARC aligns the MAIL FROM domain with the From domain, and DKIM2 matches `mf=` against MAIL FROM and the From domain against `d=`. To make those comparisons possible, hallmark has one parser per grammar, and both return the same parts. A DKIM `i=` value uses the RFC 5321 local part (RFC 6376 §2.9), so the envelope parser reads it, and other domain names, such as `d=` and the domains SPF reaches, get the same lookup form.
+
+```mermaid
+flowchart LR
+    hdr["From fields and Authentication-Results values"] --> hp["Header address parser, RFC 5322"]
+    env["MAIL FROM, RCPT TO, HELO, DKIM i=, decoded mf= and rt="] --> ep["Envelope address parser, RFC 5321"]
+    hp --> parts["Local part, and a domain name or an address literal"]
+    ep --> parts
+    parts --> lookup["Lookup form of the domain"]
+    lookup --> dmarc["DMARC author domain and alignment"]
+    lookup --> dkim2["DKIM2 chain of custody and From check"]
+    lookup --> spf["SPF sender, domain and macros"]
+```
+
+Each part keeps the text it had in the input, because the trace shows it and because some checks compare it exactly. A local part also carries its value with the quoting removed, and a domain name carries a lookup form, in which every U-label becomes an A-label under RFC 5891, and every DNS question and comparison uses that form. hallmark does the conversion itself, with tables for one fixed Unicode version, and maps nothing ([ADR 0013](../adr/0013-hallmark-converts-domain-names-to-a-labels-with-its-own-rfc-5891-code.md)). hallmark never makes a DNS question for an address literal.
+
+The two grammars differ in the characters a domain may hold. A header domain may hold any ASCII that RFC 5322 allows, and hallmark looks it up as written ([ADR 0015](../adr/0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)). An envelope domain holds only letters, digits and hyphens, as RFC 5321 says.
+
+An ADR records hallmark's reading wherever the RFCs leave a case open: a From address with a domain literal gives DMARC no author domain ([ADR 0014](../adr/0014-a-from-domain-literal-gives-dmarc-no-author-domain.md)), and SPF macros expand the local part as written ([ADR 0016](../adr/0016-spf-macros-expand-the-local-part-as-written.md)). One question stays open in [hallmark#4](https://github.com/photom/hallmark/issues/4): how the DKIM2 chain of custody compares quoted local parts and source routes.
+
 ## DKIM2 chains in one pass
 
 A DKIM2 hop that changes a message records a recipe for undoing the change. To check the signature of an earlier hop, the verifier rebuilds that hop's version of the body from the current one and hashes it. Draft-09 §5.1 and §5.2 require the copy steps of a recipe to be in ascending order and not to overlap, so each earlier version takes its lines from the version after it in the order they stream past.

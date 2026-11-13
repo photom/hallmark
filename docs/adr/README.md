@@ -14,6 +14,12 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0008](0008-dkim2-recipe-line-numbers-count-the-raw-body.md) | DKIM2 recipe line numbers count the raw body | Accepted |
 | [0009](0009-requirements-and-tests-come-only-from-the-specifications.md) | Requirements and tests come only from the specifications | Accepted |
 | [0010](0010-a-dkim-l-tag-larger-than-the-body-gets-no-special-rule.md) | A DKIM `l=` larger than the body gets no special rule | Accepted |
+| [0011](0011-header-parsers-follow-the-abnf-and-never-repair-input.md) | Header parsers follow the ABNF and never repair input | Accepted |
+| [0012](0012-hallmark-reads-no-mime-structure.md) | hallmark reads no MIME structure | Accepted |
+| [0013](0013-hallmark-converts-domain-names-to-a-labels-with-its-own-rfc-5891-code.md) | hallmark converts domain names to A-labels with its own RFC 5891 code | Accepted |
+| [0014](0014-a-from-domain-literal-gives-dmarc-no-author-domain.md) | A From domain literal gives DMARC no author domain | Accepted |
+| [0015](0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md) | hallmark looks up header domains as written, whatever ASCII they hold | Accepted |
+| [0016](0016-spf-macros-expand-the-local-part-as-written.md) | SPF macros expand the local part as written | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
