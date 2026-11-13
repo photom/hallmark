@@ -1,14 +1,14 @@
 # ADR 0001: The core does no I/O, and the caller drives it
 
 - Status: Accepted
-- Date: 2026-11-12
+- Date: 2026-11-13
 - Affects: the public API of `crates/hallmark`, `crates/hallmark-wasm`, and every caller, including hallmark-milter
 
 ## Context
 
 hallmark runs in two very different hosts. hallmark-milter runs on Tokio inside a mail server. The browser demo runs in WebAssembly, where DNS over HTTPS goes through `fetch` and its promises. The two hosts share no async runtime, and the browser has no sockets.
 
-Every check needs data from outside: DNS records, the current time, the message itself, and for RFC 7489's `pct` sampling, a random number. Messages can be large, and a milter receives the body in chunks of up to 65,535 bytes, cut at arbitrary points.
+Every check needs data from outside: DNS records, the time the message was received, and the message itself. RFC 7489's `pct` sampling and DKIM2's ML-DSA-44 signing also need random numbers. Messages can be large, and a milter receives the body in chunks of up to 65,535 bytes, cut at arbitrary points.
 
 The trace, hallmark's main feature, is only worth something if a check can be replayed: the same message, DNS answers and time must give the same result and the same trace, in a test, in the demo, and in a bug report.
 
@@ -27,7 +27,7 @@ Option (d).
 
 - The core opens no sockets and files, reads no clock or environment variables, and draws no random numbers.
 - A check is a value the caller drives. It accepts the envelope, then header fields, then body chunks, and finally the end of the message. After each input it reports the DNS questions it now needs. The caller answers them in any order and at any time before the check needs them.
-- The caller supplies the verification time and, in RFC 7489 mode, the random value for `pct`.
+- The caller supplies the verification time, the random value for `pct` in RFC 7489 mode, and the random value for each hedged ML-DSA-44 signature (`draft-ietf-dkim-dkim2-spec-09` §3.4).
 - The core keeps no reference to an input chunk after the call that received it returns.
 - Large output, such as a serialized trace or a long DKIM2 header field, comes out in bounded chunks that the caller pulls.
 - The library offers a driver that runs a check to the end with a `Resolver` the caller implements. The driver awaits the resolver's futures, which work on any executor, and depends on no async runtime. Adapters accept a standard blocking reader or writer for callers that don't need async.

@@ -13,6 +13,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0007](0007-dmarc-supports-rfc-7489-and-dmarcbis-with-dmarcbis-the-default.md) | DMARC supports RFC 7489 and DMARCbis, with DMARCbis the default | Accepted |
 | [0008](0008-dkim2-recipe-line-numbers-count-the-raw-body.md) | DKIM2 recipe line numbers count the raw body | Accepted |
 | [0009](0009-requirements-and-tests-come-only-from-the-specifications.md) | Requirements and tests come only from the specifications | Accepted |
+| [0010](0010-a-dkim-l-tag-larger-than-the-body-gets-no-special-rule.md) | A DKIM `l=` larger than the body gets no special rule | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

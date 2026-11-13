@@ -42,7 +42,7 @@ sequenceDiagram
     Milter->>DNS: resolve SPF questions
     MTA->>Milter: header fields, one at a time
     Milter->>Check: header fields
-    Check-->>Milter: DKIM key and DMARC policy questions
+    Check-->>Milter: DKIM key, DKIM2 policy and DMARC policy questions
     Milter->>DNS: resolve them while the body arrives
     MTA->>Milter: body chunks of up to 65,535 bytes
     Milter->>Check: each chunk, released after the call
@@ -57,7 +57,7 @@ sequenceDiagram
 This shape has three effects:
 
 - Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver the caller implements.
-- DNS lookups overlap the body. The DKIM selectors and the DMARC domain are known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
+- DNS lookups overlap the body. The DKIM selectors, the domains whose DKIM2 Domain Policy Records the From check may need, and the DMARC domain are all known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
 - Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere.
 
 ## Streaming without holding the body
@@ -89,7 +89,7 @@ flowchart LR
     r2 --> v1["Hash of version 1"]
 ```
 
-Each rebuild keeps only its position in its recipe, and the text of the recipe's insert steps, which arrived with the header fields. One pass over the body checks the whole chain, with no storage and no random access (DK2-006). Recipe line numbers count the raw body, including the empty lines at its end ([ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md)).
+Each rebuild keeps only its position in its recipe, and the lines of the recipe's `d` and `u` steps, which arrived with the header fields. A `d` step holds lines as UTF-8 text, and a `u` step holds them in base64 when they aren't valid UTF-8 (draft-09 §5.2). One pass over the body checks the whole chain, with no storage and no random access (DK2-006). Recipe line numbers count the raw body, including the empty lines at its end ([ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md)).
 
 ## The trace
 
