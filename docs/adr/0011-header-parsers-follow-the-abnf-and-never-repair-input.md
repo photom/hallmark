@@ -6,7 +6,7 @@
 
 ## Context
 
-hallmark reads header fields from mail that anyone can send. What its parsers decide carries straight into results: the From field gives DMARC its author domain and DKIM2 its Authentic From check, and a DKIM-Signature field decides which key is fetched and what is hashed.
+hallmark reads header fields from mail that anyone can send, and the parsers' decisions go into the results: the From field gives DMARC its author domain and DKIM2 its Authentic From check, and a DKIM-Signature field decides which key is fetched and what is hashed.
 
 The specifications ask for two different attitudes:
 - RFC 5322 §4 says obsolete forms "MUST NOT be generated", but "they MUST be accepted and parsed by a conformant receiver". It adds that a message matching no grammar is no reason for a program to crash.
@@ -28,24 +28,24 @@ RFC 5322 §3.2.2 lets comments nest, so a naive recursive parser can be driven i
 Option (c).
 
 - Each parser implements the grammar of the RFC or draft section it cites, including the obsolete forms that the RFCs tell receivers to accept: RFC 5322 §4 and the source routes of RFC 5321 §4.1.2.
-- Tag lists in DKIM and DKIM2 fields and records are parsed strictly, as RFC 6376 §6.1.1 and draft-09 §14.2 require.
-- Input that matches no grammar is never repaired. The parser returns an error that names the rule that failed and the byte offset. The check then applies the protocol's rule for a missing or malformed value, such as DMC-002 for a From field or PERMFAIL (signature syntax error) for a DKIM-Signature field, and the trace records the error as a fact.
-- A line in the header section that isn't a header field stays a separate malformed line with its raw bytes. It is never joined to the field before it.
+- The tag-list parser for DKIM and DKIM2 fields and records follows the strict rules of RFC 6376 §6.1.1 and draft-09 §14.2.
+- hallmark never repairs input that matches no grammar. The parser returns an error that names the rule that failed and the byte offset. The check then applies the protocol's rule for a missing or malformed value, such as DMC-002 for a From field or PERMFAIL (signature syntax error) for a DKIM-Signature field, and the trace records the error as a fact.
+- A line in the header section that isn't a header field stays a separate malformed line with its raw bytes. The parser never joins it to the field before it.
 - Parsers keep the raw bytes and return positions in them along with the decoded values, so `simple` canonicalization (RFC 6376 §3.4.1) can hash exactly what arrived.
-- Parsers read left to right without recursion. Nesting, such as comments in comments, is counted against a limit (SAF-002).
+- Parsers read left to right without recursion, and count nesting, such as comments in comments, against a limit (SAF-002).
 
 Option (a) would bring MIME decoding that hallmark doesn't need (ADR 0012), and its choices about what to repair would become hallmark's. Option (b) builds parsers out of closures, which ADR 0003 rules out. Option (d) can't follow nesting: comments nest (RFC 5322 §3.2.2), and a regular expression can't fully match nested structures. When a regular expression fails to match, it can't name the ABNF rule that failed, as HDR-010 requires. Long regular expressions are also hard for people to read, so TST-007 allows only short, well-established ones.
 
 ## Consequences
 
 Positive:
-- Each field has one reading, and the trace can say exactly why a field didn't parse.
+- Each field has one reading, and the trace can name the reason a field didn't parse.
 - The parsers are small, have no dependencies, and can be fuzzed one by one (SAF-003).
 - Positions into the raw bytes cost no copies, and canonicalization works on the same bytes the parser read.
 
 Negative:
 - hallmark writes and tests every parser itself.
-- A message whose From field a mail client displays despite a syntax error gets no DMARC result, instead of a guessed one. The trace says why.
+- A message whose From field a mail client displays despite a syntax error gets no DMARC result, and the trace says why.
 
 ## References
 

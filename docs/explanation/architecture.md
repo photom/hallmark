@@ -93,7 +93,7 @@ flowchart LR
 
 The field splitter finds where each field starts and ends, and unfolds it without copying: a field is a pair of positions in the raw bytes, and `simple` canonicalization hashes those bytes unchanged. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parser, which has a design of its own.
 
-No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and a DKIM-Signature field that doesn't parse is ignored, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
+No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and hallmark ignores a DKIM-Signature field that doesn't parse, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
 
 ## DKIM2 chains in one pass
 

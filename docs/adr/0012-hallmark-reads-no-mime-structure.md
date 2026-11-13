@@ -28,7 +28,7 @@ Option (c).
 
 - hallmark treats every body as octets.
 - Display names and comments keep their encoded words as they appear in the message. The demo may decode them for display.
-- Checking DKIM2 delivery status notifications (draft-09 §16.4) is out of scope for now. If it is added, a new ADR will add a part splitter for `multipart/report` only, feeding the returned header fields to the existing header parser.
+- Checking DKIM2 delivery status notifications (draft-09 §16.4) is out of scope for now. If hallmark adds it later, a new ADR will add a part splitter for `multipart/report` only, which hands the returned header fields to the existing header parser.
 - The Authentication-Results parser uses the token and quoted-string rules of RFC 2045 §5.1 as lexical rules.
 
 ## Consequences
