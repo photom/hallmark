@@ -21,6 +21,7 @@ RFC 5322 §3.2.2 lets comments nest, so a naive recursive parser can be driven i
 - (a) Use a general email-parsing crate.
 - (b) Build the parsers with a parser-combinator crate.
 - (c) Write each parser by hand from the ABNF of the section it implements.
+- (d) Parse with regular expressions.
 
 ## Decision
 
@@ -33,7 +34,7 @@ Option (c).
 - Parsers keep the raw bytes and return positions in them along with the decoded values, so `simple` canonicalization (RFC 6376 §3.4.1) can hash exactly what arrived.
 - Parsers read left to right without recursion. Nesting, such as comments in comments, is counted against a limit (SAF-002).
 
-Option (a) would bring MIME decoding that hallmark doesn't need (ADR 0012), and its choices about what to repair would become hallmark's. Option (b) builds parsers out of closures, which ADR 0003 rules out.
+Option (a) would bring MIME decoding that hallmark doesn't need (ADR 0012), and its choices about what to repair would become hallmark's. Option (b) builds parsers out of closures, which ADR 0003 rules out. Option (d) can't follow nesting: comments nest (RFC 5322 §3.2.2), and a regular expression can't fully match nested structures. When a regular expression fails to match, it can't name the ABNF rule that failed, as HDR-010 requires. Long regular expressions are also hard for people to read, so TST-007 allows only short, well-established ones.
 
 ## Consequences
 
