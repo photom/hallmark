@@ -78,7 +78,7 @@ Header fields arrive whole, one per call, so they need no carry-over. The core d
 
 ## Reading header fields
 
-Every check reads header fields, and each kind of field has its own grammar. hallmark keeps the raw header section and parses it in two layers ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)).
+DKIM, DKIM2 and DMARC read header fields, and SPF reads only the envelope. Each kind of field has its own grammar. hallmark keeps the raw header section and parses it in two layers ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)).
 
 ```mermaid
 flowchart LR
@@ -91,7 +91,7 @@ flowchart LR
     env["MAIL FROM, RCPT TO, decoded mf= and rt="] --> addr
 ```
 
-The field splitter finds where each field starts and ends, and unfolds it without copying: a field is a pair of positions in the raw bytes, and `simple` canonicalization hashes those bytes unchanged. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parser, which has a design of its own.
+For fields that arrive one at a time from a milter, hallmark first rebuilds those bytes from each name and value (STR-008). The field splitter finds where each field starts and ends. A field is a pair of positions in the raw bytes, so splitting copies nothing, and `simple` canonicalization hashes those bytes unchanged. A parser that needs the unfolded value of a folded field builds it from the same bytes. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parser, which has a design of its own.
 
 No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and hallmark ignores a DKIM-Signature field that doesn't parse, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
 
