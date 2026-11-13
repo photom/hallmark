@@ -12,6 +12,7 @@ Ordered as the components will be built:
 | [header-fields.md](header-fields.md) | Splitting the header section into fields, unfolding, obsolete forms, and fields from a milter | `FLD` |
 | [tag-lists.md](tag-lists.md) | Tag=value lists in DKIM and DKIM2, and the decoders of their values | `TAG` |
 | [authentication-results.md](authentication-results.md) | Parsing and generating Authentication-Results | `ARH` |
+| [addresses.md](addresses.md) | Header addresses, envelope paths and HELO names, the lookup form of domain names, and the checks that read addresses | `ADDR`, `PATH`, `DOM` |
 
 Each new area gets its file before its first test.
 
