@@ -1,0 +1,45 @@
+# Test scenarios: Tag lists
+
+Scenarios for the tag=value list parser that DKIM and DKIM2 share (RFC 6376 §3.2, draft-09 §8), and for the decoders of tag values. Conventions are in [README.md](README.md).
+
+The parser gets a header field value or the text of a DNS record, with any folding as it arrived.
+
+## Tag lists
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| TAG-001 | unit | `v=1; a=rsa-sha256` | the list is parsed | two tags: `v` with the value `1`, and `a` with `rsa-sha256` | [HDR-006](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2) |
+| TAG-002 | unit | ` a = x y ;  b=z;` | the list is parsed | `a` is `x y` and `b` is `z`: the white space around a tag and before `;` isn't part of its value, the space inside `x y` is, and the final `;` is allowed | [HDR-006](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2), [draft-09 §8](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-8) |
+| TAG-003 | unit | `a=1; a=2` | the list is parsed | the whole list is invalid, and the error names the duplicate tag `a` | [HDR-006](../reference/requirements.md#header-parsing), [HDR-010](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2), [draft-09 §8](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-8) |
+| TAG-004 | unit | A DKIM-Signature that holds every required tag and also `zz=9` | the signature's tags are read | the list is valid, and DKIM ignores `zz` | [HDR-006](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2) |
+| TAG-005 | unit | `a=; b=1` | the list is parsed | `a` is present with an empty value, which differs from an omitted tag | [HDR-006](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2) |
+| TAG-006 | unit | A DKIM-Signature that holds every required tag, except that its version is written `V=1` | the signature's tags are read | the list holds a tag named `V`, not `v`, so the signature lacks the required `v=` and gets PERMFAIL (signature missing required tag) | [HDR-006](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2), [RFC 6376 §6.1.1](https://www.rfc-editor.org/rfc/rfc6376.html#section-6.1.1) |
+| TAG-007 | unit | `1a=x` | the list is parsed | the list is invalid, and the error names the tag-name rule at offset 0: a tag name starts with a letter | [HDR-006](../reference/requirements.md#header-parsing), [HDR-010](../reference/requirements.md#header-parsing), [RFC 6376 §3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.2) |
+
+## DKIM values
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| TAG-020 | unit | `bh=frcCV1k9oG9oKj3dpUqdJg1P\r\n xRT2RSN/XKdLCPjaYaY=`, folded inside the base64 | the `bh=` value is decoded | the 32-byte SHA-256 hash of `\r\n`, the same as for the unfolded value `frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=` | [HDR-007](../reference/requirements.md#header-parsing), [RFC 6376 §2.10](https://www.rfc-editor.org/rfc/rfc6376.html#section-2.10), [RFC 6376 §3.5](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.5) |
+| TAG-021 | unit | `z=Subject:demo=20run` | the `z=` value is decoded | the copied header field `Subject:demo run` | [HDR-007](../reference/requirements.md#header-parsing), [RFC 6376 §2.11](https://www.rfc-editor.org/rfc/rfc6376.html#section-2.11), [RFC 6376 §3.5](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.5) |
+| TAG-022 | unit | `z=Subject:a=3bb`, with a lowercase hex digit | the `z=` value is decoded | an error: dkim-quoted-printable allows only uppercase hex digits | [HDR-007](../reference/requirements.md#header-parsing), [HDR-010](../reference/requirements.md#header-parsing), [RFC 6376 §2.11](https://www.rfc-editor.org/rfc/rfc6376.html#section-2.11) |
+| TAG-023 | unit | `h=From : To:\r\n Subject` | the `h=` value is decoded | the names `From`, `To` and `Subject`: the folding white space around the colons isn't part of them | [HDR-007](../reference/requirements.md#header-parsing), [RFC 6376 §3.5](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.5) |
+
+## DKIM2 values
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| TAG-040 | unit | A Message-Instance with `m=1; h=sha256:AAAA:BBBB,sha512:CCCC:DDDD\|x-new:EEEE:FFFF` | the `h=` value is decoded | two groups: one that needs both the `sha256` and the `sha512` hash sets, and one that holds the `x-new` hash set: "," binds more tightly than "\|" | [HDR-007](../reference/requirements.md#header-parsing), [draft-09 §9.3](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-9.3) |
+| TAG-041 | unit | A Message-Instance with `m=1; h=sha256:AAAA:BBBB\|sha256:CCCC:DDDD` | the field is read | PERMERROR, with the string `PERMERROR: Message-Instance m=1 has a duplicate hash algorithm` | [HDR-007](../reference/requirements.md#header-parsing), [DK2-013](../reference/requirements.md#dkim2), [draft-09 §9.3](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-9.3), [draft-09 §14.2](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-14.2) |
+| TAG-042 | unit | A DKIM2-Signature with `s=one:rsa-sha256:AAAA,two:mldsa44:BBBB\|three:ed25519-sha256:CCCC` | the `s=` value is decoded | two groups: `one` with `rsa-sha256` and `two` with `mldsa44`, which must both pass, or `three` with `ed25519-sha256` alone | [HDR-007](../reference/requirements.md#header-parsing), [draft-09 §10.9](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-10.9) |
+| TAG-043 | unit | A DKIM2-Signature with `i=1` that has every required tag, and whose `s=` is `one:rsa-sha256:AAAA\|one:ed25519-sha256:BBBB` | the field is read | PERMERROR, with the string `PERMERROR: DKIM2-Signature i=1 has a duplicate selector` | [HDR-007](../reference/requirements.md#header-parsing), [DK2-013](../reference/requirements.md#dkim2), [draft-09 §10.9](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-10.9), [draft-09 §14.2](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-14.2) |
+| TAG-044 | unit | A DKIM2-Signature with `mf=PGFAdm9pZC5pbnZhbGlkPg==` and `rt=PGJAdm9pZC5pbnZhbGlkPg==,PGNAdm9pZC5pbnZhbGlkPg==` | the `mf=` and `rt=` values are decoded | `mf=` is the path `<a@void.invalid>`, and `rt=` holds `<b@void.invalid>` and `<c@void.invalid>`, angle brackets included | [HDR-008](../reference/requirements.md#header-parsing), [draft-09 §10.5](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-10.5), [draft-09 §10.6](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-10.6) |
+| TAG-045 | unit | A DKIM2-Signature with `mf=PD4=` | the `mf=` value is decoded | the null path `<>` | [HDR-008](../reference/requirements.md#header-parsing), [draft-09 §10.5](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-10.5) |
+| TAG-046 | unit | A Message-Instance with `r=eyJiIjpbeyJjIjpbMSwyXX1dfQ==` | the `r=` value is decoded | the JSON object `{"b":[{"c":[1,2]}]}` | [HDR-008](../reference/requirements.md#header-parsing), [draft-09 §9.2](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-9.2), [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259.html) |
+| TAG-047 | unit | A Message-Instance with `m=1; h=sha256:AAAA:BBBB; r=eyJiIjo=`, where `r=` is the base64 of `{"b":` | the field is read | PERMERROR, with the string `PERMERROR: Message-Instance m=1 contains invalid JSON` | [HDR-008](../reference/requirements.md#header-parsing), [DK2-013](../reference/requirements.md#dkim2), [draft-09 §14.2](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-14.2) |
+
+## Fuzzing
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| TAG-060 | fuzz | The tag=value list parser and each value decoder | they are fuzzed | none of them panics, and every error names a rule and an offset | [SAF-001](../reference/requirements.md#hostile-input), [SAF-003](../reference/requirements.md#hostile-input), [HDR-010](../reference/requirements.md#header-parsing) |

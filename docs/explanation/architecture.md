@@ -76,6 +76,25 @@ The state stays the same size however large the message is, and the core never k
 
 Header fields arrive whole, one per call, so they need no carry-over. The core does keep all header fields of a message, because DKIM picks signed fields from the bottom up and DKIM2 header recipes rebuild earlier header sets. The header limits (SAF-002) bound that memory.
 
+## Reading header fields
+
+Every check reads header fields, and each kind of field has its own grammar. hallmark keeps the raw header section and parses it in two layers ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)).
+
+```mermaid
+flowchart LR
+    raw["Header section, raw bytes kept"] --> split["Field splitter"]
+    split --> tags["Tag=value lists"]
+    split --> ar["Authentication-Results"]
+    split --> from["From field"]
+    tags --> dkim["DKIM and DKIM2"]
+    from --> addr["Address parser"]
+    env["MAIL FROM, RCPT TO, decoded mf= and rt="] --> addr
+```
+
+The field splitter finds where each field starts and ends, and unfolds it without copying: a field is a pair of positions in the raw bytes, and `simple` canonicalization hashes those bytes unchanged. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parser, which has a design of its own.
+
+No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and a DKIM-Signature field that doesn't parse is ignored, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
+
 ## DKIM2 chains in one pass
 
 A DKIM2 hop that changes a message records a recipe for undoing the change. To check the signature of an earlier hop, the verifier rebuilds that hop's version of the body from the current one and hashes it. Draft-09 §5.1 and §5.2 require the copy steps of a recipe to be in ascending order and not to overlap, so each earlier version takes its lines from the version after it in the order they stream past.

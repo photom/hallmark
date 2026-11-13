@@ -14,6 +14,8 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0008](0008-dkim2-recipe-line-numbers-count-the-raw-body.md) | DKIM2 recipe line numbers count the raw body | Accepted |
 | [0009](0009-requirements-and-tests-come-only-from-the-specifications.md) | Requirements and tests come only from the specifications | Accepted |
 | [0010](0010-a-dkim-l-tag-larger-than-the-body-gets-no-special-rule.md) | A DKIM `l=` larger than the body gets no special rule | Accepted |
+| [0011](0011-header-parsers-follow-the-abnf-and-never-repair-input.md) | Header parsers follow the ABNF and never repair input | Accepted |
+| [0012](0012-hallmark-reads-no-mime-structure.md) | hallmark reads no MIME structure | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

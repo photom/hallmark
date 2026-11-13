@@ -52,6 +52,8 @@ Out of scope:
 - Sender ID, ADSP and BIMI
 - Sending DMARC aggregate or failure reports. The library parses `rua` and `ruf` but sends nothing.
 - Network code in the core: no DNS resolver implementation and no SMTP handling
+- MIME parsing. For now, this leaves out checking DKIM2 delivery status notifications (draft-09 §16.4) ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)).
+- Received-SPF header fields (RFC 7208 §9.1), for now. SPF results go in Authentication-Results (RFC 7208 §9.2, AR-001).
 
 ## Functional requirements
 
@@ -186,6 +188,24 @@ What the trace shows for each protocol:
 | DNS-004 | The library ships a resolver that answers from a saved snapshot (TRC-008). Tests, the demo's pasted-records mode and bug reports all use it. |
 | DNS-005 | The DNS questions for DKIM and DKIM2 keys, for DKIM2 Domain Policy Records and for DMARC policy are available once the header fields are complete, so the caller can resolve them while the body streams. SPF needs only the envelope, so its questions are available before the message. |
 
+### Header parsing
+
+hallmark parses every header field it uses with its own parsers, written from the ABNF ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)), and reads no MIME structure ([ADR 0012](../adr/0012-hallmark-reads-no-mime-structure.md)). Addresses, in header fields and in the envelope, have a design of their own, which this section doesn't cover.
+
+| ID | Requirement |
+|---|---|
+| HDR-001 | The header section parser splits a message's header section into header fields, each with its name, its unfolded value and its exact raw bytes. The header section ends at the first empty line (RFC 5322 §2.1). The parser never changes the raw bytes, because `simple` header canonicalization hashes them as they arrived (RFC 6376 §3.4.1). |
+| HDR-002 | Field names match without regard to case, as ABNF strings do (RFC 5234 §2.3) and as RFC 6376 §6.1.3 requires when it matches `h=` against the message. |
+| HDR-003 | Unfolding removes each CRLF that is followed by WSP (RFC 5322 §2.2.3). The parser also accepts the obsolete forms: folded lines made only of white space (§4.2), and white space between a field name and its colon (§4.5). |
+| HDR-004 | Field values may contain UTF-8 (RFC 6532 §3.2). Field names stay printable US-ASCII without the colon (RFC 5322 §2.2). A line that isn't a header field stays a separate malformed line with its raw bytes ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)). |
+| HDR-005 | The same parsers serve both input forms of STR-008: a raw header section, and fields that arrive one at a time from a milter. |
+| HDR-006 | One parser reads the tag=value lists of DKIM-Signature, Message-Instance and DKIM2-Signature header fields, and of DKIM keys, DKIM2 keys and Domain Policy Records, because RFC 6376 §3.2 and draft-09 §8 define the same grammar. Tag names are case-sensitive, a duplicate tag makes the whole list invalid, an unrecognized tag is ignored, and an empty value differs from an omitted tag. |
+| HDR-007 | Tag values are decoded by the rules of their tag: base64 with folding white space ignored (RFC 6376 §2.10 and §3.5, draft-09 §2.14), dkim-quoted-printable with uppercase hex digits only (RFC 6376 §2.11), the colon-separated header field names of DKIM `h=` (§3.5), and the DKIM2 `s=` and `h=` groups, where "," binds more tightly than "\|" (draft-09 §9.3 and §10.9). |
+| HDR-008 | DKIM2 `mf=` and `rt=` values decode from base64 to the RFC 5321 paths they record, angle brackets included (draft-09 §10.5 and §10.6). An `r=` value decodes from base64 to a JSON object (draft-09 §9.2, RFC 8259), parsed within the limits of SAF-002. |
+| HDR-009 | The Authentication-Results parser follows RFC 8601 §2.2: the authserv-id, the optional version, `none`, and each result with its method, method version, reason and properties, with comments wherever the grammar allows CFWS. Values follow the token and quoted-string rules of RFC 2045 §5.1. AR-003 uses this parser. |
+| HDR-010 | Input that doesn't match its grammar yields an error, never a repaired value. The error names the rule that failed and the byte offset, and the trace records it ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)). |
+| HDR-011 | Parsers read input left to right without recursion. Nested comments (RFC 5322 §3.2.2) count against a depth limit (SAF-002). |
+
 ## Non-functional requirements
 
 ### I/O only through the caller
@@ -232,8 +252,8 @@ flowchart LR
 | ID | Requirement |
 |---|---|
 | SAF-001 | No input makes the library panic: not a message, a DNS answer, or a record ([ADR 0004](../adr/0004-no-input-makes-hallmark-panic.md)). |
-| SAF-002 | Limits with defaults cover the header field count and size, the signatures checked per message, the author domains evaluated per message (DMC-002), the DNS questions per check, the key size, recursion depth, and for DKIM2 the number of Message-Instances, the recipe steps, and the size and nesting depth of recipe JSON. Draft-09 §20 sets no limits on recipes, and §14.2 lets a verifier refuse recipes that are too complex. Hitting a limit gives the protocol's error result and a trace step. |
-| SAF-003 | Every parser has a fuzz target: the SPF record, the DKIM tag list, the key record, the DMARC record, Authentication-Results, and canonicalization. |
+| SAF-002 | Limits with defaults cover the header field count and size, the nesting depth of comments, the entries in one `rt=` tag, the signatures checked per message, the author domains evaluated per message (DMC-002), the DNS questions per check, the key size, recursion depth, and for DKIM2 the number of Message-Instances, the recipe steps, and the size and nesting depth of recipe JSON. Draft-09 §20 sets no limits on recipes, and §14.2 lets a verifier refuse recipes that are too complex. Hitting a limit gives the protocol's error result and a trace step. |
+| SAF-003 | Every parser has a fuzz target: the header section, the tag=value list and its value decoders for DKIM and DKIM2 fields and key records, DKIM2 recipe JSON, the SPF record, the DMARC record, Authentication-Results, and canonicalization. |
 | SAF-004 | Memory use stays bounded by the input size and the configured limits. |
 
 ### Private keys

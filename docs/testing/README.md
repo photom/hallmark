@@ -9,6 +9,9 @@ Ordered as the components will be built:
 | File | Area | ID prefix |
 |------|------|-----------|
 | [canonicalization.md](canonicalization.md) | Body canonicalization for DKIM and DKIM2, line endings, chunk boundaries, and `l=` | `CAN` |
+| [header-fields.md](header-fields.md) | Splitting the header section into fields, unfolding, obsolete forms, and fields from a milter | `FLD` |
+| [tag-lists.md](tag-lists.md) | Tag=value lists in DKIM and DKIM2, and the decoders of their values | `TAG` |
+| [authentication-results.md](authentication-results.md) | Parsing and generating Authentication-Results | `ARH` |
 
 Each new area gets its file before its first test.
 
