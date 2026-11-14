@@ -37,14 +37,14 @@ Repeat this cycle for each test on the list.
 
 - Write the assertion first, then work backward to the setup and the implementation.
 - Prefer unit tests for pure functions.
-- Use in-memory implementations to test repositories quickly and in isolation.
+- Answer DNS questions from the snapshot resolver (DNS-004), so tests make no network calls and give the same result on every run.
 - Design for testability: inject dependencies and leave hooks where tests need them.
 
 ### Coverage
 
 - Write unit tests for every public function, and run them after each task.
 - Run a linter continuously.
-- End-to-end tests must cover more than the happy path. Include error handling, boundary values, path traversal and URL encoding (`%xx`), unsupported or unauthorized methods, special characters, and invalid payloads.
+- End-to-end tests must cover more than the happy path. Include malformed messages and DNS records, temporary DNS failures, and boundary values such as the SPF lookup limits and the trace size limits. Add unsupported algorithms and versions, internationalized addresses and header fields, and the encodings hallmark decodes, such as base64 and dkim-quoted-printable.
 
 ### CI/CD
 
@@ -72,4 +72,4 @@ Repeat this cycle for each test on the list.
 - design-master sets the structural boundaries (DDD, Clean Architecture) that TDD works within.
 - docs-first documents the architecture that the tests implement.
 - rust-master covers Rust implementation patterns and unit testing.
-- external-integration covers tests for external APIs and mocked network responses.
+- external-integration covers tests for resolvers and recorded DNS over HTTPS responses.

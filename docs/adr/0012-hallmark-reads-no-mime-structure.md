@@ -34,7 +34,7 @@ Option (c).
 ## Consequences
 
 Positive:
-- Less code and less attack surface. Body streaming stays as it is.
+- hallmark has less code and less attack surface. Body streaming stays as it is.
 - The draft's delivery status notification rules can settle before hallmark implements them.
 
 Negative:

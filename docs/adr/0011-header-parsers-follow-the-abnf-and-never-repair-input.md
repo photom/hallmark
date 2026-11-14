@@ -12,7 +12,7 @@ The specifications ask for two different attitudes:
 - RFC 5322 §4 says obsolete forms "MUST NOT be generated", but "they MUST be accepted and parsed by a conformant receiver". It adds that a message matching no grammar is no reason for a program to crash.
 - RFC 6376 §6.1.1 says that for DKIM-Signature fields, "any inconsistency or unexpected values MUST cause the header field to be completely ignored", and that "Being 'liberal in what you accept' is definitely a bad strategy in this security context". Draft-09 §14.2 asks DKIM2 verifiers to "meticulously validate" their header fields.
 
-Guessing is dangerous here. RFC 9989 §11.5 describes messages crafted with several From domains to get past DMARC while the mail client shows the spoofed one. When a parser repairs a broken field, it can read a different domain from the one a mail client displays.
+A parser that guesses can help an attacker. RFC 9989 §11.5 describes messages crafted with several From domains to get past DMARC while the mail client shows the spoofed one. When a parser repairs a broken field, it can read a different domain from the one a mail client displays.
 
 RFC 5322 §3.2.2 lets comments nest, so a naive recursive parser can be driven into deep recursion by input.
 

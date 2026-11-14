@@ -37,23 +37,27 @@ description: Project Rust conventions for naming, module layout, error handling,
 
 ## Async code
 
-The hallmark core has no async runtime and does no I/O: the caller drives DNS and streams. These rules apply to `hallmark-wasm`, to examples, and to tests.
+The hallmark core has no async runtime and does no I/O: the caller drives DNS and streams, and a check holds no future and no socket (ADR 0001). Async code lives in the library's driver, in `hallmark-wasm`, in examples, and in tests.
 
-### Cancellation and shutdown
+### Runtime independence
 
-- Implement graceful shutdown with `tokio::select!` and `tokio_util::sync::CancellationToken`.
-- Every connection loop must stop when the token is cancelled.
-- Leave partial operations in a consistent state when cancellation interrupts them.
+- The driver awaits the resolver's futures and depends on no async runtime (DNS-003). Do not make `crates/hallmark` depend on Tokio or any other runtime.
+- `hallmark-wasm` runs on the browser's event loop, where DNS over HTTPS goes through `fetch` and its promises.
+
+### Cancellation
+
+- A caller cancels a check by dropping it or by dropping the driver's future. Write the driver so that a drop at any `.await` leaves nothing to clean up.
+- In examples and tests that run on Tokio, stop tasks with `tokio::select!` and `tokio_util::sync::CancellationToken`.
 
 ### Executor safety
 
-- Do not run synchronous I/O or CPU-heavy work on the executor. Move it to `spawn_blocking`.
+- On Tokio, do not run synchronous I/O or CPU-heavy work on the executor. Move it to `spawn_blocking`.
 - Do not hold a `std::sync` mutex guard across an `.await`. The guard makes the future `!Send`.
 
 ### Async tests
 
-- Use `#[tokio::test]` for async unit tests.
-- Consider `loom` for testing concurrency primitives.
+- Test the driver without Tokio, so the tests show that it needs no runtime.
+- Use `#[tokio::test]` for async tests of examples that run on Tokio.
 
 ## Bounded Contexts in modules
 
@@ -92,4 +96,4 @@ The hallmark core has no async runtime and does no I/O: the caller drives DNS an
 
 - canon-tdd: TDD for Rust development.
 - design-master: the Bounded Context strategy behind the module rules.
-- external-integration: resilient calls to external APIs.
+- external-integration: resolvers, DNS over HTTPS, retries and caching.

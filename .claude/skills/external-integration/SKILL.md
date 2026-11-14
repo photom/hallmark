@@ -1,67 +1,61 @@
 ---
 name: external-integration
-description: Rules and reliability patterns for integrating with external systems, APIs, and third-party SaaS. Use when code crosses a domain boundary, to keep coupling loose, data consistent, retries safe, and external data validated.
+description: Rules for code that talks to DNS for hallmark, such as the DNS over HTTPS resolver in `hallmark-wasm`, the snapshot resolver, and resolvers that callers write. Use when writing or reviewing a resolver, its retries and caching, or how it checks and reports answers.
 ---
 
 # External system integration
 
-Apply these rules when internal code talks to an external domain: a third-party API, a SaaS product, or a separate microservice.
+The hallmark core reaches nothing outside itself. It hands DNS questions to a resolver that the caller supplies and takes the answers back (DNS-001, ADR 0001). The outside system is DNS, reached through a resolver: the native one that hallmark-milter supplies, the DNS over HTTPS resolver in `hallmark-wasm`, or the snapshot resolver that tests and the demo use (DNS-004). Apply these rules when you write or review a resolver.
 
-## 1. Domain boundaries and consistency
+## 1. The resolver boundary
 
-- Keep internal and external domains separate, so that a design change or outage on the other side has limited effect on yours.
-- Prefer eventual consistency over strong consistency for external integrations. It keeps your system running when the other side is slow or down.
-- Treat external data as a reference. Store the external system's reference key in place of a copy of its data structure, so a change in their schema does not force a migration in yours.
+- Keep DNS behind the resolver interface. The core sees questions and answers, and no socket, HTTP status or server format reaches it.
+- Map every answer to one of the four outcomes that DNS-002 names: records found, name does not exist, no records of that type, and temporary failure. SPF void lookups and temporary errors depend on the difference.
+- hallmark keeps no store of its own. A resolver that caches answers drops each record when its TTL runs out (RFC 1035 §3.2.1), and drops a negative answer when the TTL taken from the SOA record runs out (RFC 2308 §5).
 
-## 2. Retrieval and caching
+## 2. Trust and validation
 
-- For data you read rarely, fetch it on demand by reference key. The data stays fresh and the coupling stays low.
-- For data you read often or that is mission critical, cache volatile data in a cache such as Valkey or Redis. If you cache in an RDBMS, keep the cache in its own tables or database, physically or logically.
+- Never trust an answer. A DNS server, a DoH server, or a record pasted into the demo can return malformed or hostile data at any time.
+- Check that the question section of a response matches the question you asked before you hand the answer to the core (RFC 1035 §7.3).
+- The trace records every DNS question and answer (TRC-008). A resolver that also logs them treats the names as message data, because they come from addresses in the message (TRC-006). Keep message content and private keys out of every log.
 
-## 3. Trust and validation
+## 3. Retries and time limits
 
-- Never trust an external response. Third-party and SaaS systems can return unexpected, malicious, or malformed data at any time.
-- Log every request to and response from an external system so you can troubleshoot later. Mask PII, credentials, and oversized payloads. Keep message content and keys out of the log.
-- Filter, normalize, and validate all incoming data. Log a validation failure as `ERROR` right away, because it can mean the provider changed the API without notice.
+- Retry on connection errors, timeouts, and HTTP `5xx` status codes.
+- Use exponential backoff with jitter ("full jitter", for example), starting from a short interval. Jitter keeps many clients from retrying in lockstep.
+- Treat `429 Too Many Requests` (RFC 6585 §4) and `503` as retryable. If the response carries a `Retry-After` header (RFC 9110 §10.2.3), wait that long in place of the computed backoff.
+- Stop retrying before the time limit the caller sets, and report a temporary failure. RFC 7208 §4.6.4 asks for a limit on the time an SPF check takes, of at least 20 seconds, with `temperror` when the check runs past it.
 
-## 4. Reliability patterns
+## 4. DNS over HTTPS
 
-### Retries
+- A DoH server sends every valid DNS response with a `2xx` status, SERVFAIL and NXDOMAIN included, so read the outcome from the DNS response code (RFC 8484 §4.2.1).
+- A response with any other status carries no DNS reply (RFC 8484 §4.2.1). Retry it as section 3 says, or report a temporary failure.
 
-- Retry on `5xx` status codes, connection errors, and timeouts.
-- Default to 10 attempts at most.
-- Use exponential backoff with jitter ("full jitter", for example), starting from a short interval under 10 seconds. Jitter keeps many clients from retrying in lockstep.
-- If you use a fixed interval against an external SaaS system, wait 1 minute between attempts so transient load can clear.
-- Treat `429 Too Many Requests` and `503` as retryable. When the response carries a `Retry-After` header (RFC 9110, RFC 6585), wait that long in place of the computed backoff.
-- Retry automatically only for idempotent requests (`GET`, `PUT`, `DELETE`) or for requests that carry an idempotency key. Do not retry a plain `POST`.
+## 5. Failure tests
 
-### Safe writes
-
-- Use `PATCH` for partial updates when the API offers it.
-- If the API offers only `PUT`, `GET` the current state first and merge your changes into it. Otherwise you can delete attributes the provider added that your system does not know about yet.
-- Send that `PUT` as a conditional request with `If-Match: <ETag from the GET>` (RFC 9110). If someone else changed the resource between your `GET` and `PUT`, you get `412 Precondition Failed`; re-fetch, merge again, and retry. Without the condition, their change is lost without any error.
-
-### Failure tests
-
-Write unit tests for the unlikely external cases: unexpected JSON schemas, empty responses, `403`, and `429` both with and without `Retry-After`.
+Write unit tests for the unlikely cases: malformed DNS messages, empty answers, an answer to a different question, SERVFAIL and NXDOMAIN inside a `200` response, `403`, and `429` both with and without `Retry-After`. Tests make no network calls and use recorded responses.
 
 ## Checklist
 
-- [ ] Store reference keys and do not copy external schemas.
-- [ ] Retry 5xx, 429, and timeout errors with exponential backoff and jitter, and honor `Retry-After`.
-- [ ] Log all external I/O with masking.
-- [ ] Validate every field of an external response before you use it.
+- [ ] Map every answer to one of the four outcomes of DNS-002.
+- [ ] Keep cached answers no longer than their TTL.
+- [ ] Retry 5xx, 429, and timeout errors with exponential backoff and jitter, honor `Retry-After`, and stop within the caller's time limit.
+- [ ] Check that each response answers the question you asked.
+- [ ] Keep message content and private keys out of logs.
 - [ ] Unit-test malformed and unexpected responses.
 
 ## Sources
 
-- Enterprise Integration Patterns, messaging channels and decoupling: loose coupling and reference keys.
+- RFC 1035 §3.2.1 and §7.3, RFC 2308 §5: caching answers and matching them to questions.
+- RFC 7208 §4.6.4: the time limit on an SPF check.
+- RFC 8484 §4.2.1: DNS and HTTP errors in DNS over HTTPS.
+- RFC 9110 §10.2.3 and RFC 6585 §4: `Retry-After` and `429`.
 - AWS Architecture Blog, "Exponential Backoff and Jitter": retry strategy.
-- Microsoft Azure design patterns, Anti-Corruption Layer: protecting the internal domain from external schema changes.
+- Microsoft Azure design patterns, Anti-Corruption Layer: keeping an outside format out of the internal domain.
 
 ## Related skills
 
 - design-master: architectural boundaries such as Anti-Corruption Layers.
-- canon-tdd: testing these integrations.
-- rust-master: Rust implementation, such as Tokio retries and Serde validation.
+- canon-tdd: testing resolvers.
+- rust-master: async rules for the driver and `hallmark-wasm`.
 - docs-first: diagram the external connections before you build them.
