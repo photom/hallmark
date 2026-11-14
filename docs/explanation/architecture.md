@@ -115,7 +115,7 @@ Each part keeps the text it had in the input, because the trace shows it and bec
 
 The two grammars differ in the characters a domain may hold. A header domain may hold any ASCII that RFC 5322 allows, and hallmark looks it up as written ([ADR 0015](../adr/0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)). An envelope domain holds only letters, digits and hyphens, as RFC 5321 says.
 
-An ADR records hallmark's reading wherever the RFCs leave a case open: a From address with a domain literal gives DMARC no author domain ([ADR 0014](../adr/0014-a-from-domain-literal-gives-dmarc-no-author-domain.md)), and SPF macros expand the local part as written ([ADR 0016](../adr/0016-spf-macros-expand-the-local-part-as-written.md)). One question stays open in [hallmark#4](https://github.com/photom/hallmark/issues/4): how the DKIM2 chain of custody compares quoted local parts and source routes.
+An ADR records hallmark's reading wherever the RFCs leave a case open: a From address with a domain literal gives DMARC no author domain ([ADR 0014](../adr/0014-a-from-domain-literal-gives-dmarc-no-author-domain.md)), SPF macros expand the local part as written ([ADR 0016](../adr/0016-spf-macros-expand-the-local-part-as-written.md)), and the DKIM2 chain of custody compares local parts as written and ignores source routes ([ADR 0017](../adr/0017-dkim2-compares-local-parts-as-written-and-ignores-source-routes.md)). The DKIM2 reading stays under review in [hallmark#4](https://github.com/photom/hallmark/issues/4) until a revision of the draft settles it.
 
 ## DKIM2 chains in one pass
 
