@@ -97,7 +97,7 @@ No parser repairs its input. A From field that doesn't parse gives DMARC no auth
 
 ## Reading addresses
 
-hallmark reads addresses in two grammars. Header fields follow RFC 5322, with display names, comments, groups and the obsolete forms of §4.4. The SMTP envelope follows RFC 5321, with angle brackets, the null path `<>` and source routes. The checks then compare what they found across both: DMARC aligns the MAIL FROM domain with the From domain, and DKIM2 matches `mf=` against MAIL FROM and the From domain against `d=`. To make those comparisons possible, hallmark has one parser per grammar, and both return the same parts. A DKIM `i=` value uses the RFC 5321 local part (RFC 6376 §2.9), so the envelope parser reads it, and other domain names, such as `d=` and the domains SPF reaches, get the same lookup form.
+hallmark reads addresses in two grammars. Header fields follow RFC 5322, with display names, comments, groups and the obsolete forms of §4.4. The SMTP envelope follows RFC 5321, with angle brackets, the null path `<>` and source routes. The checks then compare what they found across both: DMARC aligns the MAIL FROM domain with the From domain, and DKIM2 matches `mf=` against MAIL FROM and the From domain against `d=`. To make those comparisons possible, hallmark has one parser per grammar, and both return the same parts. A DKIM `i=` value uses the RFC 5321 local part (RFC 6376 §2.9), so the envelope parser reads it.
 
 ```mermaid
 flowchart LR
@@ -111,7 +111,7 @@ flowchart LR
     lookup --> spf["SPF sender, domain and macros"]
 ```
 
-Each part keeps the text it had in the input, because the trace shows it and because some checks compare it exactly. A local part also carries its value with the quoting removed, and a domain name carries a lookup form, in which every U-label becomes an A-label under RFC 5891, and every DNS question and comparison uses that form. hallmark does the conversion itself, with tables for one fixed Unicode version, and maps nothing ([ADR 0013](../adr/0013-hallmark-converts-domain-names-to-a-labels-with-its-own-rfc-5891-code.md)). hallmark never makes a DNS question for an address literal.
+Each part keeps the text it had in the input, because the trace shows it and because some checks compare it exactly. A local part also carries its value with the quoting removed. A domain name carries a lookup form, in which every U-label becomes an A-label under RFC 5891, and every DNS question and comparison uses that form. Domain names outside addresses, such as DKIM `d=` and the domains SPF reaches, get the same lookup form. hallmark does the conversion itself, with tables for one fixed Unicode version, and maps nothing ([ADR 0013](../adr/0013-hallmark-converts-domain-names-to-a-labels-with-its-own-rfc-5891-code.md)). hallmark never makes a DNS question for an address literal.
 
 The two grammars differ in the characters a domain may hold. A header domain may hold any ASCII that RFC 5322 allows, and hallmark looks it up as written ([ADR 0015](../adr/0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)). An envelope domain holds only letters, digits and hyphens, as RFC 5321 says.
 
