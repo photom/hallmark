@@ -6,7 +6,7 @@
 
 ## Context
 
-hallmark runs in two very different hosts. hallmark-milter runs on Tokio inside a mail server. The browser demo runs in WebAssembly, where DNS over HTTPS goes through `fetch` and its promises. The two hosts share no async runtime, and the browser has no sockets.
+hallmark runs in two different hosts. hallmark-milter runs on Tokio inside a mail server. The browser demo runs in WebAssembly, where DNS over HTTPS goes through `fetch` and its promises. The two hosts share no async runtime, and the browser has no sockets.
 
 Every check needs data from outside: DNS records, the time the message was received, and the message itself. RFC 7489's `pct` sampling and DKIM2's ML-DSA-44 signing also need random numbers. Messages can be large, and a milter receives the body in chunks of up to 65,535 bytes, cut at arbitrary points.
 

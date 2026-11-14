@@ -8,7 +8,7 @@
 
 hallmark's main feature is a trace that explains each verification step by step: which SPF mechanism matched, which DNS answer ended a lookup, why a body hash differed, which domain aligned for DMARC. Operators today get one word, such as `fail`, and work out the reason by hand.
 
-A trace that disagrees with the result is worse than no trace. A trace that grows with hostile input is a denial-of-service risk. A trace that holds message content raises privacy questions for a milter that handles other people's mail. And hallmark-milter checks mail all day, so tracing must cost nothing when it is off.
+A trace that disagrees with the result is worse than no trace. If a trace grows with hostile input, it is a denial-of-service risk. Message content in a trace raises privacy questions for a milter that handles other people's mail. hallmark-milter also checks mail all day, so tracing must cost nothing when it is off.
 
 ## Options considered
 

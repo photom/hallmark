@@ -36,7 +36,7 @@ Positive:
 - New users get the current standard by default.
 
 Negative:
-- Two ways to find the organizational domain means two code paths and two sets of scenarios.
+- Two ways to find the organizational domain mean two code paths and two sets of scenarios.
 - RFC 7489 mode needs a Public Suffix List. Whether the caller supplies it or the crate bundles a copy is still open (requirements.md, Open items).
 
 ## References
