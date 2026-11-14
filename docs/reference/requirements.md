@@ -11,6 +11,39 @@ Two programs use the library:
 - hallmark-milter, a separate repository, signs and verifies mail inside a Sendmail or Postfix MTA.
 - The browser demo, in this repository, shows what hallmark does and doubles as a test bench.
 
+## Contents
+
+- [Context](#context)
+- [Scope](#scope)
+- [Functional requirements](#functional-requirements)
+  - [General](#general)
+  - [Running a check](#running-a-check)
+  - [SPF (RFC 7208)](#spf-rfc-7208)
+  - [DKIM verification](#dkim-verification)
+  - [DKIM signing](#dkim-signing)
+  - [Signers](#signers)
+  - [DKIM2](#dkim2)
+  - [DMARC](#dmarc)
+  - [Authentication-Results (RFC 8601)](#authentication-results-rfc-8601)
+  - [Trace and reasoning](#trace-and-reasoning)
+  - [Verification time](#verification-time)
+  - [DNS](#dns)
+  - [Parsers](#parsers)
+  - [Header parsing](#header-parsing)
+  - [Addresses and domain names](#addresses-and-domain-names)
+- [Non-functional requirements](#non-functional-requirements)
+  - [I/O only through the caller](#io-only-through-the-caller)
+  - [Streaming](#streaming)
+  - [WebAssembly](#webassembly)
+  - [Hostile input](#hostile-input)
+  - [Private keys](#private-keys)
+  - [Stability and licensing](#stability-and-licensing)
+- [Repository and deliverables](#repository-and-deliverables)
+- [Browser demo](#browser-demo)
+- [Quality and process](#quality-and-process)
+- [Relationship to hallmark-milter](#relationship-to-hallmark-milter)
+- [Open items](#open-items)
+
 ## Context
 
 ```mermaid
@@ -398,6 +431,7 @@ The hallmark repository is a Cargo workspace ([ADR 0005](../adr/0005-the-demo-li
 Process:
 
 - Documentation follows Diátaxis, with one type per document.
+- Each document with two or more sections opens with a contents list. ADRs keep the form they were accepted in.
 - Architecture decisions are ADRs in [docs/adr](../adr/README.md).
 - Test scenarios are Given/When/Then tables in [docs/testing](../testing/README.md), written before their tests, with IDs that link to the requirement IDs here.
 - Code follows Canon TDD, the procedural Rust style ([ADR 0003](../adr/0003-rust-code-is-written-in-a-procedural-style.md)), and the panic rule ([ADR 0004](../adr/0004-no-input-makes-hallmark-panic.md)).
