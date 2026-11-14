@@ -4,6 +4,15 @@ Scenarios for the header section parser: splitting the header section into field
 
 Unless a scenario says otherwise, the parser gets a raw header section with CRLF line endings, and a field's value is its unfolded text after the colon.
 
+## Contents
+
+- [Splitting and unfolding](#splitting-and-unfolding)
+- [Obsolete forms](#obsolete-forms)
+- [Characters and malformed lines](#characters-and-malformed-lines)
+- [Line endings](#line-endings)
+- [Fields from a milter](#fields-from-a-milter)
+- [Properties](#properties)
+
 ## Splitting and unfolding
 
 | ID | Level | Given | When | Then | Spec |

@@ -2,17 +2,29 @@
 
 The test scenarios for hallmark, written before the code as the Canon TDD test list. Like the [architecture decision records](../adr/README.md), these documents sit outside the Diátaxis structure of the rest of `docs/`. Each scenario links to a [requirement](../reference/requirements.md) and, where one applies, to the section of the RFC or draft it checks ([ADR 0009](../adr/0009-requirements-and-tests-come-only-from-the-specifications.md)).
 
+## Contents
+
+- [Files](#files)
+- [Format](#format)
+- [Rules](#rules)
+
 ## Files
 
 Ordered as the components will be built:
 
 | File | Area | ID prefix |
 |------|------|-----------|
+| [parsers.md](parsers.md) | Rules that every parser shares: errors, byte ranges, numbers, limits and nesting | `PRS` |
+| [trace.md](trace.md) | Trace levels and limits, step codes, the order of steps, marked values, cautions and hints | `STEP` |
 | [canonicalization.md](canonicalization.md) | Body canonicalization for DKIM and DKIM2, line endings, chunk boundaries, and `l=` | `CAN` |
 | [header-fields.md](header-fields.md) | Splitting the header section into fields, unfolding, obsolete forms, and fields from a milter | `FLD` |
 | [tag-lists.md](tag-lists.md) | Tag=value lists in DKIM and DKIM2, and the decoders of their values | `TAG` |
 | [authentication-results.md](authentication-results.md) | Parsing and generating Authentication-Results | `ARH` |
 | [addresses.md](addresses.md) | Header addresses, envelope paths and HELO names, the lookup form of domain names, and the checks that read addresses | `ADDR`, `PATH`, `DOM` |
+| [checks.md](checks.md) | Driving a check: input order, questions and answers, caller errors, and the driver | `RUN` |
+| [dns.md](dns.md) | Answer shapes, question names, temporary failures, snapshots, and pasted records | `RES` |
+| [test-modes.md](test-modes.md) | Test modes and the published policy in DKIM and DMARC results | `POL` |
+| [signing.md](signing.md) | Signers, the library's signer for keys in memory, and the changes a DKIM2 Reviser describes | `SIGN` |
 
 Each new area gets its file before its first test.
 

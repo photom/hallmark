@@ -1,6 +1,6 @@
 # ADR 0001: The core does no I/O, and the caller drives it
 
-- Status: Accepted
+- Status: Superseded by ADR 0018
 - Date: 2026-11-13
 - Affects: the public API of `crates/hallmark`, `crates/hallmark-wasm`, and every caller, including hallmark-milter
 

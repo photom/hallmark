@@ -1,5 +1,11 @@
 # Security policy
 
+## Contents
+
+- [Reporting a vulnerability](#reporting-a-vulnerability)
+- [What counts as a vulnerability](#what-counts-as-a-vulnerability)
+- [Supported versions](#supported-versions)
+
 ## Reporting a vulnerability
 
 Report vulnerabilities privately through [GitHub's private vulnerability reporting](https://github.com/photom/hallmark/security/advisories/new). Do not open a public issue, pull request, or discussion for them.

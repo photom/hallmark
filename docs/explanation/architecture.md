@@ -2,6 +2,17 @@
 
 hallmark checks whether a message comes from the domain it claims, and explains how it decided. The [requirements](../reference/requirements.md) list what hallmark must do, and the [ADRs](../adr/README.md) record each decision.
 
+## Contents
+
+- [The parts](#the-parts)
+- [The caller drives each check](#the-caller-drives-each-check)
+- [Streaming without holding the body](#streaming-without-holding-the-body)
+- [Reading header fields](#reading-header-fields)
+- [Reading addresses](#reading-addresses)
+- [DKIM2 chains in one pass](#dkim2-chains-in-one-pass)
+- [The trace](#the-trace)
+- [Where hallmark-milter fits](#where-hallmark-milter-fits)
+
 ## The parts
 
 ```mermaid
@@ -18,13 +29,15 @@ flowchart LR
         ar["Authentication-Results"]
         trace["Trace recorder"]
     end
-    callers -->|"envelope, header fields, body chunks, DNS answers, time"| core
-    core -->|"DNS questions, results, trace, header fields to add"| callers
+    callers -->|"envelope, header fields, body chunks, DNS answers, signatures, time"| core
+    core -->|"DNS questions, data to sign, results, trace, header fields to add"| callers
 ```
 
-The core sits in the middle and talks to nothing on its own. Everything outside it arrives through its callers. hallmark-milter brings mail from an MTA and answers DNS questions with a native resolver. The demo brings a pasted message and answers through DNS over HTTPS or through records pasted into the page. Tests answer from saved snapshots. The same core code runs in all three ([ADR 0001](../adr/0001-the-core-does-no-io-and-the-caller-drives-it.md)).
+The core sits in the middle and talks to nothing on its own. Everything outside it arrives through its callers. hallmark-milter brings mail from an MTA and answers DNS questions with a native resolver. The demo brings a pasted message and answers through DNS over HTTPS or through records pasted into the page. Tests answer from saved snapshots. The same core code runs in all three ([ADR 0018](../adr/0018-the-core-does-no-io-and-the-caller-drives-it.md)). Signing goes the same way: the core hands the data to sign to a signer that the caller chooses, which can keep its key in memory, in a hardware security module or in a key service ([ADR 0019](../adr/0019-signing-goes-through-a-signer-the-caller-supplies.md)).
 
 DMARC builds on the other two. It takes the SPF result for the MAIL FROM domain and the DKIM result for each signature, finds the author domain in the From header field, and checks whether any authenticated domain aligns with it.
+
+hallmark is a library, so it reports and its callers act. A DMARC result carries the policy the domain published and whether the domain is testing, and the caller decides whether to reject, quarantine or deliver the message. The same goes for a DKIM key published in test mode ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)).
 
 ## The caller drives each check
 
@@ -56,9 +69,9 @@ sequenceDiagram
 
 This shape has three effects:
 
-- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver the caller implements.
+- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver, and for signing a signer, that the caller implements.
 - DNS lookups overlap the body. The DKIM selectors, the domains whose DKIM2 Domain Policy Records the From check may need, and the DMARC domain are all known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
-- Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere.
+- Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere. The order in which answers arrive changes nothing, because each answer lands under the step that asked its question.
 
 ## Streaming without holding the body
 
@@ -148,7 +161,7 @@ flowchart TD
     check --> align["Alignment of each identifier"]
 ```
 
-Because the trace comes from the deciding code, it can't disagree with the result. Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes and counts unless the caller asks for content, and private keys never appear at all.
+Because the trace comes from the deciding code, it can't disagree with the result. Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. A fact that a specification warns about, such as a signature that passed with a 1024-bit RSA key, carries a caution that cites the section. Each step holds codes and parameters, and the words a person reads come from them, so tests match codes and the demo can show the trace in another language. Values that a sender or a DNS publisher controls carry a mark, and whoever displays them escapes them for their output. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes and counts unless the caller asks for content, and private keys never appear at all.
 
 ## Where hallmark-milter fits
 

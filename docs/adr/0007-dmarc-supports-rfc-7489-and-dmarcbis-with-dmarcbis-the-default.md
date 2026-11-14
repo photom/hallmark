@@ -1,6 +1,6 @@
 # ADR 0007: DMARC supports RFC 7489 and DMARCbis, with DMARCbis the default
 
-- Status: Accepted
+- Status: Superseded by ADR 0020
 - Date: 2026-11-12
 - Affects: the DMARC code, its public options, and the trace
 
