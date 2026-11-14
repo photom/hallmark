@@ -4,6 +4,11 @@ Scenarios for how DKIM and DMARC results report test modes and the published pol
 
 Unless a row says otherwise, the message fails DMARC, the author domain is `void.invalid`, and the record is published at `_dmarc.void.invalid`.
 
+## Contents
+
+- [DMARC policy and test mode](#dmarc-policy-and-test-mode)
+- [Testing-mode DKIM keys](#testing-mode-dkim-keys)
+
 ## DMARC policy and test mode
 
 | ID | Level | Given | When | Then | Spec |

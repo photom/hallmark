@@ -4,6 +4,11 @@ Scenarios for signing through a signer ([ADR 0019](../adr/0019-signing-goes-thro
 
 Keys in these scenarios are generated while the test runs. A test signer records each request it gets and answers with a signature from such a key.
 
+## Contents
+
+- [Signers](#signers)
+- [Changes that a Reviser describes](#changes-that-a-reviser-describes)
+
 ## Signers
 
 | ID | Level | Given | When | Then | Spec |

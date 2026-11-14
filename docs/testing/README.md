@@ -2,6 +2,12 @@
 
 The test scenarios for hallmark, written before the code as the Canon TDD test list. Like the [architecture decision records](../adr/README.md), these documents sit outside the Diátaxis structure of the rest of `docs/`. Each scenario links to a [requirement](../reference/requirements.md) and, where one applies, to the section of the RFC or draft it checks ([ADR 0009](../adr/0009-requirements-and-tests-come-only-from-the-specifications.md)).
 
+## Contents
+
+- [Files](#files)
+- [Format](#format)
+- [Rules](#rules)
+
 ## Files
 
 Ordered as the components will be built:

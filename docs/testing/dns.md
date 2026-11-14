@@ -2,6 +2,13 @@
 
 Scenarios for the resolver boundary: the shapes of answers, the names hallmark asks for, temporary failures, snapshots, and records pasted into the demo. The parsers of SPF, DMARC and key records get files of their own. Conventions are in [README.md](README.md).
 
+## Contents
+
+- [Answers](#answers)
+- [Question names](#question-names)
+- [Temporary failures and snapshots](#temporary-failures-and-snapshots)
+- [Pasted records](#pasted-records)
+
 ## Answers
 
 | ID | Level | Given | When | Then | Spec |

@@ -4,6 +4,13 @@ Scenarios for the trace: its levels and limits, step codes, the order of steps, 
 
 Unless a row says otherwise, the check runs at the full level, and DNS answers come from a snapshot.
 
+## Contents
+
+- [Levels and limits](#levels-and-limits)
+- [Codes and order](#codes-and-order)
+- [Marked values](#marked-values)
+- [DKIM trace items](#dkim-trace-items)
+
 ## Levels and limits
 
 | ID | Level | Given | When | Then | Spec |
