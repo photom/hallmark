@@ -20,6 +20,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0014](0014-a-from-domain-literal-gives-dmarc-no-author-domain.md) | A From domain literal gives DMARC no author domain | Accepted |
 | [0015](0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md) | hallmark looks up header domains as written, whatever ASCII they hold | Accepted |
 | [0016](0016-spf-macros-expand-the-local-part-as-written.md) | SPF macros expand the local part as written | Accepted |
+| [0017](0017-dkim2-compares-local-parts-as-written-and-ignores-source-routes.md) | DKIM2 compares local parts as written and ignores source routes | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
