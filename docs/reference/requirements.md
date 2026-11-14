@@ -4,6 +4,8 @@ The requirements for hallmark, with an ID for each one. Test scenarios in [docs/
 
 hallmark is a Rust library for email sender authentication. It verifies SPF, DKIM, DKIM2 and DMARC, signs messages with DKIM and DKIM2, and runs both natively and in WebAssembly. Its main feature is a detailed trace that explains every step of every check, so an operator can see why a message passed or failed instead of getting a one-word result.
 
+hallmark is a library. It reports results and leaves every action to its caller: whether to reject or quarantine a message, which header fields to delete, and how to treat a domain that says it is testing (GEN-006).
+
 Two programs use the library:
 
 - hallmark-milter, a separate repository, signs and verifies mail inside a Sendmail or Postfix MTA.
@@ -17,12 +19,14 @@ flowchart LR
     time["Verification time"] --> core
     core -->|"DNS questions"| resolver["Resolver supplied by the caller"]
     resolver -->|"DNS answers"| core
+    core -->|"Data to sign"| signer["Signer supplied by the caller"]
+    signer -->|"Signatures"| core
     core --> out["Results, trace and Authentication-Results"]
     milter["hallmark-milter"] -->|"uses the published crate"| core
     wasm["hallmark-wasm and the browser demo"] -->|"uses the workspace crate"| core
 ```
 
-The caller supplies everything that comes from outside: the message, the DNS answers, the time, and the random values that RFC 7489 `pct` sampling and ML-DSA-44 signing need. With the same inputs, the core always produces the same results and the same trace.
+The caller supplies everything that comes from outside: the message, the DNS answers, the time, and the signatures, which a signer of its choosing computes (SGN-001). The core takes no random values. With the same inputs, the core always produces the same results and the same trace.
 
 ```mermaid
 flowchart LR
@@ -31,7 +35,7 @@ flowchart LR
     from["Author domain from the From header"] --> align
     policy["DMARC policy discovery"] --> eval["DMARC evaluation"]
     align --> eval
-    eval --> result["DMARC result and the policy to apply"]
+    eval --> result["DMARC result and the published policy"]
 ```
 
 ## Scope
@@ -66,6 +70,19 @@ Out of scope:
 | GEN-003 | DKIM and DKIM2 accept a message as a stream (STR-001). A caller with the whole message can pass it in one piece. |
 | GEN-004 | Every result is a typed value that carries a machine-readable reason: which mechanism matched, why a signature failed, which domain aligned. |
 | GEN-005 | A temporary DNS failure produces the protocol's temporary-error result (`temperror`). It never turns into a pass or a fail. |
+| GEN-006 | hallmark returns results, a trace and header fields to add, and acts on nothing. Rejecting or quarantining a message (RFC 9989 §5.4) and deleting header fields (AR-005) stay with the caller, as does every choice that the specifications leave to the receiver, such as how to treat test modes (DKV-009, DMC-007, [ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)). |
+
+### Running a check
+
+A check is a value the caller drives, so the same core runs under any async runtime, in blocking code and in the browser ([ADR 0018](../adr/0018-the-core-does-no-io-and-the-caller-drives-it.md)).
+
+| ID | Requirement |
+|---|---|
+| CHK-001 | The caller passes a check the envelope, then the header fields, then the body in chunks, then the end of the message. After each input, the check lists the DNS questions and signing requests (SGN-001) it now has, and the caller answers them whenever it has the answers. SPF needs only the envelope (DNS-005). |
+| CHK-002 | A check finishes when its input is complete and every answer it needs has arrived, and it then returns its result and its trace. A caller that stops waiting for an answer reports a temporary failure for that question (DNS-009). |
+| CHK-003 | A check's result and trace depend only on its inputs: not on when answers arrive, how the caller groups them, or where body chunks are cut (TRC-012, STR-005). |
+| CHK-004 | Input that the check can't accept, such as a body chunk before the header fields end, an answer to a question it never asked, or a second answer to the same question, gives an error to the caller. It never turns into a protocol result. |
+| CHK-005 | The driver of DNS-003 runs a check to the end with a resolver and, for signing, a signer that the caller implements. It may resolve several questions at once, and the result and trace stay the same (CHK-003). |
 
 ### SPF (RFC 7208)
 
@@ -91,16 +108,32 @@ Out of scope:
 | DKV-006 | A signature with `l=` can verify, and both the result and the trace report how much of the body was left unsigned (RFC 6376 §8.2). |
 | DKV-007 | Internationalized addresses and domains follow RFC 8616. |
 | DKV-008 | An `l=` larger than the canonicalized body gets no special rule ([ADR 0010](../adr/0010-a-dkim-l-tag-larger-than-the-body-gets-no-special-rule.md)). Verification follows RFC 6376 §3.7 as written: truncating the body to `l=` octets leaves it whole, and the body hash comparison decides the result. The trace records, as a fact, that `l=` exceeds the body, which RFC 6376 §3.5 forbids signers to do. |
+| DKV-009 | A key record with `t=y` marks the signature as testing. Verification runs as for any other key, because the steps of RFC 6376 §6 never read the flag, and the result carries the flag. RFC 6376 §3.6.1 tells verifiers to treat mail from a testing-mode key like unsigned mail, and the caller applies that ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)). |
+| DKV-010 | The trace records a caution (TRC-003) on a signature that passes with an RSA key under 2048 bits (RFC 8301 §3.2), with an `l=` tag (RFC 6376 §8.2), or with an `h=` that names From only as many times as the message has From fields, so that a From field added later leaves the signature valid (RFC 6376 §5.4 and §8.15). A caution never changes the result. |
+| DKV-011 | For each name in `h=`, the trace records the header field instance it selected, from the bottom up, or that no instance was left for it. A name with no instance contributes nothing to the hash (RFC 6376 §3.5 and §5.4). |
+| DKV-012 | If the body hash matches `bh=` but the signature doesn't verify, the trace records as a fact that the body was unchanged and the signature over the header hash failed: a signed header field, the DKIM-Signature field or the key changed after signing. It also records that DKIM keeps nothing that tells which header field changed. A hint may name the header fields that mailing lists commonly change (RFC 6377 §3.3, TRC-003). |
 
 ### DKIM signing
 
 | ID | Requirement |
 |---|---|
-| DKS-001 | The library signs with `rsa-sha256` and `ed25519-sha256`. It refuses RSA keys under 1024 bits. |
+| DKS-001 | The library signs with `rsa-sha256` and `ed25519-sha256`, through a signer (SGN-001). It refuses RSA keys under 1024 bits. |
 | DKS-002 | A caller can add more than one signature to a message, for example RSA and Ed25519 together, as RFC 8463 suggests. |
 | DKS-003 | The caller chooses the canonicalizations and the header fields to sign. The library has a default header list, always signs From (RFC 6376 §5.4), and can oversign: sign one more instance of a field than the message has, so that a later added instance breaks the signature. |
 | DKS-004 | The library sets `t=` from the verification time parameter. `x=` is optional. It never sets `l=`. |
 | DKS-005 | Signing returns only the header fields to add, and the caller puts them in the message. The library never returns the whole signed message, because it can compute a signature only after the body has streamed past (STR-001). |
+
+### Signers
+
+Signing hands the data to sign to a signer and takes the signature back, as DNS questions go to the resolver ([ADR 0019](../adr/0019-signing-goes-through-a-signer-the-caller-supplies.md)).
+
+| ID | Requirement |
+|---|---|
+| SGN-001 | The caller supplies the signer. A signer can keep its key in memory, in a hardware security module or in a remote key service, and it can answer at once or later. The core never holds a key that an outside signer keeps. |
+| SGN-002 | The signer gets the data its algorithm signs: the SHA-256 hash for `rsa-sha256`, signed with RSASSA-PKCS1-v1_5 (RFC 6376 §3.3.2, draft-09 §3.2, RFC 8017 §8.2); the SHA-256 hash for `ed25519-sha256`, which Ed25519 takes as its message (RFC 8463 §3, draft-09 §3.3); and the whole signing input, unhashed, with the context string `DKIM2`, for `mldsa44` (draft-09 §3.4). The header field limits of SAF-002 bound the size of that input. |
+| SGN-003 | Before signing, a signer states its algorithm and public key. The core refuses an RSA key under 1024 bits (RFC 8301 §3.2, draft-09 §3.2), and for DKIM2 an RSA key whose public exponent isn't 65537 (draft-09 §3.2). |
+| SGN-004 | The core checks that each signature it gets back has the size that its algorithm and key give. A signer error or a signature of the wrong size stops signing with an error that names the signer, never a protocol result. |
+| SGN-005 | The library ships a signer for keys held in memory, which tests and the demo use (DEM-006). Its key types follow SEC-001 to SEC-003. It signs ML-DSA-44 with the hedged variant that draft-09 §3.4 recommends, taking a random value from the caller for each signature. |
 
 ### DKIM2
 
@@ -114,30 +147,32 @@ Out of scope:
 | DK2-006 | Verification rebuilds every earlier version of the body that the recipes describe, for all signatures in the chain, in the same single pass over the body. Draft-09 §5.1 and §5.2 require the `c` (copy) steps of a recipe to be in ascending order and not to overlap, so each earlier version can take its lines as they stream past, and the core keeps only a position in each recipe. It needs no storage and no random access. |
 | DK2-007 | A recipe that matches the JSON schema but breaks the ordering rules (draft-09 §5.1 and §5.2 warn this can happen) is hostile input. Verification of the signatures that depend on it fails with a reason, and the trace names the step that broke the rule. A null body recipe, which declares that the earlier body can't be rebuilt, also appears in the result and the trace. |
 | DK2-008 | Body recipe line numbers count the raw body, before §6.1 drops empty lines at the end. Recipes that hallmark writes never copy those empty lines with `c` steps, and the trace records the assumption whenever a recipe copies one ([ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md)). |
-| DK2-009 | Verification implements the five algorithms that draft-09 §3 requires of every verifier: the `sha256` and `sha512` hashes, and the `rsa-sha256`, `ed25519-sha256` and `mldsa44` signatures. ML-DSA-44 is the pure variant, with the context string `DKIM2` (§3.4). Signing offers the same algorithms, and a caller can sign with several at once. ML-DSA-44 signing uses the hedged variant that §3.4 recommends, with a random value from the caller (IO-001). |
+| DK2-009 | Verification implements the five algorithms that draft-09 §3 requires of every verifier: the `sha256` and `sha512` hashes, and the `rsa-sha256`, `ed25519-sha256` and `mldsa44` signatures. ML-DSA-44 is the pure variant, with the context string `DKIM2` (§3.4). Signing offers the same algorithms through a signer (SGN-001), and a caller can sign with several at once. |
 | DK2-010 | Several signatures in one `s=` tag combine by the `sig-all` and `sig-any` rules of draft-09 §14.6, and several hash sets in one `h=` tag combine by the `hash-all` and `hash-any` rules of §14.7. An algorithm that hallmark doesn't implement or treats as insecure, and a key it treats as too short, give a PERMERROR intermediate result. |
 | DK2-011 | DKIM2 key records follow dns-03 §4: the `rsa`, `ed25519` and `mldsa44` key types, an empty `p=` for a revoked key, and exact sizes of 32 octets for an Ed25519 key and 1,312 octets for an ML-DSA-44 key. DKIM2 ignores the deprecated `h=`, `n=`, `s=` and `t=` tags (draft-09 §14.5). DKIM keys keep following RFC 6376 (DKV-005). |
 | DK2-012 | Verification checks that each From header field present since the first signature is Authentic (draft-09 §11 and §14.8). It uses the relaxed domain match of §7 in both directions. When the match succeeds only because the signing domain is a subdomain of the From domain, it fetches the From domain's Domain Policy Record (dns-03 §5), and a `strict` flag there cancels the match. A From header field with more than one address, or with a domain literal, is never Authentic. |
 | DK2-013 | Results use the five output states of draft-09 §14.1: NONE, PASS, FAIL, PERMERROR and TEMPERROR. A result other than PASS carries the human-readable string that draft-09 §14 gives for its case, with the placeholders filled in, and the trace records the same string. |
+| DK2-014 | A Reviser (draft-09 §2.3) describes each change it made: for the body, which lines of the new body came unchanged from the earlier version, and which earlier lines it removed or replaced, with their content; for header fields, the earlier value of each field it changed or removed. hallmark writes the Message-Instance and its recipes from that description (§5, §12.1), or a null body recipe when the caller asks for one. It never compares two versions of the body, which would need both in memory (STR-001). In the same pass, it rebuilds the earlier version from the recipes it wrote, as verification does (DK2-006), and signing stops with an error if that version's hashes differ from the ones in the highest Message-Instance. |
 
 ### DMARC
 
 | ID | Requirement |
 |---|---|
-| DMC-001 | The library evaluates DMARC under RFC 9989 (DMARCbis) and under RFC 7489. The caller picks one per call, and RFC 9989 is the default ([ADR 0007](../adr/0007-dmarc-supports-rfc-7489-and-dmarcbis-with-dmarcbis-the-default.md)). |
+| DMC-001 | The library evaluates DMARC under RFC 9989 (DMARCbis) and under RFC 7489. The caller picks one per call, and RFC 9989 is the default ([ADR 0020](../adr/0020-dmarc-supports-rfc-7489-and-dmarcbis-with-dmarcbis-the-default.md)). |
 | DMC-002 | The author domain is the domain in the RFC5322.From header field (ADS-012 covers a message with several), converted from a U-label to an A-label (RFC 5890 §2.3), as RFC 9989 §5.3.1 and RFC 7489 §6.6.1 require. DMARC applies only when exactly one domain is found. When none is found, as with a missing From field, a group with no addresses (RFC 6854) or an address with a domain literal (ADS-005), or when more than one is found, the result says that DMARC was not applied and why. A caller can choose to evaluate a message with several domains anyway, taking each one as an author domain up to a limit (SAF-002), and then the most strict policy among the checks that fail applies (RFC 9989 §11.5, RFC 7489 §6.6.1). The trace records which case applied. |
 | DMC-003 | In RFC 7489 mode, the library finds the organizational domain with the Public Suffix List. In DMARCbis mode, it uses the DNS tree walk and the query limit DMARCbis sets. |
 | DMC-004 | The record parser accepts the tags of both specifications: DMARCbis adds `np`, `psd` and `t` and drops `pct`, `rf` and `ri`. Unknown tags are ignored. |
-| DMC-005 | Identifier alignment checks the SPF-authenticated MAIL FROM domain and each DKIM `d=` domain against the author domain, in relaxed or strict mode from `aspf` and `adkim`. |
-| DMC-006 | The result is `pass`, `fail`, `none`, `temperror` or `permerror`, together with the policy to apply (`p`, `sp` or `np`) and the alignment details. Whether to reject or quarantine stays the caller's decision. |
-| DMC-007 | `pct` sampling in RFC 7489 mode takes its random value from the caller, so the core stays deterministic. |
+| DMC-005 | Identifier alignment checks the SPF-authenticated MAIL FROM domain and each DKIM `d=` domain against the author domain, in relaxed or strict mode from `aspf` and `adkim`. Each alignment step names the SPF or DKIM result it used, so a caller that ran the checks one at a time (GEN-001) can match them. |
+| DMC-006 | The result is `pass`, `fail`, `none`, `temperror` or `permerror`, together with the alignment details, the policy tag that applied (`p`, `sp`, or in RFC 9989 mode `np`) with its published value, and whether the record asks for test mode (DMC-007). hallmark computes no other policy from them. The caller decides what to do with the message ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)), and the how-to guide [Handle DMARC test modes](../how-to/handle-dmarc-test-modes.md) shows the steps that RFC 9989 §4.7 and RFC 7489 §6.6.4 describe. |
+| DMC-007 | Test mode comes from `t=y` in RFC 9989 mode (§4.7) and from `pct=0` in RFC 7489 mode, as RFC 9989 Appendix A.6 pairs them. In RFC 7489 mode, hallmark ignores any other `pct` value and reads the record as if `pct` were absent, which means 100, because Appendix A.6 reports that other values were seldom applied accurately. The trace records an ignored `pct` value. hallmark samples nothing and takes no random value ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)). |
+| DMC-008 | If a DMARC pass rests only on signatures from keys with `t=y` (DKV-009), that is, SPF gives no aligned pass and every aligned DKIM pass comes from such a key, the result says so. hallmark still counts those signatures, as RFC 9989 §4.4.1 counts any signature that validates, and leaves to the caller how RFC 6376 §3.6.1 applies ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)). |
 
 ### Authentication-Results (RFC 8601)
 
 | ID | Requirement |
 |---|---|
 | AR-001 | The library generates an Authentication-Results header field from its results, with the authserv-id supplied by the caller. |
-| AR-002 | Each method result carries a short summary of the trace in its `reason` (the reasonspec of RFC 8601 §2.2) and in comments. |
+| AR-002 | Each method result carries a short explanation in its `reason` (the reasonspec of RFC 8601 §2.2) and in comments. hallmark builds it from the result's typed reason (GEN-004), not from the trace, so it is there at every trace level, off included (TRC-004). |
 | AR-003 | The library parses Authentication-Results header fields, so that a caller can read results from an upstream host it trusts. |
 | AR-004 | DKIM2 results use the `dkim2` method of `draft-gondwana-dkim2-authres-02` §3: one result for the whole message, the result values of §3.1, and the `header.d` and `header.i` properties of §3.2, each left out in the cases §3.2 lists. A message with no DKIM2 header fields is reported as `dkim2=none`, not left out (§3.1). |
 | AR-005 | The library reports which Authentication-Results fields carry an authserv-id the caller names, so that an MTA can delete the ones that claim to come from inside its trust boundary without coming from a trusted MTA (RFC 8601 §5). In internationalized messages, it compares authserv-ids after converting A-labels to U-labels, as §5 says. hallmark deletes nothing itself. |
@@ -149,24 +184,27 @@ The trace is the main feature. It records every step a check takes, with the rul
 | ID | Requirement |
 |---|---|
 | TRC-001 | The code that makes a decision also records it in the trace, while the check runs. The library never rebuilds a trace after the fact, so the trace can't disagree with the result. |
-| TRC-002 | The trace is structured data: a tree of steps. Each step records what it checked, its inputs (including each DNS question and answer), its outcome, and the RFC or draft section that requires it. |
-| TRC-003 | Facts and hints stay apart. A fact states what the check found ("the body hash didn't match `bh=`"). A hint is a labeled guess about the cause ("a mailing list footer may have changed the body"). The first release has a small set of hints, and new hints arrive with test cases that justify them. |
-| TRC-004 | The caller picks a trace level per call: off, summary or full. At the off level, the library allocates nothing for the trace. |
-| TRC-005 | The trace has size limits. Hostile DNS answers or messages can't make it grow without bound, and when it reaches a limit, the trace records that it was cut short. |
+| TRC-002 | The trace is structured data: a tree of steps. Each step records what it checked, its inputs (including each DNS question and answer), its outcome, and the RFC or draft section that requires it, as codes and parameters (TRC-011). |
+| TRC-003 | Facts and hints stay apart. A fact states what the check found ("the body hash didn't match `bh=`"). A fact that a specification warns about carries a caution, which cites the section with the warning ("the signature passed with a 1024-bit RSA key", RFC 8301 §3.2). A hint is a labeled guess about the cause ("a mailing list footer may have changed the body"). Cautions and hints never change a result. Facts, cautions and results cite the specifications they apply, and hints may also cite RFC 6377 and RFC 7960, which describe how mailing lists and other mediators change messages. The first release has a small set of hints, and new hints arrive with test cases that justify them. |
+| TRC-004 | The caller picks a trace level per call: off, summary or full. The summary holds, for each check, the steps on the path from its top step down to the steps that decided its result, and every caution. The full trace holds every step. At the off level, the library allocates nothing for the trace. |
+| TRC-005 | The trace has size limits. Hostile DNS answers or messages can't make it grow without bound, and when it reaches a limit, the trace records that it was cut short. A trace limit never changes a result: the check goes on and returns what it would have returned with no trace. |
 | TRC-006 | The trace never contains private key material. It can contain addresses and header contents, and the reference docs say so, so that callers can decide where to store it. |
 | TRC-007 | The trace serializes to a documented format with its own schema version. The demo, hallmark-milter and outside tools all read that format. |
-| TRC-008 | The trace records every DNS question and answer, so a caller can save them as a snapshot and replay the check offline. |
-| TRC-009 | Tests can assert on the path a check took through the trace as well as on its result. |
+| TRC-008 | The trace records every DNS question and answer as the resolver gave it, each TXT record as its separate strings (DNS-006), so a caller can save them as a snapshot and replay the check offline (DNS-004). |
+| TRC-009 | Tests can assert on the path a check took through the trace as well as on its result. They match step codes (TRC-011), so a change of wording breaks no test. |
 | TRC-010 | By default, the trace records the body as hashes, byte counts and line counts, plus the point where `l=` cut it. Body content goes into the trace only when the caller asks for it, and then it streams out through STR-002 as the body passes, without being kept, so trace memory stays within the limits of STR-001 and TRC-005. |
+| TRC-011 | Each step carries a kind code and an outcome code from a documented list, and its parameters, such as a domain name, a tag value or a count. The text a person reads is rendered from the codes and parameters. The library renders English, and a caller can render another language, as the demo may. The human-readable strings of draft-09 §14 (DK2-013) keep a field of their own, in the words the draft gives them. |
+| TRC-012 | Each step keeps its logical place in the tree, whatever order the DNS answers arrive in and wherever the body chunks are cut. An answer sits under the step whose question it answers, SPF terms follow their record, DKIM signatures follow the header section, and a step that finishes when the body ends, such as the assumption of DK2-008, stays under the step it belongs to. The same inputs give the same trace, and the same bytes once serialized. |
+| TRC-013 | The trace marks each value that a sender or a DNS publisher controls: header field values, addresses, DNS record contents, the SPF explanation string (RFC 7208 §6.2), macro expansions and recipe content. The library escapes nothing, because the right escaping depends on where a value is shown. The trace format documentation tells readers, the demo included, to escape marked values for their output, and to show an SPF explanation as coming from a third party, as RFC 7208 §6.2 asks. |
 
 What the trace shows for each protocol:
 
 | Protocol | Steps the trace records |
 |---|---|
-| SPF | The evaluation tree through `include` and `redirect`, each DNS question and answer, the running lookup and void-lookup counts, the mechanism that matched, or the limit that was hit and the term that hit it |
-| DKIM | Tag parsing, the key lookup and key record, the header field instances chosen for signing (bottom-up), the canonicalized header, the body as described in TRC-010, the computed and stated body hashes, and the signature check |
+| SPF | The evaluation tree through `include` and `redirect`, each DNS question and answer, each macro expansion and its result, the running lookup and void-lookup counts, the mechanism that matched, or the limit that was hit and the term that hit it, and for a `fail` the `exp=` lookup and the expanded explanation |
+| DKIM | Tag parsing, the key lookup and key record with its flags, the header field instance chosen for each name in `h=` or the lack of one (DKV-011), the canonicalized header, the body as described in TRC-010, the computed and stated body hashes, the signature check, what a body hash match with a failed signature shows (DKV-012), and the cautions of DKV-010 |
 | DKIM2 | The same steps as DKIM for each signature, plus the chain of custody, the timestamp checks, each recipe step, the relaxed domain matches and Domain Policy Record lookups of the From check, how signatures and hash sets combined, and the human-readable string that draft-09 §14 gives for the result |
-| DMARC | The author domain, each step of policy discovery (Public Suffix List lookup or tree walk), alignment for each identifier with its mode, which of `p`, `sp` or `np` applied, and the final result |
+| DMARC | The author domain, each step of policy discovery (Public Suffix List lookup or tree walk), alignment for each identifier with its mode and the SPF or DKIM result it came from, which of `p`, `sp` or `np` applied, test mode and the tag that set it, an ignored `pct` value, whether a pass rests only on testing-mode keys, and the final result |
 
 ### Verification time
 
@@ -183,11 +221,28 @@ What the trace shows for each protocol:
 
 | ID | Requirement |
 |---|---|
-| DNS-001 | The core asks for DNS records by handing questions to the caller and taking the answers back ([ADR 0001](../adr/0001-the-core-does-no-io-and-the-caller-drives-it.md)). It needs TXT, A, AAAA, MX and PTR records. |
+| DNS-001 | The core asks for DNS records by handing questions to the caller and taking the answers back ([ADR 0018](../adr/0018-the-core-does-no-io-and-the-caller-drives-it.md)). It needs TXT, A, AAAA, MX and PTR records. |
 | DNS-002 | The resolver's answer tells apart: records found, name does not exist, no records of that type, and temporary failure. SPF void lookups and temporary errors depend on that difference. |
 | DNS-003 | The core never waits for an answer, so a caller can resolve with any async runtime, with blocking code, or in the browser. The library also offers a driver that runs a check to the end with a resolver the caller implements, and the driver depends on no async runtime. |
-| DNS-004 | The library ships a resolver that answers from a saved snapshot (TRC-008). Tests, the demo's pasted-records mode and bug reports all use it. |
+| DNS-004 | The library ships a resolver that answers from a snapshot: the questions of a check, each with the answer its resolver gave (TRC-008). Tests, bug reports and the demo's replay of a shared case (DEM-004) use it. It matches a question by its type and its name, without regard to ASCII case (RFC 4343 §2). A question the snapshot doesn't hold gets a temporary failure that says so (DNS-009). |
 | DNS-005 | The DNS questions for DKIM and DKIM2 keys, for DKIM2 Domain Policy Records and for DMARC policy are available once the header fields are complete, so the caller can resolve them while the body streams. SPF needs only the envelope, so its questions are available before the message. |
+| DNS-006 | Answers come in fixed shapes: each TXT record as its list of character-strings, in order and not joined (RFC 1035 §3.3 and §3.3.14), A and AAAA records as addresses, MX records as a preference and an exchange name, and PTR records as a name. The core joins TXT strings with nothing between them, as RFC 7208 §3.3, RFC 6376 §3.6.2.2, RFC 9989 §4.5 and dns-03 §3 require, so a resolver needs to know none of those rules. |
+| DNS-007 | Each question has an identifier, unique within the check, and each answer names the question it answers. Within one check, and within one call that runs several checks (GEN-001), the core asks each name and type once, and every step that needs the answer reads the same one. Reusing an answer changes none of the counts that RFC 7208 §4.6.4 keeps. |
+| DNS-008 | The core builds every question name itself: `<selector>._domainkey.<domain>` for DKIM and DKIM2 keys (RFC 6376 §3.6.2.1, dns-03 §3), `_domainkey.<domain>` for a DKIM2 Domain Policy Record (dns-03 §5), `_dmarc.<domain>` for a DMARC policy record (RFC 9989 §4.5) and the names of the DNS tree walk (§4.10), reverse names under `in-addr.arpa` and `ip6.arpa` for SPF `ptr` and `%{p}` (RFC 1035 §3.5, RFC 3596 §2.5), and SPF target names after macro expansion, cut from the left to 253 characters (RFC 7208 §7.3). Every name goes out in lookup form (ADS-002) and within the limits of ADS-004. |
+| DNS-009 | A temporary failure can carry the resolver's own description, such as a timeout or SERVFAIL, and the trace records it as the resolver gave it. The core reads no clock, so the caller's resolver applies time limits, such as the one RFC 7208 §4.6.4 asks for, and reports a timeout as a temporary failure. |
+| DNS-010 | The snapshot resolver also answers from records that a user pastes into the demo (DEM-002), one per line in the presentation format of RFC 1035 §5.1: an absolute owner name, an optional TTL and class, the type, and the data. Pasted records act as the complete zone data. A name with no pasted records and none below it doesn't exist (RFC 8020 §2, RFC 9989 §3.2.13), and a name with records of other types, or with records below it, has no records of the asked type. A line that doesn't match the format gives an error with its line and offset (PAR-001), never a repaired record. |
+
+### Parsers
+
+Every parser in hallmark, for header fields, addresses, tag lists, DNS records, recipe JSON and pasted records, shares the rules below ([ADR 0011](../adr/0011-header-parsers-follow-the-abnf-and-never-repair-input.md)).
+
+| ID | Requirement |
+|---|---|
+| PAR-001 | Input that doesn't match its grammar gives an error, never a repaired value. The error names the rule that failed, the byte offset, and the input that the parser read, such as a header field or a DNS record. HDR-010 applies this rule to header fields. |
+| PAR-002 | Each parsed value keeps the byte range it came from, so the trace can point at the text in a header field or a record that a step read. |
+| PAR-003 | Parsers read numbers with overflow checks, as HDR-013 describes for tag values. A number outside the range that its grammar or its protocol allows gets that protocol's rule, such as `permerror` for an SPF CIDR length over 32 (RFC 7208 §5.6, §4.6). |
+| PAR-004 | The limits of SAF-002 form one set with documented defaults, and a caller can change them per call. Each parser checks its limits as it reads. |
+| PAR-005 | Parsers read input left to right without recursion, as HDR-011 says for header fields. Nesting, such as JSON depth in a recipe, counts against a depth limit (SAF-002). |
 
 ### Header parsing
 
@@ -238,12 +293,12 @@ Checks read addresses from two places with different grammars: header fields, un
 
 ### I/O only through the caller
 
-The core does no I/O of its own. Where data is too large to hold in memory, it streams input and output through interfaces the caller supplies ([ADR 0001](../adr/0001-the-core-does-no-io-and-the-caller-drives-it.md)).
+The core does no I/O of its own. Where data is too large to hold in memory, it streams input and output through interfaces the caller supplies ([ADR 0018](../adr/0018-the-core-does-no-io-and-the-caller-drives-it.md)).
 
 | ID | Requirement |
 |---|---|
-| IO-001 | The core opens no sockets and files, reads no clock or environment variables, and draws no random numbers. DNS, time and randomness all come from the caller. |
-| IO-002 | Large input and output pass through streaming interfaces that the caller supplies as parameters (STR-001 to STR-011). The DNS resolver (DNS-001) is the other caller-supplied interface. |
+| IO-001 | The core opens no sockets and files, reads no clock or environment variables, and draws no random numbers. DNS answers, the time and signatures come from the caller, and the core takes no random values. |
+| IO-002 | Large input and output pass through streaming interfaces that the caller supplies as parameters (STR-001 to STR-011). The DNS resolver (DNS-001) and the signer (SGN-001) are the other caller-supplied interfaces. |
 
 ### Streaming
 
@@ -321,11 +376,11 @@ The hallmark repository is a Cargo workspace ([ADR 0005](../adr/0005-the-demo-li
 | ID | Requirement |
 |---|---|
 | DEM-001 | A user pastes a message, enters the client IP address, HELO name, MAIL FROM and RCPT TO, and gets the SPF, DKIM, DKIM2 and DMARC results with the trace drawn as a tree. |
-| DEM-002 | The user picks the DNS source: DNS over HTTPS, or records pasted into the page (DNS-004). |
+| DEM-002 | The user picks the DNS source: DNS over HTTPS, or records pasted into the page (DNS-010). |
 | DEM-003 | The page names the DNS-over-HTTPS provider before any query goes out. Only those queries leave the browser, and the message itself never does. |
 | DEM-004 | A user can save a case (message, DNS snapshot, time and options) and share it. Anyone can replay a shared case offline. |
 | DEM-005 | The user can turn off time checks (TIM-002), so that old messages can still be explained. |
-| DEM-006 | The user can sign a message with a key generated in the page or pasted into it. The key never leaves the browser, and the page tells users not to paste production keys. |
+| DEM-006 | The user can sign a message with a key generated in the page or pasted into it, through the library's signer for keys in memory (SGN-005). The key never leaves the browser, and the page tells users not to paste production keys. |
 | DEM-007 | CI runs browser tests against the demo on every change, so a library change that breaks the demo fails the same pull request. |
 
 ## Quality and process
@@ -350,9 +405,9 @@ Process:
 
 ## Relationship to hallmark-milter
 
-hallmark-milter depends on the published hallmark crate, never on its internals. It supplies a native resolver, the time each message was received (TIM-001) and random values. The milter signs with DKIM and DKIM2 and verifies SPF, DKIM, DKIM2 and DMARC. It deletes the Authentication-Results fields that carry its own authserv-id but didn't come from a trusted MTA, as RFC 8601 §5 requires (AR-005).
+hallmark-milter depends on the published hallmark crate, never on its internals. It supplies a native resolver, the time each message was received (TIM-001) and a signer for its keys (SGN-001). The milter signs with DKIM and DKIM2 and verifies SPF, DKIM, DKIM2 and DMARC. It deletes the Authentication-Results fields that carry its own authserv-id but didn't come from a trusted MTA, as RFC 8601 §5 requires (AR-005).
 
-hallmark-milter does not offer the switch that turns off time checks (TIM-002), because skipping expiration on live mail weakens protection against replayed signatures. Full traces are off by default because they hold message data (TRC-006), and an operator can turn them on. The summary in Authentication-Results (AR-002) is always on.
+hallmark-milter does not offer the switch that turns off time checks (TIM-002), because skipping expiration on live mail weakens protection against replayed signatures. Full traces are off by default because they hold message data (TRC-006), and an operator can turn them on. The `reason` of each Authentication-Results result comes from the typed result (AR-002), so it is there with traces off.
 
 The milter feeds hallmark from rust-milter's callbacks, which match STR-001, STR-003 and STR-007: one body chunk of at most 65,535 bytes per `SMFIC_BODY` call, with CRLF line endings, and memory counted until each command ends. Two limits on the milter side shape its design:
 
@@ -366,9 +421,11 @@ The milter feeds hallmark from rust-milter's callbacks, which match STR-001, STR
 | Public Suffix List | Whether the caller supplies the list in RFC 7489 mode or the crate bundles a copy |
 | openspf suite | Its license (TST-003) |
 | MSRV | Which Rust version (STB-003) |
-| Trace format | The serialization format and its first schema (TRC-007) |
+| Trace format | The serialization format and its first schema (TRC-007). Snapshots (DNS-004) use the same format |
 | Last recipe line without CRLF | Under DK2-008, a last body line with no CRLF counts as a line. Whether a `c` step that copies it adds a CRLF ([hallmark#1](https://github.com/photom/hallmark/issues/1)) |
 | Bare LF in CRLF mode | Whether a verifier whose caller declared CRLF line endings leaves a bare LF in the body as it is or converts it (STR-011, scenario CAN-063) |
 | First hints | The starting set of hints (TRC-003) |
+| Testing-mode DKIM keys in DMARC | RFC 6376 §3.6.1 tells verifiers to treat mail from a testing-mode key like unsigned mail, and RFC 9989 §4.4.1 counts any signature that validates. Neither says how the two combine. [ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md) counts the signature and reports it (DMC-008) until a specification says otherwise |
+| DK2-008 and the working group | Whether to ask the ietf-dkim working group about the reading of [ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md), as [hallmark#1](https://github.com/photom/hallmark/issues/1) asks about the last line |
 | DKIM2 local-part comparison | Draft-09 §14.4 says local parts must match exactly, and RFC 5321 §4.1.2 says all quoted forms of a local part are equivalent when compared. [ADR 0017](../adr/0017-dkim2-compares-local-parts-as-written-and-ignores-source-routes.md) compares them as written until a revision of the draft says whether `<"a"@void.invalid>` matches `<a@void.invalid>` (ADS-024, [hallmark#4](https://github.com/photom/hallmark/issues/4)) |
 | Demo "as of signing time" | Whether the demo should offer to verify as of the signature's `t=`. The library needs no change for it, because the time is already a parameter. |

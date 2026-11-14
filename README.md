@@ -8,13 +8,14 @@ hallmark is at the design stage and has no release yet.
 
 | Path | Contents |
 |---|---|
-| `crates/hallmark` | The core library. It does no I/O of its own: the caller supplies DNS answers, the time, and the message as a stream. |
+| `crates/hallmark` | The core library. It does no I/O of its own: the caller supplies DNS answers, the time, signatures, and the message as a stream. |
 | `crates/hallmark-wasm` | WebAssembly bindings and a DNS-over-HTTPS resolver for the browser demo. Not published. |
 
 ## Documentation
 
 - [Requirements](docs/reference/requirements.md): what hallmark must do, with an ID for each requirement
 - [Architecture](docs/explanation/architecture.md): how the parts fit together, and why
+- [Handle DMARC test modes](docs/how-to/handle-dmarc-test-modes.md): what to do with a DMARC result when the domain is testing
 - [Architecture decision records](docs/adr/README.md)
 - [Test scenarios](docs/testing/README.md), written before the tests
 
