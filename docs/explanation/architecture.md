@@ -2,6 +2,17 @@
 
 hallmark checks whether a message comes from the domain it claims, and explains how it decided. The [requirements](../reference/requirements.md) list what hallmark must do, and the [ADRs](../adr/README.md) record each decision.
 
+## Contents
+
+- [The parts](#the-parts)
+- [The caller drives each check](#the-caller-drives-each-check)
+- [Streaming without holding the body](#streaming-without-holding-the-body)
+- [Reading header fields](#reading-header-fields)
+- [Reading addresses](#reading-addresses)
+- [DKIM2 chains in one pass](#dkim2-chains-in-one-pass)
+- [The trace](#the-trace)
+- [Where hallmark-milter fits](#where-hallmark-milter-fits)
+
 ## The parts
 
 ```mermaid

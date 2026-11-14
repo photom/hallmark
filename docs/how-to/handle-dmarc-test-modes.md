@@ -2,6 +2,15 @@
 
 Use this guide when your program acts on hallmark's DMARC result, for example a milter that decides whether to reject or quarantine a message. hallmark reports what the domain published and whether it is testing. It computes no policy of its own, so these steps are yours to take ([ADR 0021](../adr/0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)).
 
+## Contents
+
+- [What you need from the result](#what-you-need-from-the-result)
+- [Find the policy the domain owner asks for](#find-the-policy-the-domain-owner-asks-for)
+- [Records with other `pct` values](#records-with-other-pct-values)
+- [A pass that rests only on testing-mode DKIM keys](#a-pass-that-rests-only-on-testing-mode-dkim-keys)
+- [DKIM results outside DMARC](#dkim-results-outside-dmarc)
+- [Related](#related)
+
 ## What you need from the result
 
 The DMARC result (DMC-006 to DMC-008) gives you:

@@ -4,6 +4,13 @@ Email sender authentication for Rust: SPF, DKIM (v1 and DKIM2) and DMARC. hallma
 
 hallmark is at the design stage and has no release yet.
 
+## Contents
+
+- [Repository layout](#repository-layout)
+- [Documentation](#documentation)
+- [Security](#security)
+- [License](#license)
+
 ## Repository layout
 
 | Path | Contents |
