@@ -4,6 +4,13 @@ Scenarios for the tag=value list parser that DKIM and DKIM2 share (RFC 6376 §3.
 
 The parser gets a header field value or the text of a DNS record, with any folding as it arrived.
 
+## Contents
+
+- [Tag lists](#tag-lists)
+- [DKIM values](#dkim-values)
+- [DKIM2 values](#dkim2-values)
+- [Fuzzing](#fuzzing)
+
 ## Tag lists
 
 | ID | Level | Given | When | Then | Spec |

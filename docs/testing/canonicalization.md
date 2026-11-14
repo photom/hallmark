@@ -4,6 +4,16 @@ Scenarios for body canonicalization: DKIM's `simple` and `relaxed` algorithms, D
 
 Each scenario feeds the body to the canonicalizer and checks the canonical bytes, the body hash, or both. Unless a scenario says otherwise, the body arrives in one chunk with CRLF line endings.
 
+## Contents
+
+- [DKIM simple body](#dkim-simple-body)
+- [DKIM relaxed body](#dkim-relaxed-body)
+- [DKIM2 body](#dkim2-body)
+- [Line endings](#line-endings)
+- [Chunk boundaries](#chunk-boundaries)
+- [Memory](#memory)
+- [Body length (`l=`)](#body-length-l)
+
 ## DKIM simple body
 
 | ID | Level | Given | When | Then | Spec |

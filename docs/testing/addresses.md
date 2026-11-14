@@ -4,6 +4,18 @@ Scenarios for the header address parser (RFC 5322), the envelope address parser 
 
 Scenarios based on the examples in RFC 5322 Appendix A keep the structure of the example, with its domains moved under `.invalid`. A table gives a `U+` number for each code point it can't show as a character.
 
+## Contents
+
+- [From header fields](#from-header-fields)
+- [Domain literals in From](#domain-literals-in-from)
+- [Addresses in tag values](#addresses-in-tag-values)
+- [Envelope paths](#envelope-paths)
+- [HELO names](#helo-names)
+- [SPF](#spf)
+- [DKIM2 chain of custody](#dkim2-chain-of-custody)
+- [Domain names](#domain-names)
+- [Fuzzing](#fuzzing)
+
 ## From header fields
 
 | ID | Level | Given | When | Then | Spec |
