@@ -25,6 +25,13 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0019](0019-signing-goes-through-a-signer-the-caller-supplies.md) | Signing goes through a signer the caller supplies | Accepted |
 | [0020](0020-dmarc-supports-rfc-7489-and-dmarcbis-with-dmarcbis-the-default.md) | DMARC supports RFC 7489 and DMARCbis, with DMARCbis the default | Accepted |
 | [0021](0021-test-modes-are-reported-and-the-caller-decides-what-they-mean.md) | Test modes are reported, and the caller decides what they mean | Accepted |
+| [0022](0022-spf-reads-v-spf1-without-regard-to-case-and-allows-c-r-and-t-only-in-explanations.md) | SPF reads `v=spf1` without regard to case, and allows `c`, `r` and `t` only in explanations | Accepted |
+| [0023](0023-an-spf-target-name-that-macro-expansion-makes-invalid-matches-nothing.md) | An SPF target name that macro expansion makes invalid matches nothing | Accepted |
+| [0024](0024-dmarc-follows-rfc-9989-section-4-10-1-for-invalid-policy-tags-and-section-4-7-for-nonexistent-subdomains.md) | DMARC follows RFC 9989 §4.10.1 for invalid policy tags and §4.7 for nonexistent subdomains | Accepted |
+| [0025](0025-dmarc-tag-names-keep-their-case-white-space-around-a-value-is-not-part-of-it-and-a-repeated-tag-is-invalid.md) | DMARC tag names keep their case, white space around a value is not part of it, and a repeated tag is invalid | Accepted |
+| [0026](0026-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md) | A DKIM selector with several key records passes if any of them verifies the signature | Accepted |
+| [0027](0027-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) | RSA keys in key records may be RSAPublicKey or SubjectPublicKeyInfo | Accepted |
+| [0028](0028-a-malformed-dkim2-domain-policy-record-gives-permerror.md) | A malformed DKIM2 Domain Policy Record gives PERMERROR | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

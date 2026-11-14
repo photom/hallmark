@@ -23,6 +23,9 @@ Ordered as the components will be built:
 | [addresses.md](addresses.md) | Header addresses, envelope paths and HELO names, the lookup form of domain names, and the checks that read addresses | `ADDR`, `PATH`, `DOM` |
 | [checks.md](checks.md) | Driving a check: input order, questions and answers, caller errors, and the driver | `RUN` |
 | [dns.md](dns.md) | Answer shapes, question names, temporary failures, snapshots, and pasted records | `RES` |
+| [spf-records.md](spf-records.md) | The SPF record parser: selection, terms, addresses, macros, target names, explanations, and the address answers SPF reads | `SPR` |
+| [dmarc-records.md](dmarc-records.md) | The DMARC record parser: selection, tag syntax, invalid values, reporting URIs, and RFC 7489 mode | `DMR` |
+| [key-records.md](key-records.md) | DKIM key records, DKIM2 key records and Domain Policy Records | `KEY` |
 | [test-modes.md](test-modes.md) | Test modes and the published policy in DKIM and DMARC results | `POL` |
 | [signing.md](signing.md) | Signers, the library's signer for keys in memory, and the changes a DKIM2 Reviser describes | `SIGN` |
 
