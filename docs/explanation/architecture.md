@@ -9,6 +9,7 @@ hallmark checks whether a message comes from the domain it claims, and explains 
 - [Streaming without holding the body](#streaming-without-holding-the-body)
 - [Reading header fields](#reading-header-fields)
 - [Reading addresses](#reading-addresses)
+- [Reading DNS records](#reading-dns-records)
 - [DKIM2 chains in one pass](#dkim2-chains-in-one-pass)
 - [The trace](#the-trace)
 - [Where hallmark-milter fits](#where-hallmark-milter-fits)
@@ -129,6 +130,12 @@ Each part keeps the text it had in the input, because the trace shows it and bec
 The two grammars differ in the characters a domain may hold. A header domain may hold any ASCII that RFC 5322 allows, and hallmark looks it up as written ([ADR 0015](../adr/0015-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)). An envelope domain holds only letters, digits and hyphens, as RFC 5321 says.
 
 An ADR records hallmark's reading wherever the RFCs leave a case open: a From address with a domain literal gives DMARC no author domain ([ADR 0014](../adr/0014-a-from-domain-literal-gives-dmarc-no-author-domain.md)), SPF macros expand the local part as written ([ADR 0016](../adr/0016-spf-macros-expand-the-local-part-as-written.md)), and the DKIM2 chain of custody compares local parts as written and ignores source routes ([ADR 0017](../adr/0017-dkim2-compares-local-parts-as-written-and-ignores-source-routes.md)). The DKIM2 reading stays under review in [hallmark#4](https://github.com/photom/hallmark/issues/4) until a revision of the draft settles it.
+
+## Reading DNS records
+
+Whoever runs a zone controls its records, so hallmark treats a DNS answer as hostile input, as it does a message. The resolver hands over each TXT record as the strings it was published in, and the core joins them, so the trace can show the record both ways. Each check then keeps the records its specification selects and parses them with its own grammar: the SPF record with its terms and macros, the DMARC record, and the tag lists of DKIM keys, DKIM2 keys and Domain Policy Records. A syntax error gets the result that the check's specification gives for it, and the trace names the rule and the offset.
+
+The record specifications leave more cases open than the header field ones, and in places they contradict themselves. Three passages of RFC 9989 disagree about a record with an invalid policy tag ([ADR 0024](../adr/0024-dmarc-follows-rfc-9989-section-4-10-1-for-invalid-policy-tags-and-section-4-7-for-nonexistent-subdomains.md)), and RFC 6376 both permits and calls undefined a selector with several key records. ADRs 0022 to 0028 record hallmark's reading of each such case. Two of them keep the result independent of things a verifier shouldn't let decide it: the order of the records in an answer ([ADR 0026](../adr/0026-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)), and a local part that a sender chose to break an SPF target name ([ADR 0023](../adr/0023-an-spf-target-name-that-macro-expansion-makes-invalid-matches-nothing.md)).
 
 ## DKIM2 chains in one pass
 
