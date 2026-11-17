@@ -1,0 +1,191 @@
+# Architecture
+
+hallmark checks whether a message comes from the domain it claims, and explains how it decided. The [requirements](../reference/requirements.md) list what hallmark must do, the [detailed design](../reference/design/README.md) describes its modules, objects and limits, and the [ADRs](../adr/README.md) record each decision.
+
+## Contents
+
+- [The parts](#the-parts)
+- [The caller drives each check](#the-caller-drives-each-check)
+- [Streaming without holding the body](#streaming-without-holding-the-body)
+- [Reading header fields](#reading-header-fields)
+- [Hashing header fields](#hashing-header-fields)
+- [Reading addresses](#reading-addresses)
+- [Reading DNS records](#reading-dns-records)
+- [DKIM2 chains in one pass](#dkim2-chains-in-one-pass)
+- [The trace](#the-trace)
+- [Where hallmark-milter fits](#where-hallmark-milter-fits)
+
+## The parts
+
+```mermaid
+flowchart LR
+    subgraph callers["Callers"]
+        milter["hallmark-milter, on Tokio inside an MTA"]
+        demo["Browser demo, through hallmark-wasm"]
+        tests["Tests and bug reports, from snapshots"]
+    end
+    subgraph core["hallmark core"]
+        spf["SPF"]
+        dkim["DKIM and DKIM2"]
+        dmarc["DMARC"]
+        ar["Authentication-Results"]
+        trace["Trace recorder"]
+    end
+    callers -->|"envelope, header fields, body chunks, DNS answers, signatures, time"| core
+    core -->|"DNS questions, data to sign, results, trace, header fields to add"| callers
+```
+
+The core sits in the middle and talks to nothing on its own. Everything outside it arrives through its callers. hallmark-milter brings mail from an MTA and answers DNS questions with a native resolver. The demo brings a pasted message and answers through DNS over HTTPS or through records pasted into the page. Tests answer from saved snapshots. The same core code runs in all three ([ADR 0017](../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)). Signing goes the same way: the core hands the data to sign to a signer that the caller chooses, which can keep its key in memory, in a hardware security module or in a key service. A caller that wants to catch a signer using the wrong key can have the core verify each signature before it goes out ([ADR 0042](../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)).
+
+DMARC builds on the other two. It takes the SPF result for the MAIL FROM domain and the DKIM result for each signature, finds the author domain in the From header field, and checks whether any authenticated domain aligns with it.
+
+hallmark is a library, so it reports and its callers act. A DMARC result carries the policy the domain published and whether the domain is testing, and the caller decides whether to reject, quarantine or deliver the message. The same goes for a DKIM key published in test mode ([ADR 0020](../adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)).
+
+## The caller drives each check
+
+A check is a state machine. The caller feeds it input in the order mail arrives, and the check answers with the DNS questions it needs next. It never waits: when it needs an answer it doesn't have, it says so and returns. DMARC under RFC 7489 also asks for the public suffix of each domain it compares, and the caller answers from the list it keeps, so the caller chooses the list and updates it while it runs ([ADR 0038](../adr/0038-in-rfc-7489-mode-the-caller-answers-public-suffix-questions.md)).
+
+```mermaid
+sequenceDiagram
+    participant MTA
+    participant Milter as hallmark-milter
+    participant Check as hallmark check
+    participant DNS as Resolver
+    MTA->>Milter: MAIL FROM and RCPT TO
+    Milter->>Check: envelope
+    Check-->>Milter: SPF questions
+    Milter->>DNS: resolve SPF questions
+    MTA->>Milter: header fields, one at a time
+    Milter->>Check: header fields
+    Check-->>Milter: DKIM key, DKIM2 policy and DMARC policy questions
+    Milter->>DNS: resolve them while the body arrives
+    MTA->>Milter: body chunks of up to 65,535 bytes
+    Milter->>Check: each chunk, released after the call
+    DNS-->>Milter: answers
+    Milter->>Check: answers, in any order
+    MTA->>Milter: end of message
+    Milter->>Check: end of message
+    Check-->>Milter: results, trace, header fields to add
+    Milter->>MTA: Authentication-Results and signatures
+```
+
+This shape has three effects:
+
+- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver, and for signing a signer, that the caller implements.
+- DNS lookups overlap the body. The DKIM selectors, the domains whose DKIM2 Domain Policy Records the From check may need, and the DMARC domain are all known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
+- Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere. The order in which answers arrive changes nothing, because each answer lands under the step that asked its question.
+
+## Streaming without holding the body
+
+An MTA hands a milter the body in fixed-size chunks and cuts wherever the buffer fills: in the middle of a word, among trailing spaces, or between the `\r` and `\n` of a line ending. A body hash depends on canonicalization, and canonicalization depends on where lines end, so the canonicalizer can't decide about the last bytes of a chunk until the next chunk arrives.
+
+The canonicalizer carries a small state from one chunk to the next instead of the bytes themselves, and settles what is still pending once the body ends:
+
+| Pending at the end of a chunk | State kept | Settled when |
+|---|---|---|
+| Spaces or tabs (relaxed) | One flag | Text follows: one space is hashed. A line ending follows, or the body ends: they are dropped. |
+| A `\r` without its `\n` | One flag | A `\n` follows: a line ended. Another byte follows, or the body ends: the `\r` is a bare CR, which is hashed as an octet of the body (STR-011). |
+| Empty lines | A count of line endings not yet hashed | Text follows: they are all hashed. The body ends: they are dropped. |
+| A line with bytes hashed and no line ending yet | One flag | A line ending follows: the flag clears. The body ends: a CRLF is hashed, because RFC 6376 §3.4.3 and §3.4.4 and draft-09 §6.1 add one to a body without a trailing CRLF. `simple` and the DKIM2 body hash also hash one for a body that has nothing else to hash. |
+
+The state stays the same size however large the message is, and the core never keeps a chunk after the call that delivered it. Only the end of the message tells the canonicalizer that the body is complete. A message with an empty body may bring no chunks at all, and its end then follows the header fields directly (CHK-001). Tests feed each message split at every chunk size, from 1 byte to the whole message, and require the same hash every time (STR-005).
+
+Header fields arrive whole, one per call, so they need no carry-over. The core does keep all header fields of a message, because DKIM picks signed fields from the bottom up and DKIM2 header recipes rebuild earlier header sets. The header limits (SAF-002) bound that memory.
+
+## Reading header fields
+
+DKIM, DKIM2 and DMARC read header fields, and SPF reads only the envelope. Each kind of field has its own grammar. hallmark keeps the raw header section and parses it in two layers ([ADR 0010](../adr/0010-header-parsers-follow-the-abnf-and-never-repair-input.md)).
+
+```mermaid
+flowchart LR
+    raw["Header section, raw bytes kept"] --> split["Field splitter"]
+    split --> tags["Tag=value lists"]
+    split --> ar["Authentication-Results"]
+    split --> from["From field"]
+    tags --> dkim["DKIM and DKIM2"]
+    from --> addr["Address parsers"]
+    env["MAIL FROM, RCPT TO, decoded mf= and rt="] --> addr
+```
+
+For fields that arrive one at a time from a milter, hallmark first rebuilds those bytes from each name and value (STR-008). The field splitter finds where each field starts and ends. A field is a pair of positions in the raw bytes, so splitting copies nothing, and `simple` canonicalization hashes those bytes unchanged. A parser that needs the unfolded value of a folded field builds it from the same bytes. The parser for each kind of field works on those positions and returns decoded values along with positions back into the raw bytes, so the trace can point at the exact text a decision came from. The From field and the envelope addresses go to the address parsers, described in the next section.
+
+No parser repairs its input. A From field that doesn't parse gives DMARC no author domain, and hallmark ignores a DKIM-Signature field that doesn't parse, as RFC 6376 §6.1.1 requires. Either way, the trace records the rule that failed and where. hallmark reads no MIME structure: bodies are octets, and display names keep their encoded words ([ADR 0011](../adr/0011-hallmark-reads-no-mime-structure.md)).
+
+## Hashing header fields
+
+DKIM and DKIM2 hash each header field in a canonical form. DKIM's `relaxed` form and DKIM2's header hash lowercase the field name, unfold the value and reduce its white space, so a mail system can refold a long field in transit and the hash stays the same. DKIM's `simple` form takes the raw bytes as they arrived, which is why the parser keeps them.
+
+The hash inputs differ in the fields they take. DKIM takes the fields that the signer named in `h=`, picking instances from the bottom up, and ends with the signature field itself. DKIM2 takes every field except its own and those that §4 of the draft lists, such as trace fields and other signatures, and sorts them by name, so it needs no list of names. Its signature then covers only the Message-Instance and DKIM2-Signature fields, which already hold the hashes of everything else.
+
+The specifications leave three cases open to more than one reading, and an ADR records hallmark's reading of each. A DKIM `h=` that names `dkim-signature` once more than the message has older signatures selects the signature's own field, which fails the signature, and the trace adds a caution that names the rule the signer broke ([ADR 0028](../adr/0028-dkim-h-selection-counts-the-signatures-own-dkim-signature-field.md)). A line that isn't a header field has no name to sort by, so DKIM2 leaves it out of its header hash ([ADR 0029](../adr/0029-the-dkim2-header-hash-leaves-out-lines-that-are-not-header-fields.md)). If the input ends inside the last header field, that field still counts, and its canonical form gets the CRLF that ends every hashed field ([ADR 0030](../adr/0030-a-last-header-line-without-a-line-ending-is-a-header-field-that-canonicalization-ends-with-crlf.md)).
+
+## Reading addresses
+
+hallmark reads addresses in two grammars. Header fields follow RFC 5322, with display names, comments, groups and the obsolete forms of §4.4. The SMTP envelope follows RFC 5321, with angle brackets, the null path `<>` and source routes. The checks then compare what they found across both: DMARC aligns the MAIL FROM domain with the From domain, and DKIM2 matches `mf=` against MAIL FROM and the From domain against `d=`. To make those comparisons possible, hallmark has one parser per grammar, and both return the same parts. A DKIM `i=` value uses the RFC 5321 local part (RFC 6376 §2.9), so the envelope parser reads it.
+
+```mermaid
+flowchart LR
+    hdr["From fields and Authentication-Results values"] --> hp["Header address parser, RFC 5322"]
+    env["MAIL FROM, RCPT TO, HELO, DKIM i=, decoded mf= and rt="] --> ep["Envelope address parser, RFC 5321"]
+    hp --> parts["Local part, and a domain name or an address literal"]
+    ep --> parts
+    parts --> lookup["Lookup form of the domain"]
+    lookup --> dmarc["DMARC author domain and alignment"]
+    lookup --> dkim2["DKIM2 chain of custody and From check"]
+    lookup --> spf["SPF sender, domain and macros"]
+```
+
+Each part keeps the text it had in the input, because the trace shows it and because some checks compare it exactly. A local part also carries its value with the quoting removed. A domain name carries a lookup form, in which every U-label becomes an A-label under RFC 5891, and every DNS question and comparison uses that form. Domain names outside addresses, such as DKIM `d=` and the domains SPF reaches, get the same lookup form. hallmark does the conversion itself, with tables for one fixed Unicode version, and maps nothing ([ADR 0012](../adr/0012-hallmark-converts-domain-names-to-a-labels-with-its-own-rfc-5891-code.md)). hallmark never makes a DNS question for an address literal.
+
+The two grammars differ in the characters a domain may hold. A header domain may hold any ASCII that RFC 5322 allows, and hallmark looks it up as written ([ADR 0014](../adr/0014-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)). An envelope domain holds only letters, digits and hyphens, as RFC 5321 says.
+
+An ADR records hallmark's reading wherever the RFCs leave a case open: a From address with a domain literal gives DMARC no author domain ([ADR 0013](../adr/0013-a-from-domain-literal-gives-dmarc-no-author-domain.md)), SPF macros expand the local part as written ([ADR 0015](../adr/0015-spf-macros-expand-the-local-part-as-written.md)), and the DKIM2 chain of custody compares local parts as written and ignores source routes ([ADR 0016](../adr/0016-dkim2-compares-local-parts-as-written-and-ignores-source-routes.md)). The DKIM2 reading stays under review in [hallmark#2](https://github.com/photom/hallmark/issues/2) until a revision of the draft settles it.
+
+## Reading DNS records
+
+Whoever runs a zone controls its records, so hallmark treats a DNS answer as hostile input, as it does a message. The resolver hands over each TXT record as the strings it was published in, and the core joins them, so the trace can show the record both ways. Each check then keeps the records its specification selects and parses them with its own grammar: the SPF record with its terms and macros, the DMARC record, and the tag lists of DKIM keys, DKIM2 keys and Domain Policy Records. A syntax error gets the result that the check's specification gives for it, and the trace names the rule and the offset.
+
+The record specifications leave more cases open than the header field ones, and in places they contradict themselves. Three passages of RFC 9989 disagree about a record with an invalid policy tag ([ADR 0023](../adr/0023-dmarc-follows-rfc-9989-section-4-10-1-for-invalid-policy-tags-and-section-4-7-for-nonexistent-subdomains.md)), and RFC 6376 both permits and calls undefined a selector with several key records. ADRs 0021 to 0027 record hallmark's reading of each such case. Two of them keep the result independent of things a verifier shouldn't let decide it: the order of the records in an answer ([ADR 0025](../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)), and a local part that a sender chose to break an SPF target name ([ADR 0022](../adr/0022-an-spf-target-name-that-macro-expansion-makes-invalid-matches-nothing.md)).
+
+## DKIM2 chains in one pass
+
+A DKIM2 hop that changes a message records a recipe for undoing the change. To check the signature of an earlier hop, the verifier rebuilds that hop's version of the body from the current one and hashes it. Draft-09 §5.1 and §5.2 require the copy steps of a recipe to be in ascending order and not to overlap, so each earlier version takes its lines from the version after it in the order they stream past.
+
+```mermaid
+flowchart LR
+    stream["Current body, as it streams"] --> v3["Hash of the current version"]
+    stream --> r3["Recipe of hop 3: copies and inserted text"]
+    r3 --> v2["Hash of version 2"]
+    r3 --> r2["Recipe of hop 2"]
+    r2 --> v1["Hash of version 1"]
+```
+
+Each rebuild keeps only its position in its recipe, and the lines of the recipe's `d` and `u` steps, which arrived with the header fields. A `d` step holds lines as UTF-8 text, and a `u` step holds them in base64 when they aren't valid UTF-8 (draft-09 §5.2). One pass over the body checks the whole chain, with no storage and no random access (DK2-006). Recipe line numbers count the raw body, including the empty lines at its end ([ADR 0008](../adr/0008-dkim2-recipe-line-numbers-count-the-raw-body.md)).
+
+## The trace
+
+The code that makes each decision records it in the trace at that moment ([ADR 0031](../adr/0031-the-code-that-decides-writes-the-trace-as-events-with-tree-positions.md)). A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it. Each step goes out as one event, which carries the step's position in the tree: the path of child numbers from the root. Each kind of check has a fixed slot under the root, so a DMARC alignment step can point at the SPF or DKIM result it used, even when that check ran in another call.
+
+```mermaid
+flowchart TD
+    root["Trace of one call"] --> spf["SPF for MAIL FROM, slot 2"]
+    root --> dkim["DKIM, slot 3"]
+    root --> dmarc["DMARC for void.invalid, slot 5"]
+    spf --> inc["include: answer and lookup count"]
+    dkim --> sig["Signature d=void.invalid"]
+    sig --> key["Key record lookup"]
+    sig --> bh["Body hash: computed and stated"]
+    dmarc --> policy["Policy discovery under RFC 9989"]
+    policy --> walk["Tree walk steps"]
+    dmarc --> align["Alignment of each identifier"]
+    align -.->|"uses the result of"| spf
+    align -.->|"uses the result of"| sig
+```
+
+At the full level, each event goes out as soon as its step finishes. A milter can write the events to its log while the check runs, and a check that stalls on a DNS answer still leaves everything it recorded. DNS answers arrive in any order, so the events do too, but a step's position comes only from the inputs: sorted by position, the events give the same trace in the same bytes every time. At the summary level, hallmark holds the events back and sends only the path that decided each result, once the check finishes. Every event carries the ID that the caller gave the message, such as the MTA's queue ID, which joins the trace with the MTA's and the milter's logs. Each event is one I-JSON text in a JSON text sequence, as the [trace format](../reference/trace-format.md) describes ([ADR 0033](../adr/0033-trace-events-are-i-json-texts-in-a-json-text-sequence.md)).
+
+Because the trace comes from the deciding code, it can't disagree with the result. Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. A fact that a specification warns about, such as a signature that passed with a 1024-bit RSA key, carries a caution that cites the section. Each step holds codes and parameters, and the words a person reads come from them, so tests match codes and the demo can show the trace in another language. Values that a sender or a DNS publisher controls carry a mark, and whoever displays them escapes them for their output. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes, counts and places, never as content: a caller that wants to see what a check hashed passes the body through the library's canonicalizer ([ADR 0041](../adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)). Private keys never appear at all.
+
+## Where hallmark-milter fits
+
+hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks, feeds each piece to a hallmark check, resolves DNS with a native resolver, and adds the Authentication-Results field and the signatures at the end of the message. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).

@@ -1,0 +1,62 @@
+name: Bug report
+description: hallmark gives a wrong result, panics, or does not build.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Use "Report a security vulnerability" on the new issue page instead.
+
+        Before you paste a message or a trace, remove real email addresses, domain names, and IP addresses, and never paste a private key. Use names under `void.invalid` in examples, such as `sender@void.invalid`.
+  - type: dropdown
+    id: check
+    attributes:
+      label: Check
+      multiple: true
+      options:
+        - SPF
+        - DKIM verification
+        - DKIM signing
+        - DKIM2
+        - DMARC
+        - Authentication-Results
+        - Trace
+        - WebAssembly or the demo
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The result hallmark gave, including the trace or the error.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: The result the specification requires. Name the RFC or draft section.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The message, the DNS records, the verification time, and the options. A saved case from the demo works too.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: hallmark version
+      placeholder: 0.1.0, or a commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Rust version and target
+      placeholder: rustc 1.99.0, x86_64-unknown-linux-gnu or wasm32-unknown-unknown
+    validations:
+      required: true

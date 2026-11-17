@@ -1,0 +1,16 @@
+[package]
+name = "hallmark"
+description = "Email sender authentication: SPF, DKIM, DKIM2 and DMARC, with a trace that explains every step"
+version.workspace = true
+rust-version = "1.88"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["dkim", "spf", "dmarc", "email", "authentication"]
+categories = ["email", "authentication", "wasm"]
+
+[lints]
+workspace = true
+
+[dependencies]
