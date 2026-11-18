@@ -477,12 +477,14 @@ The hallmark repository is a Cargo workspace ([ADR 0005](../adr/0005-the-demo-li
 | `crates/hallmark-conformance` | Tests that run published conformance data, with the data and its license files (TST-002) | never |
 | `crates/hallmark-tables` | The generator of the IDNA tables and the Unicode data files it reads ([ADR 0045](../adr/0045-the-hallmark-package-is-licensed-mit-and-unicode-3-0-and-its-source-data-stays-outside-it.md)) | never |
 | `demo/` | The static demo site | GitHub Pages |
+| `target/doc`, built by CI | The API reference: the rustdoc of the workspace crates ([ADR 0052](../adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md)) | GitHub Pages, under `/api/` |
 
 | ID | Requirement |
 |---|---|
 | REP-001 | The core crate's package leaves out `demo/`. |
 | REP-002 | A GitHub Actions workflow builds the demo and publishes it to GitHub Pages, without a `gh-pages` branch. |
 | REP-003 | The demo stays small: plain TypeScript or JavaScript with few npm dependencies. If it grows into a large front-end app with its own contributors, it moves to its own repository. |
+| REP-004 | A GitHub Actions workflow builds the rustdoc of the workspace from `main` and publishes it to GitHub Pages under `/api/`, in the same site as the demo of REP-002. CI checks every link from the documents to the API reference against the rustdoc that it builds ([ADR 0052](../adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md)). |
 
 ## Browser demo
 
