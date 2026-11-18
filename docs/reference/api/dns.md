@@ -12,24 +12,24 @@ The values a check hands the caller when it needs DNS records or a public suffix
 
 ## Requests
 
-`Check::take_requests` gives a list of `Request` values. Each is one of three:
+`Check::take_requests` gives a `Vec<Request>` ([Check](check.md#request)). Each request is one of three:
 
 ```mermaid
 classDiagram
     class Request {
         <<enumeration>>
         Question
-        SuffixQuestion
-        SigningRequest
+        Suffix
+        Signing
     }
     class Question {
         +QuestionId id
-        +QuestionType type
-        +Bytes name
+        +QuestionType record_type
+        +Vec~u8~ name
     }
     class SuffixQuestion {
         +QuestionId id
-        +Bytes domain
+        +Vec~u8~ domain
     }
     class SigningRequest {
         +RequestId id
@@ -39,48 +39,55 @@ classDiagram
     Request ..> SigningRequest
 ```
 
-[Signing](signing.md#types) describes `SigningRequest`.
+[Signing](signing.md#types) gives `SigningRequest`.
 
 ## Questions
 
-| Member | Type | Meaning | Requirements |
+`Question` is `#[non_exhaustive]` with public fields. The check builds it, and the caller reads it.
+
+| Field | Type | Meaning | Requirements |
 |---|---|---|---|
 | `id` | `QuestionId` | Unique within the check. It depends on when the question was asked, so the trace never shows it | DNS-007, TRC-008 |
-| `type` | `QuestionType` | `TXT`, `A`, `AAAA`, `MX` or `PTR` | DNS-001 |
-| `name` | Bytes | The name in lookup form, built by the check, without a final dot | DNS-008, ADS-002 |
+| `record_type` | `QuestionType` | The type of record asked for | DNS-001 |
+| `name` | `Vec<u8>` | The name in lookup form, built by the check, as ASCII without a final dot | DNS-008, ADS-002 |
+
+`QuestionType` is an exhaustive enum, `Copy`: `Txt`, `A`, `Aaaa`, `Mx` or `Ptr` (DNS-001).
 
 A check holds each type and name once (INV-001), so the caller never gets the same question twice.
 
 ## Answers
 
-| `Answer` | Carries | Meaning | Requirements |
+`Answer` and `Record` are exhaustive enums. The caller builds them.
+
+| `Answer` variant | Carries | Meaning | Requirements |
 |---|---|---|---|
-| `Records` | The records, in the order the resolver gave them | Records found | DNS-002, DNS-006 |
+| `Records` | `Vec<Record>`, in the order the resolver gave them | Records found | DNS-002, DNS-006 |
 | `NameNotFound` | Nothing | The name doesn't exist (NXDOMAIN) | DNS-002 |
 | `NoRecords` | Nothing | The name exists with no records of this type (NODATA) | DNS-002 |
-| `TemporaryFailure` | An optional description, as bytes | The resolver couldn't get an answer, such as on a timeout or SERVFAIL | DNS-009 |
+| `TemporaryFailure` | `Option<Vec<u8>>`: the resolver's description | The resolver couldn't get an answer, such as on a timeout or SERVFAIL | DNS-009 |
 
-| `Record` | Carries | Requirements |
+| `Record` variant | Carries | Requirements |
 |---|---|---|
-| `Txt` | Its character-strings, in order and not joined | DNS-006, RFC 1035 §3.3.14 |
-| `A` | An IPv4 address | DNS-006 |
-| `Aaaa` | An IPv6 address | DNS-006, RFC 3596 §2.2 |
-| `Mx` | A preference from 0 to 65,535 and an exchange name | DNS-006, RFC 1035 §3.3.9 |
-| `Ptr` | A name | DNS-006, RFC 1035 §3.3.12 |
+| `Txt` | `Vec<Vec<u8>>`: its character-strings, in order and not joined | DNS-006, RFC 1035 §3.3.14 |
+| `A` | `Ipv4Addr` | DNS-006 |
+| `Aaaa` | `Ipv6Addr` | DNS-006, RFC 3596 §2.2 |
+| `Mx` | `preference: u16`, `exchange: Vec<u8>` | DNS-006, RFC 1035 §3.3.9 |
+| `Ptr` | `Vec<u8>`: a name | DNS-006, RFC 1035 §3.3.12 |
 
-The resolver needs to know no protocol rule. The check joins TXT strings itself (DNS-006), and a name in a record that doesn't parse gets the rule of the protocol that read it.
+A name in a record is the bytes of its labels joined by dots, without a final dot. The resolver needs to know no protocol rule. The check joins TXT strings itself (DNS-006), and a name in a record that doesn't parse gets the rule of the protocol that read it.
 
 ## Suffix questions and answers
 
 In RFC 7489 mode, the check asks for the public suffix of each domain whose organizational domain it may need (DMC-010). RFC 9989 mode asks none.
 
-| Value | Members | Meaning | Requirements |
-|---|---|---|---|
-| `SuffixQuestion` | `id`, `domain` | The domain in lookup form | DMC-010 |
-| `SuffixAnswer::Suffix` | `labels`, and `list`, optional | The public suffix has `labels` labels, the x of RFC 7489 §3.2 step 3. `list` names the list, such as its date or a hash | DMC-010, DMC-011 |
-| `SuffixAnswer::Unavailable` | Nothing | The caller has no suffix for the domain. It gives `temperror` if the result depends on that organizational domain | DMC-011 |
+`SuffixQuestion` is `#[non_exhaustive]` with public fields. `SuffixAnswer` is an exhaustive enum that the caller builds.
 
-Suffix questions share the ID space of DNS questions.
+| Type | Field or variant | Type or carries | Meaning | Requirements |
+|---|---|---|---|---|
+| `SuffixQuestion` | `id` | `QuestionId` | Shares the ID space of DNS questions | DMC-010 |
+| `SuffixQuestion` | `domain` | `Vec<u8>` | The domain in lookup form, as ASCII without a final dot | DMC-010 |
+| `SuffixAnswer` | `Suffix` | `labels: u8`, `list: Option<String>` | The public suffix has `labels` labels, the x of RFC 7489 §3.2 step 3. `list` names the list, such as its date or a hash | DMC-010, DMC-011 |
+| `SuffixAnswer` | `Unavailable` | Nothing | The caller has no suffix for the domain. It gives `temperror` if the result depends on that organizational domain | DMC-011 |
 
 ## Validation
 
