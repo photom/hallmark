@@ -56,6 +56,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0050](0050-dmarc-asks-whether-the-author-domain-exists-when-np-can-change-the-policy-and-needs-the-answer-only-for-a-message-that-fails.md) | DMARC asks whether the author domain exists when `np` can change the policy, and needs the answer only for a message that fails | Accepted |
 | [0051](0051-a-bare-cr-or-lf-in-the-header-section-is-an-octet-of-the-line-that-holds-it.md) | A bare CR or LF in the header section is an octet of the line that holds it | Accepted |
 | [0052](0052-the-api-reference-is-rustdoc-published-on-github-pages.md) | The API reference is rustdoc, published on GitHub Pages | Accepted |
+| [0053](0053-the-tests-run-on-rocky-linux-9-and-debian-13.md) | The tests run on Rocky Linux 9 and Debian 13 | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

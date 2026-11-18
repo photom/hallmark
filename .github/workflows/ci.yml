@@ -52,17 +52,40 @@ jobs:
       - run: cargo clippy -p hallmark -p hallmark-wasm --target wasm32-unknown-unknown --all-features -- -D warnings
       - run: cargo build -p hallmark -p hallmark-wasm --target wasm32-unknown-unknown --all-features
 
+  # The tests run on Rocky Linux 9 and Debian 13, in containers on the hosted
+  # runner (TST-007, ADR 0053). The other jobs check tools and run on the
+  # runner itself.
   test:
-    name: Test (${{ matrix.os }})
+    name: Test (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - name: Rocky Linux 9
+            image: rockylinux/rockylinux:9
+          - name: Debian 13
+            image: debian:trixie
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
     steps:
+      - name: Install the build tools
+        run: |
+          if command -v dnf > /dev/null; then
+            dnf install -y gcc git
+          else
+            apt-get update
+            apt-get install -y --no-install-recommends ca-certificates curl gcc git libc6-dev
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # rustup installs the toolchain that rust-toolchain.toml names.
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo test --workspace --all-features
       - run: cargo test --workspace --no-default-features
