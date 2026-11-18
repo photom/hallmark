@@ -13,4 +13,12 @@ categories = ["email", "authentication", "wasm"]
 [lints]
 workspace = true
 
+[features]
+# DKIM2 targets IETF drafts, and its API can change in any release (DK2-001,
+# DK2-005).
+unstable-dkim2 = []
+
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
