@@ -511,6 +511,7 @@ The hallmark repository is a Cargo workspace ([ADR 0005](../adr/0005-the-demo-li
 | TST-004 | Tests make no network calls. hallmark's own tests use domain names under `.invalid` and answer DNS from snapshots. Tests that run conformance data (TST-002) keep its names and answer DNS from its own records. |
 | TST-005 | Fuzz targets (SAF-003) run in CI for a bounded time on every change, and for longer on a schedule. |
 | TST-006 | Code in this repository uses only short, well-established regular expressions, such as one that matches a run of digits, because people find long or complex ones hard to read. hallmark parses structured input, such as header fields, addresses, tag lists and DNS records, by hand from the ABNF ([ADR 0010](../adr/0010-header-parsers-follow-the-abnf-and-never-repair-input.md)). |
+| TST-007 | CI runs the tests on Rocky Linux 9 and Debian 13, in containers on GitHub-hosted runners. The other CI jobs check tools and the code, and run on the hosted runner itself ([ADR 0053](../adr/0053-the-tests-run-on-rocky-linux-9-and-debian-13.md)). |
 
 Process:
 
