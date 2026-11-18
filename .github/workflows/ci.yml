@@ -86,7 +86,12 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: rustup toolchain install
+      # The action's own cache key leaves out the matrix, so the image keeps
+      # the two caches apart. A build script built against Debian's glibc
+      # can't run on Rocky Linux's older one.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.image }}
       - run: cargo test --workspace --all-features
       - run: cargo test --workspace --no-default-features
 

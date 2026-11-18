@@ -6,7 +6,7 @@
 
 ## Context
 
-CI ran the tests on two GitHub-hosted runners, `ubuntu-latest` and `macos-latest`. A job on a macOS runner waits a long time before a runner picks it up. On 2026-11-18, one macOS test job waited 15 minutes and was cancelled, and another was still waiting more than 10 minutes after every Ubuntu job of its run had finished. The tests themselves take seconds.
+CI ran the tests on two GitHub-hosted runners, `ubuntu-latest` and `macos-latest`. The Ubuntu jobs started within seconds, but the macOS test job could wait many minutes for a runner. On 2026-11-18, the macOS test job waited in three of the four CI runs, for 5, 9 and 15 minutes, and each was cancelled before a runner picked it up. In the run that waited 9 minutes, the other jobs had all finished within 40 seconds. The tests themselves take seconds.
 
 The core opens no socket and no file, reads no clock and draws no random number (IO-001), so its behavior depends on Rust and the target, not on the operating system. The WebAssembly job already builds it for a second target.
 
