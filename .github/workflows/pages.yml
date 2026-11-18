@@ -1,0 +1,72 @@
+name: Pages
+
+# Publishes the rustdoc of the workspace under /api/ (REP-004, ADR 0052). The
+# root of the site belongs to the demo (REP-002). Until the demo exists, the
+# root page links to the API reference. A pull request builds the site and
+# checks its links, and only main deploys it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo doc --workspace --no-deps --all-features
+      - run: python3 -I .github/scripts/check-links.py --doc target/doc
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -R target/doc _site/api
+          cat > _site/api/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=hallmark/index.html"><title>hallmark API reference</title></head>
+          <body><p><a href="hallmark/index.html">hallmark API reference</a></p></body>
+          </html>
+          EOF
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head><meta charset="utf-8"><title>hallmark</title></head>
+          <body><h1>hallmark</h1><p><a href="api/hallmark/index.html">API reference</a></p></body>
+          </html>
+          EOF
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

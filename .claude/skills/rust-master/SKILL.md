@@ -88,7 +88,7 @@ The hallmark core has no async runtime and does no I/O: the caller drives DNS an
 
 ### Documentation
 
-- Give every public API a rustdoc comment with an example that runs as a doctest.
+- Give every public API a rustdoc comment: the rustdoc is the API reference (ADR 0052). An implemented item may carry an example that runs as a doctest. An item under `#[cfg(doc)]` carries none, because doctests compile without `cfg(doc)`.
 - Document the safety requirements of `unsafe` code.
 - Explain design decisions that are not obvious in the module-level docs.
 
