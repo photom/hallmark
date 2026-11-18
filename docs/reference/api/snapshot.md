@@ -4,7 +4,10 @@ The APIs that keep the DNS answers of a check and answer from them later: snapsh
 
 ## Contents
 
-- [APIs](#apis)
+- [Flow](#flow)
+- [Signatures](#signatures)
+- [Parameters](#parameters)
+- [Types](#types)
 - [Validation](#validation)
   - [`Snapshot::parse`](#snapshotparse)
   - [`Snapshot::from_trace`](#snapshotfrom_trace)
@@ -13,7 +16,7 @@ The APIs that keep the DNS answers of a check and answer from them later: snapsh
   - [`SnapshotResolver::answer` and `answer_suffix`](#snapshotresolveranswer-and-answer_suffix)
   - [`PastedRecords::parse`](#pastedrecordsparse)
 
-## APIs
+## Flow
 
 ```mermaid
 flowchart LR
@@ -29,21 +32,45 @@ flowchart LR
     res -->|"answer and answer_suffix"| loop["Caller's own loop"]
 ```
 
-| API | Takes | Gives | Requirements |
+## Signatures
+
+| API | Signature | Returns | Requirements |
 |---|---|---|---|
-| `Snapshot::parse` | Bytes and `DocumentLimits` | `Snapshot`, or `DocumentError` | DNS-004 |
-| `Snapshot::from_trace` | A full-level trace, its events sorted or not, and `DocumentLimits` | `Snapshot`, or `DocumentError` | TRC-008 |
-| `Snapshot::to_bytes` | Nothing | The snapshot in the fixed form of bytes | DNS-004, TRC-007 |
-| `SnapshotResolver::new` | A `Snapshot` | A resolver that answers from it | DNS-004 |
-| `SnapshotResolver::answer` | A `Question` | The `Answer` the snapshot holds, at once | DNS-004, ADR 0048 |
-| `SnapshotResolver::answer_suffix` | A `SuffixQuestion` | The `SuffixAnswer` the snapshot holds, at once | DNS-004 |
-| `PastedRecords::parse` | Text and `DocumentLimits` | A `Snapshot` that answers as complete zone data, or `DocumentError` | DNS-010 |
+| `Snapshot::parse` | `fn parse(bytes: &[u8], limits: &DocumentLimits) -> Result<Snapshot, DocumentError>` | The snapshot | DNS-004 |
+| `Snapshot::from_trace` | `fn from_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Snapshot, DocumentError>` | The snapshot of the answers the trace records | TRC-008 |
+| `Snapshot::to_bytes` | `fn to_bytes(&self) -> Vec<u8>` | The snapshot in the fixed form of bytes | DNS-004, TRC-007 |
+| `SnapshotResolver::new` | `fn new(snapshot: Snapshot) -> SnapshotResolver` | A resolver that answers from the snapshot | DNS-004 |
+| `SnapshotResolver::answer` | `fn answer(&self, question: &Question) -> Answer` | The answer the snapshot holds | DNS-004 |
+| `SnapshotResolver::answer_suffix` | `fn answer_suffix(&self, question: &SuffixQuestion) -> SuffixAnswer` | The suffix answer the snapshot holds | DNS-004 |
+| `Resolver` for `SnapshotResolver` | `fn resolve(&self, question: Question) -> impl Future<Output = Answer> + Send` | A future that is ready at once with the answer of `answer` | DNS-004, ADR 0048 |
+| `SuffixSource` for `SnapshotResolver` | `fn suffix(&self, question: SuffixQuestion) -> impl Future<Output = SuffixAnswer> + Send` | A future that is ready at once with the answer of `answer_suffix` | DNS-004, ADR 0048 |
+| `PastedRecords::parse` | `fn parse(text: &str, limits: &DocumentLimits) -> Result<Snapshot, DocumentError>` | A snapshot that answers as complete zone data | DNS-010 |
+
+## Parameters
+
+| API | Parameter | Meaning and form |
+|---|---|---|
+| `Snapshot::parse` | `bytes` | One snapshot document in the form of [Trace format](../trace-format.md#snapshots) |
+| `Snapshot::from_trace` | `trace` | The bytes of one whole trace at the full level, its events sorted or not |
+| `Snapshot::parse`, `from_trace`, `PastedRecords::parse` | `limits` | The size and depth limits of [Limits](../design/limits.md#limits-outside-a-check) |
+| `SnapshotResolver::new` | `snapshot` | The snapshot to answer from |
+| `SnapshotResolver::answer`, `resolve` | `question` | A DNS question from a check |
+| `SnapshotResolver::answer_suffix`, `suffix` | `question` | A public suffix question from a check |
+| `PastedRecords::parse` | `text` | Records, one per line, in the presentation format of RFC 1035 §5.1 |
+
+## Types
+
+| Type | Shape | Meaning | Requirements |
+|---|---|---|---|
+| `Snapshot` | Private fields. `Clone`, `PartialEq`, `Eq` | The questions of a check, each with its answer, and whether it answers as complete zone data | DNS-004, DNS-010 |
+| `SnapshotResolver` | Private fields | A resolver over one snapshot, read only after creation | DNS-004 |
+| `PastedRecords` | An enum with no variant | Holds `parse` and no value | DNS-010 |
 
 | Rule | Requirements |
 |---|---|
 | The resolver matches a question by type and name, without regard to ASCII case | DNS-004, RFC 4343 §2 |
-| A question the snapshot lacks gets a temporary failure that says so. A public suffix question it lacks gets the answer that no suffix is available | DNS-004, DNS-009 |
-| A name with no pasted records and none below it doesn't exist. A name with records of other types, or with records below it, has no records of the asked type | DNS-010, RFC 8020 §2 |
+| A question the snapshot lacks gets a temporary failure that says so. A public suffix question it lacks gets `SuffixAnswer::Unavailable` | DNS-004, DNS-009 |
+| A snapshot from `PastedRecords::parse` answers as complete zone data. A name with no pasted records and none below it doesn't exist. A name with records of other types, or with records below it, has no records of the asked type | DNS-010, RFC 8020 §2 |
 
 ## Validation
 
