@@ -68,6 +68,14 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ matrix.image }}
+      # The Rocky Linux image sets no PATH, and if a step adds to the path, the
+      # runner gives later steps a PATH with only the added directories. The
+      # job sets the whole PATH here instead, and installs Rust under
+      # /usr/local, outside the HOME that the runner chooses.
+      env:
+        RUSTUP_HOME: /usr/local/rustup
+        CARGO_HOME: /usr/local/cargo
+        PATH: /usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Install the build tools
         run: |
@@ -82,9 +90,7 @@ jobs:
           persist-credentials: false
       # rustup installs the toolchain that rust-toolchain.toml names.
       - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none --no-modify-path
       - run: rustup toolchain install
       # The action's own cache key leaves out the matrix, so the image keeps
       # the two caches apart. A build script built against Debian's glibc
