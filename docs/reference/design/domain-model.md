@@ -1,6 +1,6 @@
 # Domain model
 
-The bounded contexts of hallmark, the entities and value objects of each, and the invariants that hold between them. The type names are the Ubiquitous Language, and their members are a first draft of the public API.
+The bounded contexts of hallmark, the entities and value objects of each, and the invariants that hold between them. The type names are the Ubiquitous Language. The [API reference](../api/README.md) gives each public type's exact fields and variants.
 
 ## Contents
 
@@ -60,15 +60,15 @@ classDiagram
         +InputState state
     }
     class Options {
-        +Set~Kind~ kinds
+        +List~Kind~ kinds
         +DmarcMode dmarc_mode
         +VerificationTime time
         +bool time_checks
         +Level trace_level
-        +Option~MessageId~ message_id
+        +Option~Text~ message_id
         +Limits limits
         +FieldForm field_form
-        +Option~Bytes~ receiving_host
+        +Option~Text~ receiving_host
         +SpfSource dmarc_spf
         +DkimSource dmarc_dkim
         +bool several_author_domains
@@ -190,7 +190,7 @@ classDiagram
 classDiagram
     class Question {
         +QuestionId id
-        +QuestionType type
+        +QuestionType record_type
         +Bytes name
     }
     class Answer {
@@ -223,7 +223,10 @@ classDiagram
     }
     class SigningRequest {
         +RequestId id
-        +Algorithm algorithm
+        +SigningKind kind
+        +SignerStatement statement
+        +Text domain
+        +Bytes selector
         +Bytes data
     }
     class Signature {
@@ -258,6 +261,7 @@ classDiagram
         +bool time_checks
     }
     class SpfResult {
+        +SpfIdentity identity
         +Position position
         +SpfOutcome outcome
         +SpfReason reason
@@ -266,22 +270,26 @@ classDiagram
     }
     class DkimResult {
         +Position position
-        +Domain domain
-        +Data selector
+        +Option~Domain~ domain
+        +Option~Data~ selector
         +DkimOutcome outcome
         +DkimReason reason
         +bool testing
         +Option~Count~ unsigned_body
     }
     class Dkim2Result {
+        +Position position
         +Dkim2State state
+        +Dkim2Reason reason
         +Option~Text~ draft_text
     }
     class DmarcResult {
-        +Domain author_domain
+        +Position position
+        +Option~Domain~ author_domain
         +DmarcOutcome outcome
         +PolicyTag policy_tag
-        +bool test_mode
+        +PublishedPolicy published
+        +Option~TestModeTag~ test_mode
         +bool rests_on_testing_keys
     }
     class Alignment {
@@ -310,7 +318,7 @@ classDiagram
 | `DkimOutcome` | `success`, `permfail`, `tempfail` for each signature, and `permerror` for the whole check when a header limit stops it | RFC 6376 §3.9, DKV-004, SAF-002 |
 | `Dkim2State` | `NONE`, `PASS`, `FAIL`, `PERMERROR`, `TEMPERROR`, with the text of draft-09 §14 | DK2-013 |
 | `DmarcOutcome` | `pass`, `fail`, `none`, `temperror`, `permerror`, or not applied with the reason | DMC-002, DMC-006 |
-| `PolicyTag` | `p`, `sp` or `np` with its published value, or undetermined | DMC-006, REC-032 |
+| `PolicyTag` | `p`, `sp` or `np` with its published value, undetermined, or no policy | DMC-006, REC-032 |
 | `Signing` | The header fields written, or stopped with the error that stopped it | DKS-005, SGN-004 |
 
 Each result carries a typed reason (GEN-004) and its position in the trace, so another check can point at it (DMC-005).
@@ -320,14 +328,14 @@ Each result carries a typed reason (GEN-004) and its position in the trace, so a
 ```mermaid
 classDiagram
     class Event {
-        +Version v
-        +Option~MessageId~ msg
-        +Position pos
-        +Kind kind
-        +Code code
-        +Option~Outcome~ outcome
-        +List~Value~ params
-        +List~Cite~ cite
+        +Version version
+        +Option~Text~ message_id
+        +Position position
+        +EventKind kind
+        +Text code
+        +Option~Text~ outcome
+        +List~Param~ params
+        +List~Text~ cite
     }
     class Position {
         +List~Count~ path
@@ -344,10 +352,11 @@ classDiagram
         Place
         Data
         List
+        Unknown
     }
     class Data {
         +Bytes bytes
-        +Set~Party~ from
+        +Parties from
     }
     Event "1" *-- "1" Position
     Event "1" *-- "0..*" Value
