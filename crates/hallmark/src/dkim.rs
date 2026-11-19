@@ -36,11 +36,40 @@ pub struct DkimResult {
     pub outcome: DkimOutcome,
     /// Why the signature got that outcome (GEN-004).
     pub reason: DkimReason,
-    /// The key record has `t=y` (DKV-009).
+    /// The signature counts as testing: a key record that verified it has
+    /// `t=y` (DKV-009, REC-052).
     pub testing: bool,
+    /// Each key record at the selector that hallmark tried, with its own
+    /// reason, in ascending order of the record's octets, so the order of the
+    /// records in the answer changes nothing. Empty when no record was tried:
+    /// the selector has no key record, or more records than the limit
+    /// `key_records` (REC-052,
+    /// [ADR 0025](https://github.com/photom/hallmark/blob/main/docs/adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)).
+    pub key_records: Vec<DkimKeyRecord>,
     /// Body octets after the `l=` cut (DKV-006).
     pub unsigned_body: Option<u64>,
     /// The result's place in the trace (DMC-005).
+    pub position: Position,
+}
+
+/// One key record that DKIM verification tried for a signature (REC-052).
+///
+/// A selector can publish several records. The signature passes if any of
+/// them verifies it, and [`DkimResult::key_records`] lists each one with its
+/// own reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DkimKeyRecord {
+    /// The record as the resolver gave it, its strings joined (DNS-006,
+    /// TRC-013).
+    pub record: Data,
+    /// The record has `t=y` (DKV-009).
+    pub testing: bool,
+    /// [`DkimReason::Verified`] for a record that verified the signature, and
+    /// otherwise the check that failed with this record, such as a key check
+    /// or the signature check.
+    pub reason: DkimReason,
+    /// The record's place in the trace (TRC-008).
     pub position: Position,
 }
 
