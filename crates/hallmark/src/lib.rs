@@ -132,8 +132,8 @@
 //! | [`io::StreamError`] | [`io::read_message`], [`io::write_trace`] | `stream.` |
 //! | [`DocumentError`] | [`Snapshot::parse`], [`Snapshot::from_trace`], [`PastedRecords::parse`] | `document.` |
 //!
-//! [`SignerFailure`] is a struct. [`MemorySigner::sign`] puts the code of a
-//! broken rule, a `signer.` code, in its description.
+//! [`SignerFailure`] is a struct. [`MemorySigner`] puts the code of a broken
+//! rule, a `signer.` code, in its description.
 //!
 //! A code keeps its meaning within a major version of the crate, and a minor
 //! version can add codes and variants (STB-001). The codes of DKIM2 features
@@ -203,7 +203,7 @@ pub use check::{
     Results, ResultsError, Signing, SigningError, SpfSource, TraceRead, Waiting,
 };
 #[cfg(doc)]
-pub use dkim::{DkimOutcome, DkimReason, DkimResult, DkimResults};
+pub use dkim::{DkimKeyRecord, DkimOutcome, DkimReason, DkimResult, DkimResults};
 #[cfg(doc)]
 pub use dmarc::{
     Alignment, AlignmentMode, DmarcOutcome, DmarcResult, NotApplied, PolicyTag, PolicyTagName,
