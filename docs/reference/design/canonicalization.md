@@ -1,6 +1,6 @@
 # Canonicalization
 
-The steps that turn the body and the header fields into the bytes hallmark hashes: the body pipeline, one streaming state machine for the body, the `l=` cut, the places the trace records, and the three header forms of DKIM and DKIM2. The public `Canonicalizer` runs the same body code (STR-012, [Canonicalizer](../api/canonicalizer.md)).
+The steps that turn the body and the header fields into the bytes hallmark hashes: the body pipeline, one streaming state machine for the body, the `l=` cut, the places the trace records, and the three header forms of DKIM and DKIM2. The public `Canonicalizer` runs the same body code (STR-012, [Canonicalizer](https://photom.github.io/hallmark/api/hallmark/struct.Canonicalizer.html)).
 
 ## Contents
 

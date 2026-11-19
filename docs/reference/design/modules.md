@@ -95,33 +95,33 @@ flowchart TB
 
 | Module | Layer | Public | Contents | Requirements |
 |---|---|---|---|---|
-| `parse` | Kernel | No | Cursor, the parse error with its rule and byte offset, byte ranges, numbers with overflow checks, depth counter | PAR-001 to PAR-005 |
+| `parse` | Kernel | Partly | Cursor, `ParseError` with its rule and byte offset, byte ranges, numbers with overflow checks, depth counter | PAR-001 to PAR-005 |
 | `base64` | Kernel | No | base64 decoder and encoder with the folding white space rules of DKIM and DKIM2 | HDR-007 |
 | `json` | Kernel | No | JSON reader with size and depth limits, and the writer of the fixed form | HDR-008, TRC-007 |
-| `limits` | Kernel | Yes | `Limits`, `DocumentLimits`, `LimitsError` | SAF-002, PAR-004 |
+| `limits` | Kernel | Yes | `Limits`, `DocumentLimits`, `Limit`, `LimitsError` | SAF-002, PAR-004 |
 | `time` | Kernel | Yes | `VerificationTime` | TIM-001 |
-| `trace` | Kernel | Yes | The recorder (crate-private), `Level`, `Event`, `Position`, `sort_trace`, `TraceError`, and the English renderer | TRC-001 to TRC-014 |
+| `trace` | Kernel | Yes | The recorder (crate-private), `Level`, `Event`, `EventKind`, `Version`, `Param`, `Value`, `Position`, `Data`, `Parties`, `Place`, `sort_trace`, `TraceError`, and the English renderer | TRC-001 to TRC-014 |
 | `dns` | Exchange values | Yes | `Question`, `QuestionId`, `QuestionType`, `Answer`, `Record` | DNS-001 to DNS-009 |
 | `suffix` | Exchange values | Yes | `SuffixQuestion`, `SuffixAnswer` | DMC-010, DMC-011 |
-| `signing` | Exchange values | Yes | `SignerStatement`, `Algorithm`, `SigningRequest`, `Signature`, `SignerFailure` | SGN-001 to SGN-006 |
-| `header` | Syntax | Partly | Header section splitter, fields from a milter, `FieldForm` | HDR-001 to HDR-005, STR-008, STR-009 |
+| `signing` | Exchange values | Yes | `SignerStatement`, `Algorithm`, `SigningKind`, `SigningRequest`, `RequestId`, `Signature`, `SignerFailure` | SGN-001 to SGN-006 |
+| `header` | Syntax | Partly | Header section splitter, fields from a milter, `FieldForm`, `LineBreak`, `LeadingSpace` | HDR-001 to HDR-005, STR-008, STR-009 |
 | `tags` | Syntax | No | Tag=value list parser and its value decoders | HDR-006, HDR-007, HDR-013 |
 | `address` | Syntax | Partly | Header and envelope address parsers, `Domain`, `LocalPart`, `Mailbox`, `Path` | ADS-001 to ADS-030 |
 | `idna` | Syntax | No | Lookup form of domain names, Punycode, the generated tables | ADS-002 |
 | `uri` | Syntax | No | RFC 3986 checker for `rua` and `ruf` | REC-033 |
 | `ip` | Syntax | No | IPv4 and IPv6 text forms of SPF | REC-012 |
-| `canonical` | Protocols | Partly | Body and header canonicalization, and the public `Canonicalizer` and `CanonicalizerError` | HCN-001 to HCN-009, STR-011, STR-012 |
+| `canonical` | Protocols | Partly | Body and header canonicalization, and the public `Canonicalizer`, `CanonicalizerMode`, `Rebuild`, `Progress`, `Finish` and `CanonicalizerError` | HCN-001 to HCN-009, STR-011, STR-012 |
 | `crypto` | Protocols | No | Hashes, signature verification, key data decoding | DKV-002, DK2-009, REC-051 |
 | `spf` | Protocols | Results | Record parser, macro expansion, `check_host()` | SPF-001 to SPF-007, REC-010 to REC-017 |
 | `dkim` | Protocols | Results | DKIM-Signature fields, key records, verification and signing | DKV-001 to DKV-014, DKS-001 to DKS-006 |
 | `dkim2` | Protocols | Results | Message-Instance and DKIM2-Signature fields, recipes, key and policy records, verification, signing and revisions | DK2-001 to DK2-014 |
 | `dmarc` | Protocols | Results | Record parser, policy discovery, alignment and evaluation | DMC-001 to DMC-011, REC-030 to REC-033 |
-| `check` | Application | Yes | `Check`, `Options`, `Kind`, `Envelope`, `Request`, `Waiting`, `TraceRead`, `SpfSource`, `DkimSource`, `DkimSigning`, `Dkim2Signing`, `Revision`, `Results`, `HeaderFieldOut`, `CheckError`, `OptionsError`, `ResultsError` | GEN-001 to GEN-006, CHK-001 to CHK-005 |
+| `check` | Application | Yes | `Check`, `Options`, `Kind`, `DmarcMode`, `Envelope`, `Request`, `Waiting`, `ExpectedInput`, `TraceRead`, `SpfSource`, `DkimSource`, `DkimSigning`, `DkimCanonicalization`, `CanonAlgorithm`, `Dkim2Signing`, `Dkim2Signer`, `Dkim2Flags`, `Revision`, `BodyRevision`, `EarlierLines`, `FieldRevision`, `Results`, `Signing`, `HeaderFieldOut`, `CheckError`, `EnvelopeField`, `OptionsError`, `ResultsError`, `SigningError` | GEN-001 to GEN-006, CHK-001 to CHK-005 |
 | `authres` | Application | Yes | `AuthservId`, the generator, the parser, `AuthenticationResults` and `AuthResError` | AR-001 to AR-005, HDR-009 |
-| `driver` | Adapters | Yes | `Resolver`, `SuffixSource`, `Signer`, `drive` and `DriveError` | CHK-005, DNS-003 |
+| `driver` | Adapters | Yes | `Resolver`, `SuffixSource`, `Signer`, `NoSuffixSource`, `NoSigner`, `drive` and `DriveError` | CHK-005, DNS-003 |
 | `io` | Adapters | Yes | `read_message` and `write_trace` for a standard blocking reader and writer, and `StreamError` | STR-004 |
 | `snapshot` | Adapters | Yes | `Snapshot`, `SnapshotResolver`, `PastedRecords`, `DocumentError`, extraction from a trace, demo cases | DNS-004, DNS-010, DEM-004 |
-| `keys` | Adapters | Yes | `MemorySigner`, `RandomSource` and `KeyError`. The private key types inside the signer are crate-private | SGN-005, SEC-001 to SEC-003 |
+| `keys` | Adapters | Yes | `MemorySigner`, `RandomSource`, `RandomFailure` and `KeyError`. The private key types inside the signer are crate-private | SGN-005, SEC-001 to SEC-003 |
 
 "Results" means that only the module's result and reason types are public. "Partly" means that the listed types are public and the parsers are crate-private.
 

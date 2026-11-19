@@ -1,6 +1,6 @@
 # Detailed design
 
-The detailed design of hallmark: its modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, and the flows of SPF, DKIM, DKIM2 and DMARC. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, the [API reference](../api/README.md) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
+The detailed design of hallmark: its modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, and the flows of SPF, DKIM, DKIM2 and DMARC. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, the [API reference](https://photom.github.io/hallmark/api/hallmark/) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
 
 ## Contents
 
