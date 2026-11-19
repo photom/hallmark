@@ -275,6 +275,7 @@ classDiagram
         +DkimOutcome outcome
         +DkimReason reason
         +bool testing
+        +List~DkimKeyRecord~ key_records
         +Option~Count~ unsigned_body
     }
     class Dkim2Result {
