@@ -275,8 +275,13 @@ classDiagram
         +DkimOutcome outcome
         +DkimReason reason
         +bool testing
-        +List~DkimKeyRecord~ key_records
         +Option~Count~ unsigned_body
+    }
+    class DkimKeyRecord {
+        +Position position
+        +Data record
+        +bool testing
+        +DkimReason reason
     }
     class Dkim2Result {
         +Position position
@@ -307,6 +312,7 @@ classDiagram
     Results "1" *-- "0..2" SpfResult
     Results "1" *-- "0..1" DkimResults
     DkimResults "1" *-- "0..*" DkimResult
+    DkimResult "1" *-- "0..*" DkimKeyRecord
     Results "1" *-- "0..1" Dkim2Result
     Results "1" *-- "0..*" DmarcResult
     DmarcResult "1" *-- "0..*" Alignment

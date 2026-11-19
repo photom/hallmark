@@ -2,13 +2,13 @@
 
 - Status: Accepted
 - Date: 2026-11-19
-- Affects: every public item of the `hallmark` crate, its doc comments, `docs/reference/design/modules.md` and `docs/testing/api.md`
+- Affects: every public item of the `hallmark` crate, its doc comments, `docs/reference/design/modules.md`, `docs/reference/design/domain-model.md` and `docs/testing/api.md`
 
 ## Context
 
 ADR 0052 moved the API reference into the doc comments of the crate. The pull request that wrote those declarations made sixteen choices that no ADR covers: how a caller builds a value, how the traits take their requests, which enums are `#[non_exhaustive]`, what a doc comment holds, and some choices about single items. Each item implemented from now on has to follow the same rules, so they need one place.
 
-Two questions came up after that pull request. `MemorySigner` had an inherent `sign` and the `Signer` trait's `sign`, with different parameters. And `modules.md` listed `LocalPart`, `Mailbox` and `Path` as public types of the `address` module, but no API takes or returns them.
+Three questions came up after that pull request. `MemorySigner` had an inherent `sign` and the `Signer` trait's `sign`, with different parameters. `modules.md` listed `LocalPart`, `Mailbox` and `Path` as public types of the `address` module, but no API takes or returns them. And REC-052 asks a DKIM result to list each key record with its own reason, but `DkimResult` had no field for them.
 
 ## Options considered
 
@@ -53,14 +53,14 @@ Layout and doc comments:
 | rustdoc doesn't draw Mermaid diagrams, so the diagrams stay in the design documents. A doc comment links to the design section that draws its flow, or gives a mapping as a table |
 | A doc comment links to a document by its GitHub URL on `main`, because a rustdoc page can't reach the repository with a relative link. CI checks these links against the working tree |
 
-Single choices that the declarations made:
+Single choices:
 
 | Item | Choice |
 |---|---|
 | `Check::answer_signing` | Takes `Result<Signature, SignerFailure>` |
 | `FieldForm` | States what each variant means for a value taken and for a value generated |
 | `SpfReason`, `DkimReason`, `Dkim2Reason`, `NotApplied`, `PolicyTag` | Take their variants from the result tables of the design documents |
-| `DkimResult` | `domain`, `selector` and `algorithm` are optional, because a field that lacks them still gets PERMFAIL (RFC 6376 §6.1.1). `key_records` lists each key record with its own reason (REC-052) |
+| `DkimResult` | `domain`, `selector` and `algorithm` are optional, because a field that lacks them still gets PERMFAIL (RFC 6376 §6.1.1). `key_records` lists each key record with its own reason, in a `DkimKeyRecord` (REC-052) |
 | `Value::Unknown` | Holds the JSON text of a parameter of a code that the library doesn't list |
 | DKIM2's `Revision`, `BodyRevision`, `EarlierLines`, `FieldRevision` | Describe a Reviser's changes as DK2-014 and draft-09 §5 read |
 | Error data | `TraceError` carries offsets, `DocumentError::TooLarge` the limit, `SigningError` the domain and selector, and `ParseError` the rule, the offset, the input and the limit |
