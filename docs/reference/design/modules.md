@@ -106,7 +106,7 @@ flowchart TB
 | `signing` | Exchange values | Yes | `SignerStatement`, `Algorithm`, `SigningKind`, `SigningRequest`, `RequestId`, `Signature`, `SignerFailure` | SGN-001 to SGN-006 |
 | `header` | Syntax | Partly | Header section splitter, fields from a milter, `FieldForm`, `LineBreak`, `LeadingSpace` | HDR-001 to HDR-005, STR-008, STR-009 |
 | `tags` | Syntax | No | Tag=value list parser and its value decoders | HDR-006, HDR-007, HDR-013 |
-| `address` | Syntax | Partly | Header and envelope address parsers, `Domain`, `LocalPart`, `Mailbox`, `Path` | ADS-001 to ADS-030 |
+| `address` | Syntax | Partly | Header and envelope address parsers, `LocalPart`, `Mailbox` and `Path`, which stay crate-private, and the public `Domain` | ADS-001 to ADS-030 |
 | `idna` | Syntax | No | Lookup form of domain names, Punycode, the generated tables | ADS-002 |
 | `uri` | Syntax | No | RFC 3986 checker for `rua` and `ruf` | REC-033 |
 | `ip` | Syntax | No | IPv4 and IPv6 text forms of SPF | REC-012 |
