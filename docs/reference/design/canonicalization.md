@@ -196,10 +196,12 @@ flowchart LR
 
 ## Trace
 
-| Step | Records | Requirements |
-|---|---|---|
-| Each body hash | The mode, the `l=` cut, the computed and stated hashes, and the places above | TRC-010 |
-| Each header hash input | The fields taken, in order and in canonical form, and for DKIM2 each field left out with the rule that left it out | HCN-009 |
-| A name in `h=` | The instance it selected, or that none was left | DKV-011 |
+| Step | Code | Records | Requirements |
+|---|---|---|---|
+| Each body hash | `dkim.body_hash`, with the `body.*` steps | The mode, the `l=` cut, the computed and stated hashes, and the places above | TRC-010 |
+| Each header hash input | `dkim.header_hash`, with `dkim.signature_field` | The fields taken, in order and in canonical form, and for DKIM2 each field left out with the rule that left it out | HCN-009 |
+| A name in `h=` | `dkim.h_name` | The instance it selected, or that none was left | DKV-011 |
+
+[Trace codes](../trace-codes.md#body) gives the parameters of the `body.*` steps. DKIM2 adds its codes with its verifier.
 
 Body content never enters the trace (TRC-010). Field contents are values the sender controls (TRC-013).
