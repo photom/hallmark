@@ -74,7 +74,7 @@ The body hash and the header hash come from [Canonicalization](canonicalization.
 | The key data decodes: an RSAPublicKey, a SubjectPublicKeyInfo that holds one, or 32 octets of Ed25519 | PERMFAIL, key syntax error | REC-051, [ADR 0026](../../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) |
 | An RSA modulus has from 1,024 bits to `rsa_key_bits`, and an exponent of at most `rsa_exponent_bits` | PERMFAIL with the size | DKV-003, REC-051, [ADR 0043](../../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 
-With several records left, the signature passes if any of them verifies it, and the result lists each record with its own reason (REC-052, [ADR 0025](../../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)).
+With several records left, the signature passes if any of them verifies it, and the result lists each record with its own reason (REC-052, [ADR 0025](../../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)). hallmark tries the records in ascending order of their octets, so neither the result nor the trace depends on the order of the records in the answer.
 
 ## Time checks
 
