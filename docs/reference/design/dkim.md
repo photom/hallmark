@@ -74,7 +74,7 @@ The body hash and the header hash come from [Canonicalization](canonicalization.
 | The key data decodes: an RSAPublicKey, a SubjectPublicKeyInfo that holds one, or 32 octets of Ed25519 | PERMFAIL, key syntax error | REC-051, [ADR 0026](../../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) |
 | An RSA modulus has from 1,024 bits to `rsa_key_bits`, and an exponent of at most `rsa_exponent_bits` | PERMFAIL with the size | DKV-003, REC-051, [ADR 0043](../../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 
-With several records left, the signature passes if any of them verifies it, and the result lists each record with its own reason (REC-052, [ADR 0025](../../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)). hallmark tries the records in ascending order of their octets, so neither the result nor the trace depends on the order of the records in the answer.
+With several records left, the signature passes if any of them verifies it, and the result lists each record with its own reason (REC-052, [ADR 0025](../../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md)). hallmark tries the records in ascending order of their octets, so neither the result nor the trace depends on the order of the records in the answer. When none verifies it, the signature takes the reason of the first record tried that passed its key checks, or of the first record if none did ([ADR 0056](../../adr/0056-authentication-results-map-each-typed-reason-to-one-result-value.md)).
 
 ## Time checks
 
@@ -102,11 +102,11 @@ flowchart LR
 | Outcome | Reasons | Requirements |
 |---|---|---|
 | `success` | The signature verified, with the testing flag of the key and the octets after any `l=` cut | DKV-006, DKV-009 |
-| `permfail` | The field check, key check, body hash or signature that failed, or the limit | GEN-004, RFC 6376 §3.9 |
+| `permfail` | The field check (`DkimFieldCheck`), key check (`DkimKeyCheck`), body hash or signature that failed, or the limit | GEN-004, RFC 6376 §3.9 |
 | `tempfail` | The key question failed, with the resolver's description | GEN-005, DNS-009 |
 | `permerror` for the check | A header limit stopped the splitter | SAF-002 |
 
-DMARC takes each `d=` of a `success` as a DKIM identifier, by its position (DMC-005).
+DMARC takes each `d=` of a `success` as a DKIM identifier, by its position (DMC-005). [Authentication-Results](authentication-results.md#dkim) maps each reason to a result value.
 
 ## Cautions and hints
 

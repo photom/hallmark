@@ -34,7 +34,10 @@ pub struct DkimResult {
     pub algorithm: Option<Data>,
     /// The result of RFC 6376 §3.9 (DKV-004).
     pub outcome: DkimOutcome,
-    /// Why the signature got that outcome (GEN-004).
+    /// Why the signature got that outcome (GEN-004). When the selector has
+    /// several key records and none verifies the signature, this is the
+    /// reason of the first record tried that passed its key checks, or of the
+    /// first record tried if none did (REC-052).
     pub reason: DkimReason,
     /// The signature counts as testing: a key record that verified it has
     /// `t=y` (DKV-009, REC-052).
@@ -90,15 +93,19 @@ pub enum DkimOutcome {
 pub enum DkimReason {
     /// The signature verified, for `Success` (DKV-001).
     Verified,
-    /// A check of the DKIM-Signature field failed at `step`, such as a missing
-    /// tag or an expired `x=`, for `Permfail` (RFC 6376 §6.1.1).
+    /// A check of the DKIM-Signature field failed, for `Permfail` (RFC 6376
+    /// §6.1.1, TIM-002).
     Field {
+        /// The check that failed.
+        check: DkimFieldCheck,
         /// The trace step that failed.
         step: Position,
     },
-    /// A check of the key record failed at `step`, such as a revoked key or a
-    /// key too short, for `Permfail` (RFC 6376 §6.1.2, DKV-003).
+    /// A check of the key record failed, or the selector has no key record,
+    /// for `Permfail` (RFC 6376 §6.1.2, DKV-003).
     Key {
+        /// The check that failed.
+        check: DkimKeyCheck,
         /// The trace step that failed.
         step: Position,
     },
@@ -121,4 +128,71 @@ pub enum DkimReason {
         /// The resolver's description.
         description: Option<Vec<u8>>,
     },
+}
+
+/// The check of a DKIM-Signature field that failed (GEN-004, AR-002).
+///
+/// [Field checks](https://github.com/photom/hallmark/blob/main/docs/reference/design/dkim.md#field-checks)
+/// lists them in the order hallmark runs them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DkimFieldCheck {
+    /// The tag list or a tag value doesn't parse, or a tag appears twice:
+    /// "signature syntax error" (HDR-006, RFC 6376 §6.1.1).
+    Syntax,
+    /// `v`, `a`, `b`, `bh`, `d`, `h` or `s` is missing: "signature missing
+    /// required tag" (RFC 6376 §6.1.1).
+    MissingTag,
+    /// `v=` isn't `1`: "incompatible version" (RFC 6376 §6.1.1).
+    Version,
+    /// `a=` is neither `rsa-sha256` nor `ed25519-sha256` (DKV-002, RFC 8301
+    /// §3.1).
+    Algorithm,
+    /// The domain of `i=` is neither `d=` nor a subdomain of it: "domain
+    /// mismatch" (ADS-013, RFC 6376 §6.1.1).
+    DomainMismatch,
+    /// `h=` doesn't name From: "From field not signed" (RFC 6376 §6.1.1).
+    FromNotSigned,
+    /// `x=` isn't later than `t=` (TIM-003, RFC 6376 §3.5).
+    TimeOrder,
+    /// `d=`, `s=` or the key name breaks the name rules (ADS-004, ADS-008,
+    /// DNS-008).
+    Name,
+    /// `x=` has passed: "signature expired" (TIM-002, RFC 6376 §6.1.1).
+    Expired,
+    /// `t=` is in the future (TIM-002, RFC 6376 §3.5).
+    FutureTimestamp,
+}
+
+/// The check of a DKIM key record that failed (GEN-004, AR-002).
+///
+/// [Key checks](https://github.com/photom/hallmark/blob/main/docs/reference/design/dkim.md#key-checks)
+/// lists them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DkimKeyCheck {
+    /// The selector has no key record that applies: "no key for signature"
+    /// (REC-050, RFC 6376 §6.1.2).
+    NoKey,
+    /// The tag list or the key data doesn't parse: "key syntax error"
+    /// (REC-050, REC-051).
+    Syntax,
+    /// `p=` is empty: "key revoked" (REC-051).
+    Revoked,
+    /// `k=` doesn't fit `a=`: "inappropriate key algorithm" (REC-051).
+    KeyAlgorithm,
+    /// `h=` doesn't list the hash of `a=`: "inappropriate hash algorithm"
+    /// (REC-051).
+    HashAlgorithm,
+    /// The key has `t=s`, and the domain of `i=` isn't `d=`: "domain
+    /// mismatch" (REC-050,
+    /// [ADR 0044](https://github.com/photom/hallmark/blob/main/docs/adr/0044-a-dkim-signature-that-breaks-the-s-flag-of-its-key-gets-permfail-domain-mismatch.md)).
+    DomainMismatch,
+    /// The RSA modulus has fewer than 1,024 bits or more than `rsa_key_bits`
+    /// (DKV-003, RFC 8301 §3.2).
+    KeySize,
+    /// The RSA public exponent has more bits than `rsa_exponent_bits`
+    /// (REC-051,
+    /// [ADR 0043](https://github.com/photom/hallmark/blob/main/docs/adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md)).
+    ExponentSize,
 }
