@@ -125,6 +125,7 @@ One result for each author domain, in the order of the From fields (DMC-002).
 | `NotApplied` with `NoLookupForm` | `permerror` | `author domain has no lookup form` |
 | `NotApplied` with `SeveralAuthorDomains` | `permerror` | `several author domains` |
 | `NotApplied` with `AuthorDomainLimit` | `permerror` | `too many author domains` |
+| `NotApplied` with `SeveralRecords` | `permerror` | `several DMARC records` |
 | `NotApplied` with `NoValidPolicy` | `permerror` | `no valid policy` |
 
 RFC 9989 §9.2 and RFC 7489 §11.2 register no result for a message that DMARC can't evaluate. Of the registered results, `permerror` is the one for an error that a later attempt won't fix.

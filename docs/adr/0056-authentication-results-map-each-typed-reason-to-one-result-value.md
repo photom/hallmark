@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-20
-- Affects: AR-001, AR-002, AR-006, `AuthenticationResults::generate`, `DkimReason`, `DmarcResult`, `docs/reference/design/authentication-results.md` and scenarios ARH-014 to ARH-030
+- Affects: AR-001, AR-002, AR-006, `AuthenticationResults::generate`, `DkimReason`, `DmarcResult`, `docs/reference/design/authentication-results.md` and scenarios ARH-014 to ARH-031
 
 ## Context
 
