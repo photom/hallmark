@@ -127,7 +127,7 @@ One result for each author domain, in the order of the From fields (DMC-002).
 | `NotApplied` with `AuthorDomainLimit` | `permerror` | `too many author domains` |
 | `NotApplied` with `NoValidPolicy` | `permerror` | `no valid policy` |
 
-RFC 9989 §9.2 and RFC 7489 §11.2 register no result for a message that DMARC can't evaluate, and `permerror` is the one that a later attempt won't change.
+RFC 9989 §9.2 and RFC 7489 §11.2 register no result for a message that DMARC can't evaluate. Of the registered results, `permerror` is the one for an error that a later attempt won't fix.
 
 | Property | Value | Written when | Requirements |
 |---|---|---|---|
@@ -170,4 +170,4 @@ Each comment is a fixed text. The only values in it are a count and a policy key
 |---|---|
 | Each result starts on a new line: the `;` before it ends the line above, and a fold begins its line | RFC 5322 §2.2.3 |
 | A result whose line would pass 78 characters folds before a property, a `reason` or a comment. A value is never folded | RFC 5322 §2.1.1 |
-| A fold is the line break that `FieldForm` asks for, followed by one tab | STR-009 |
+| The value starts with a space or without one, as `FieldForm` asks. A fold is the line break that `FieldForm` asks for, followed by one tab | STR-009 |

@@ -37,7 +37,7 @@ Options (a), (d) and (f).
 | Choice | Decision |
 |---|---|
 | DKIM `fail` | `BodyHash`, `Signature`, and the field checks `Expired` and `FutureTimestamp` |
-| DKIM `neutral` | Every other field check: syntax, a missing tag, the version, the algorithm, `i=` outside `d=`, From not signed, `x=` before `t=`, and the name rules |
+| DKIM `neutral` | Every other field check: syntax, a missing tag, the version, the algorithm, `i=` outside `d=`, From not signed, an `x=` not later than `t=`, and the name rules |
 | DKIM `permerror` | Every key check, no key record, a limit, and a header limit that stops DKIM before any signature |
 | DKIM with several key records | When none verifies, the result follows the reason of the first record tried that passed its key checks, or of the first record if none did |
 | DMARC not applied | `dmarc=permerror` with a reason that names the case |
@@ -48,7 +48,7 @@ Options (a), (d) and (f).
 
 [authentication-results.md](../reference/design/authentication-results.md) gives the phrase for each reason, the properties, the comments, the quoting and the folding.
 
-Option (b) gives a field that hallmark couldn't even parse the same result as a broken signature, which RFC 8601 §2.7.1 tells apart. Option (c) hides the difference between a signature that failed and a key that can't be used. Option (e) leaves the reader unable to tell an unevaluated message from one that DMARC never checked. Option (g) puts DNS names and resolver text, which others control, into a field that MUAs may show. The trace keeps those details.
+Option (b) gives a DKIM-Signature field that doesn't parse the same result as a signature that failed verification, although RFC 8601 §2.7.1 tells the two apart. Option (c) hides the difference between a signature that failed and a key that can't be used. Option (e) writes the same field for a message that DMARC couldn't evaluate as for a check that never ran DMARC. Option (g) puts DNS names and resolver text, which others control, into a field that MUAs may show. The trace keeps those details.
 
 ## Consequences
 
