@@ -47,6 +47,7 @@ impl AuthservId {
 ///
 /// | Rule | Requirements |
 /// |---|---|
+/// | [`generate`](Self::generate) writes one result for each SPF identity, each DKIM signature, DKIM2 and each DMARC author domain, and maps each typed reason to one result value | AR-006, [ADR 0056](https://github.com/photom/hallmark/blob/main/docs/adr/0056-authentication-results-map-each-typed-reason-to-one-result-value.md) |
 /// | [`generate`](Self::generate) builds each `reason` and comment from the typed reasons, so it works at every trace level | AR-002 |
 /// | [`generate`](Self::generate) writes `dkim2=none` for a message without DKIM2 fields, when the results hold DKIM2 | AR-004 |
 /// | [`generate`](Self::generate) adds a comment that says time checks were off, when they were | TIM-005 |
@@ -66,6 +67,11 @@ pub struct AuthenticationResults {
 impl AuthenticationResults {
     /// Writes an Authentication-Results field from the results of a check.
     ///
+    /// [Authentication-Results](https://github.com/photom/hallmark/blob/main/docs/reference/design/authentication-results.md)
+    /// gives the order of the results, the result value and `reason` for each
+    /// typed reason, the properties, the comments, and how values are quoted
+    /// and folded.
+    ///
     /// Each parameter is valid by its type, so the function has no rule to
     /// check (ARH-008).
     ///
@@ -75,7 +81,7 @@ impl AuthenticationResults {
     /// - `id`: the caller's authserv-id.
     /// - `form`: the form of the value.
     ///
-    /// Requirements: AR-001, AR-002, AR-004, TIM-005, STR-009.
+    /// Requirements: AR-001, AR-002, AR-004, AR-006, TIM-005, STR-009.
     pub fn generate(results: &Results, id: &AuthservId, form: FieldForm) -> HeaderFieldOut {
         unimplemented!()
     }

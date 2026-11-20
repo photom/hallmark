@@ -134,6 +134,8 @@ flowchart TD
 | `permerror` | A limit stopped the check, such as `dns_questions` | SAF-002 |
 | Not applied | No single author domain, too many author domains, or an invalid policy tag with no valid `rua` | DMC-002, REC-032 |
 
+Each result carries a `DmarcReason` that names the case of this table: the identifier that aligned and passed, the question that failed, the domain without a public suffix, the limit, or why DMARC wasn't applied (GEN-004). [Authentication-Results](authentication-results.md#dmarc) maps each reason to a result value.
+
 ## Trace
 
 | Step | Records | Requirements |
