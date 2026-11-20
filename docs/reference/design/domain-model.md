@@ -293,6 +293,7 @@ classDiagram
         +Position position
         +Option~Domain~ author_domain
         +DmarcOutcome outcome
+        +DmarcReason reason
         +PolicyTag policy_tag
         +PublishedPolicy published
         +Option~TestModeTag~ test_mode

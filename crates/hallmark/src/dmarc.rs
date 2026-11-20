@@ -17,6 +17,8 @@ pub struct DmarcResult {
     pub author_domain: Option<Domain>,
     /// The DMARC result (DMC-002, DMC-006).
     pub outcome: DmarcOutcome,
+    /// Why DMARC gave that result (GEN-004, AR-002).
+    pub reason: DmarcReason,
     /// The policy tag that applied (DMC-006, REC-032).
     pub policy_tag: PolicyTag,
     /// Every policy tag of the record, as published (REC-032).
@@ -33,7 +35,7 @@ pub struct DmarcResult {
 }
 
 /// The DMARC result, under RFC 9989 or RFC 7489 (DMC-006).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DmarcOutcome {
     /// `pass`.
     Pass,
@@ -45,7 +47,47 @@ pub enum DmarcOutcome {
     Temperror,
     /// `permerror`.
     Permerror,
-    /// DMARC wasn't applied, and why (DMC-002).
+    /// DMARC wasn't applied. [`DmarcReason::NotApplied`] says why
+    /// (DMC-002).
+    NotApplied,
+}
+
+/// Why DMARC gave its result (GEN-004, AR-002).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DmarcReason {
+    /// The identifier at `identifier` aligned with the author domain and
+    /// passed, for `Pass`. It is the first such identifier, in the order
+    /// checked (RFC 9989 §5.3.5, DMC-005).
+    AlignedPass {
+        /// The SPF or DKIM result of the identifier.
+        identifier: Position,
+    },
+    /// A record applies, and no identifier aligned with a pass, for `Fail`
+    /// (RFC 9989 §5.3.5).
+    NoAlignedPass,
+    /// No DMARC Policy Record, for `None` (DMC-006).
+    NoRecord,
+    /// A DNS question that the result needs failed, for `Temperror` (GEN-005,
+    /// DNS-009, REC-032).
+    TemporaryFailure {
+        /// The type of the question that failed.
+        record_type: QuestionType,
+        /// The name of the question that failed.
+        name: Vec<u8>,
+        /// The resolver's description.
+        description: Option<Vec<u8>>,
+    },
+    /// The caller has no public suffix for `domain`, and the result depends
+    /// on its organizational domain, for `Temperror` (DMC-011).
+    SuffixUnavailable {
+        /// The domain whose public suffix is unavailable.
+        domain: Domain,
+    },
+    /// The check reached a limit, such as `dns_questions`, for `Permerror`
+    /// (SAF-002).
+    Limit(Limit),
+    /// Why DMARC wasn't applied, for `NotApplied` (DMC-002).
     NotApplied(NotApplied),
 }
 
