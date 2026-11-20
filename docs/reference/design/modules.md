@@ -117,7 +117,7 @@ flowchart TB
 | `dkim2` | Protocols | Results | Message-Instance and DKIM2-Signature fields, recipes, key and policy records, verification, signing and revisions | DK2-001 to DK2-014 |
 | `dmarc` | Protocols | Results | Record parser, policy discovery, alignment and evaluation | DMC-001 to DMC-011, REC-030 to REC-033 |
 | `check` | Application | Yes | `Check`, `Options`, `Kind`, `DmarcMode`, `Envelope`, `Request`, `Waiting`, `ExpectedInput`, `TraceRead`, `SpfSource`, `DkimSource`, `DkimSigning`, `DkimCanonicalization`, `CanonAlgorithm`, `Dkim2Signing`, `Dkim2Signer`, `Dkim2Flags`, `Revision`, `BodyRevision`, `EarlierLines`, `FieldRevision`, `Results`, `Signing`, `HeaderFieldOut`, `CheckError`, `EnvelopeField`, `OptionsError`, `ResultsError`, `SigningError` | GEN-001 to GEN-006, CHK-001 to CHK-005 |
-| `authres` | Application | Yes | `AuthservId`, the generator, the parser, `AuthenticationResults` and `AuthResError` | AR-001 to AR-005, HDR-009 |
+| `authres` | Application | Yes | `AuthservId`, the generator, the parser, `AuthenticationResults` and `AuthResError` | AR-001 to AR-006, HDR-009 |
 | `driver` | Adapters | Yes | `Resolver`, `SuffixSource`, `Signer`, `NoSuffixSource`, `NoSigner`, `drive` and `DriveError` | CHK-005, DNS-003 |
 | `io` | Adapters | Yes | `read_message` and `write_trace` for a standard blocking reader and writer, and `StreamError` | STR-004 |
 | `snapshot` | Adapters | Yes | `Snapshot`, `SnapshotResolver`, `PastedRecords`, `DocumentError`, extraction from a trace, demo cases | DNS-004, DNS-010, DEM-004 |

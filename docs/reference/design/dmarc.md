@@ -42,7 +42,7 @@ The policy questions go out when the header section ends, so they resolve while 
 |---|---|---|---|
 | Policy discovery | `_dmarc.` the author domain, then the DNS tree walk of §4.10 | `_dmarc.` the author domain, then `_dmarc.` its organizational domain if different | DMC-003, REC-030 |
 | Organizational domain | The tree walk of §4.10.2 | The public suffix that the caller answers, plus one label | DMC-003, DMC-010, DMC-011 |
-| Several records at one name | All discarded, and the walk goes on | No DMARC | REC-030 |
+| Several records at one name | All discarded, and the walk goes on | Not applied | REC-030 |
 | Tags read | Adds `np`, `psd` and `t`. Drops `pct`, `rf` and `ri` | `pct`, `rf` and `ri` | DMC-004, REC-031 |
 | Test mode | `t=y` | `pct=0`. Other `pct` values read as 100 | DMC-007 |
 | Nonexistent subdomain | `np`, then `sp`, then `p`, with the A question of ADR 0050 | No `np` | REC-032 |
@@ -132,7 +132,9 @@ flowchart TD
 | `none` | No DMARC Policy Record | DMC-006 |
 | `temperror` | A question needed for the result failed, or a public suffix needed for it is unavailable | GEN-005, DMC-011, REC-032 |
 | `permerror` | A limit stopped the check, such as `dns_questions` | SAF-002 |
-| Not applied | No single author domain, too many author domains, or an invalid policy tag with no valid `rua` | DMC-002, REC-032 |
+| Not applied | No single author domain, too many author domains, an invalid policy tag with no valid `rua`, or in RFC 7489 mode more than one record at a name | DMC-002, REC-030, REC-032 |
+
+Each result carries a `DmarcReason` that names the case of this table: the identifier that aligned and passed, the question that failed, the domain without a public suffix, the limit, or why DMARC wasn't applied (GEN-004). [Authentication-Results](authentication-results.md#dmarc) maps each reason to a result value.
 
 ## Trace
 

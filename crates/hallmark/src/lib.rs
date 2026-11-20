@@ -203,11 +203,13 @@ pub use check::{
     Results, ResultsError, Signing, SigningError, SpfSource, TraceRead, Waiting,
 };
 #[cfg(doc)]
-pub use dkim::{DkimKeyRecord, DkimOutcome, DkimReason, DkimResult, DkimResults};
+pub use dkim::{
+    DkimFieldCheck, DkimKeyCheck, DkimKeyRecord, DkimOutcome, DkimReason, DkimResult, DkimResults,
+};
 #[cfg(doc)]
 pub use dmarc::{
-    Alignment, AlignmentMode, DmarcOutcome, DmarcResult, NotApplied, PolicyTag, PolicyTagName,
-    PublishedPolicy, TestModeTag,
+    Alignment, AlignmentMode, DmarcOutcome, DmarcReason, DmarcResult, NotApplied, PolicyTag,
+    PolicyTagName, PublishedPolicy, TestModeTag,
 };
 #[cfg(doc)]
 pub use dns::{Answer, Question, QuestionId, QuestionType, Record};

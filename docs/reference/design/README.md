@@ -1,6 +1,6 @@
 # Detailed design
 
-The detailed design of hallmark: its modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, and the flows of SPF, DKIM, DKIM2 and DMARC. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, the [API reference](https://photom.github.io/hallmark/api/hallmark/) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
+The detailed design of hallmark: its modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, the flows of SPF, DKIM, DKIM2 and DMARC, and the Authentication-Results field. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, the [API reference](https://photom.github.io/hallmark/api/hallmark/) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
 
 ## Contents
 
@@ -24,6 +24,7 @@ The detailed design of hallmark: its modules, its domain model, the lifecycle of
 | [dkim.md](dkim.md) | One signature from its field to its result, the field and key checks, time checks, cautions and hints, and signing | Flowcharts, sequence diagram |
 | [dkim2.md](dkim2.md) | The verifier actions of draft-09 §14, recipe rebuilds, output states and signing | Flowchart, state diagram, sequence diagram |
 | [dmarc.md](dmarc.md) | The author domain, policy discovery in both modes, identifiers, alignment, the policy tag, test mode and results | Flowcharts, sequence diagram |
+| [authentication-results.md](authentication-results.md) | The Authentication-Results field that hallmark writes: the order of results, the result and properties of each method, reasons, comments, quoting and folding | Flowchart |
 
 ## Conventions
 
