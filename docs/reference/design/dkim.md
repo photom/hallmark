@@ -147,9 +147,13 @@ sequenceDiagram
 
 ## Trace
 
-| Step | Records | Requirements |
-|---|---|---|
-| Each signature | Its tags with their byte ranges, each check and its outcome | TRC-002 |
-| The key | The question, the answer, each record with its flags | TRC-008 |
-| `h=` | The instance each name selected, or none | DKV-011 |
-| The hashes | The header hash input, the body steps, the computed and stated hashes | HCN-009, TRC-010 |
+| Step | Code | Records | Requirements |
+|---|---|---|---|
+| Each signature | `dkim.signature`, with `dkim.tags`, `dkim.tag`, `dkim.fields`, `dkim.expiration` and `dkim.timestamp` | Its tags with their byte ranges, each check and its outcome, and each time check, skipped or not | TRC-002, TIM-004 |
+| The key | `dkim.key`, with `dns.txt` and `dkim.key_record` | The question, the answer, each record with its flags and its own outcome | TRC-008, REC-052 |
+| `h=` | `dkim.h_name`, under `dkim.header_hash` | The instance each name selected, or none | DKV-011 |
+| The hashes | `dkim.header_hash`, `dkim.signature_field`, `dkim.body_hash` and the `body.*` steps | The header hash input, the body steps, the computed and stated hashes | HCN-009, TRC-010 |
+| The signature | `dkim.verification`, with `dkim.header_changed` | The key record that decided, and what a body hash match with a failed signature shows | DKV-012 |
+| Cautions | `dkim.caution.*` | The cautions of DKV-010, HCN-004 and REC-052 | TRC-003 |
+
+[Trace codes](../trace-codes.md#the-dkim-tree) gives the position of each step and the parameters of each code.
