@@ -25,6 +25,29 @@ The codes that trace events carry, and the slots under the root of the tree (TRC
   - [`spf.limit.check`](#spflimitcheck)
   - [`spf.default`](#spfdefault)
   - [`spf.explanation`](#spfexplanation)
+- [DKIM verification](#dkim-verification)
+  - [The DKIM tree](#the-dkim-tree)
+  - [`dkim.verify`](#dkimverify)
+  - [`dkim.signature`](#dkimsignature)
+  - [`dkim.tags` and `dkim.tag`](#dkimtags-and-dkimtag)
+  - [`dkim.fields`](#dkimfields)
+  - [`dkim.expiration` and `dkim.timestamp`](#dkimexpiration-and-dkimtimestamp)
+  - [`dkim.key`](#dkimkey)
+  - [`dkim.key_record`](#dkimkey_record)
+  - [`dkim.header_hash`](#dkimheader_hash)
+  - [`dkim.h_name`](#dkimh_name)
+  - [`dkim.signature_field`](#dkimsignature_field)
+  - [`dkim.body_hash`](#dkimbody_hash)
+  - [`dkim.l_exceeds`](#dkiml_exceeds)
+  - [`dkim.verification`](#dkimverification)
+  - [`dkim.header_changed`](#dkimheader_changed)
+  - [DKIM cautions](#dkim-cautions)
+- [Body](#body)
+  - [`body.cut`](#bodycut)
+  - [`body.empty_lines`](#bodyempty_lines)
+  - [`body.crlf_added`](#bodycrlf_added)
+  - [`body.wsp_runs` and `body.wsp_trailing`](#bodywsp_runs-and-bodywsp_trailing)
+  - [`body.bare_cr_lf`](#bodybare_cr_lf)
 - [DNS](#dns)
   - [`dns.txt`](#dnstxt)
   - [`dns.a` and `dns.aaaa`](#dnsa-and-dnsaaaa)
@@ -75,7 +98,7 @@ Each kind of check has a fixed slot under the root, which it keeps whether or no
 | `[6]` | `dkim.sign` | DKIM signing, with each signature it makes as a child |
 | `[7]` | `dkim2.sign` | DKIM2 signing |
 
-The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two.
+The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, and [DKIM verification](#dkim-verification) the third.
 
 ## Codes
 
@@ -299,9 +322,306 @@ An answer that several steps read sits under each of them (TRC-008).
 
 A reader shows `explanation` as text from a third party, as RFC 7208 §6.2 asks.
 
+## DKIM verification
+
+The steps of DKIM verification (RFC 6376 §6), as [DKIM](design/dkim.md) and [Canonicalization](design/canonicalization.md) describe them. The scenarios in the DKIM sections of [trace.md](../testing/trace.md), STEP-100 to STEP-110 among them, and the key record and canonicalization scenarios that name a trace step, check them.
+
+### The DKIM tree
+
+`dkim.verify` holds one `dkim.signature` for each DKIM-Signature field, in header order. Within a signature, each child has a fixed number, and a step that didn't happen leaves its number unused.
+
+```mermaid
+flowchart TD
+    verify["dkim.verify"] --> sig["k: dkim.signature for the k-th DKIM-Signature field"]
+    sig --> tags["1: dkim.tags"]
+    sig --> fields["2: dkim.fields"]
+    sig --> exp["3: dkim.expiration"]
+    sig --> ts["4: dkim.timestamp"]
+    sig --> key["5: dkim.key"]
+    sig --> hh["6: dkim.header_hash"]
+    sig --> bh["7: dkim.body_hash"]
+    sig --> ver["8: dkim.verification"]
+```
+
+| Parent | Child number | Step |
+|---|---|---|
+| `dkim.verify` | k | `dkim.signature` for the k-th DKIM-Signature field, counted from the top of the header section |
+| `dkim.signature` | 1 | `dkim.tags` |
+| `dkim.signature` | 2 | `dkim.fields`, the field checks other than time |
+| `dkim.signature` | 3 | `dkim.expiration`, when the field has `x=` |
+| `dkim.signature` | 4 | `dkim.timestamp`, when the field has `t=` |
+| `dkim.signature` | 5 | `dkim.key` |
+| `dkim.signature` | 6 | `dkim.header_hash` |
+| `dkim.signature` | 7 | `dkim.body_hash` |
+| `dkim.signature` | 8 | `dkim.verification` |
+| `dkim.tags` | 1, 2, … | `dkim.tag` for each tag, in the order of the field |
+| `dkim.key` | 1 | `dns.txt`, the key lookup |
+| `dkim.key` | 1 + j | `dkim.key_record` for the j-th TXT record, counted in ascending order of the record's octets, so the order of the answer changes no position (REC-052) |
+| `dkim.key` | 2 + r | `dkim.caution.several_key_records`, where the answer has r records |
+| `dkim.header_hash` | 1 to m | `dkim.h_name` for each name in `h=`, in order |
+| `dkim.header_hash` | m + 1 | `dkim.signature_field` |
+| `dkim.header_hash` | m + 2 | `dkim.caution.from_not_oversigned` |
+| `dkim.h_name` | 1 | `dkim.caution.own_field` |
+| `dkim.body_hash` | 1 to 6 | `body.cut`, `body.empty_lines`, `body.crlf_added`, `body.wsp_runs`, `body.wsp_trailing`, `body.bare_cr_lf` |
+| `dkim.body_hash` | 7 | `dkim.l_exceeds` |
+| `dkim.body_hash` | 8 | `dkim.caution.l_tag` |
+| `dkim.body_hash` | 9 | `dkim.hint.body_changed` |
+| `dkim.verification` | 1 | `dkim.header_changed` |
+| `dkim.verification` | 2 | `dkim.hint.list_header_change` |
+| `dkim.verification` | 3 | `dkim.hint.simple_header_change` |
+| `dkim.verification` | 4 | `dkim.caution.short_key` |
+
+### `dkim.verify`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | `[3]` |
+| Parameters | `signatures`: count, when the outcome is `checked`, the DKIM-Signature fields in the header section; `limit`: keyword, when the outcome is `permerror`, the header limit that stopped DKIM, such as `header_fields` |
+| Outcomes | `checked`, `permerror` |
+| Cites | `RFC 6376 §6` |
+| English | "DKIM verification of {signatures} signatures." or "A header limit ({limit}) stopped DKIM before any signature." |
+| Requirement | DKV-001, DKV-004, SAF-002 |
+
+### `dkim.signature`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child k of `dkim.verify`, for the k-th DKIM-Signature field |
+| Parameters | `domain`: data, from the sender, `d=` when the field gives a valid one; `selector`: data, from the sender, `s=`; `algorithm`: data, from the sender, `a=` as written; `limit`: keyword, `dkim_signatures`, when the field comes after the limit and isn't checked |
+| Outcomes | `success`, `permfail`, `tempfail` |
+| Cites | `RFC 6376 §6.1` |
+| English | "The signature by {domain} with the selector {selector}: {outcome}." |
+| Requirement | DKV-001, DKV-004 |
+
+### `dkim.tags` and `dkim.tag`
+
+| Field | `dkim.tags` | `dkim.tag` |
+|---|---|---|
+| Kind | `fact` | `fact` |
+| Position | Child 1 of `dkim.signature` | A child of `dkim.tags`, one for each tag, in the order of the field |
+| Parameters | When the outcome is `permfail`: `rule`: keyword, the rule of the tag list that failed; `offset`: count, the byte offset in the raw field | `name`: data, from the sender; `value`: data, from the sender, as written; `start` and `end`: counts, the byte range of the value in the raw field, `end` not included (PAR-002) |
+| Outcomes | `parsed`, `permfail` | none |
+| Cites | `RFC 6376 §3.2`, `RFC 6376 §6.1.1` | none |
+| English | "The tag list parses." or "The tag list doesn't parse: {rule} at byte {offset}." | "{name}={value}" |
+| Requirement | HDR-006, PAR-001, PAR-002 | PAR-002 |
+
+### `dkim.fields`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of `dkim.signature` |
+| Parameters | `check`: keyword, when the outcome is `permfail`, the check that failed: `missing_tag`, `version`, `algorithm`, `domain_mismatch`, `from_not_signed`, `time_order` or `name`, as `DkimFieldCheck` names them |
+| Outcomes | `passed`, `permfail` |
+| Cites | `RFC 6376 §6.1.1`, and `RFC 8301 §3.1` for `algorithm`, `RFC 6376 §3.5` for `time_order` |
+| English | "The field checks pass." or "The field check {check} fails." |
+| Requirement | DKV-002, ADS-013, TIM-003 |
+
+### `dkim.expiration` and `dkim.timestamp`
+
+| Field | `dkim.expiration` | `dkim.timestamp` |
+|---|---|---|
+| Kind | `fact` | `fact` |
+| Position | Child 3 of `dkim.signature`, when the field has `x=` | Child 4 of `dkim.signature`, when the field has `t=` |
+| Parameters | `x`: number, as written; `time`: count, the verification time in seconds since 1970; `would`: keyword, when the outcome is `skipped`, what the check would have given: `passed` or `permfail` | `t`: number, as written; `time`: count; `would`: keyword, as for `dkim.expiration` |
+| Outcomes | `passed`, `permfail`, `skipped` | `passed`, `permfail`, `skipped` |
+| Cites | `RFC 6376 §3.5`, `RFC 6376 §6.1.1` | `RFC 6376 §3.5` |
+| English | "The signature expires at {x}, and the verification time is {time}: {outcome}." When skipped: "Time checks are off. The check would have given {would}." | "The signature was made at {t}, and the verification time is {time}: {outcome}." When skipped, as for `dkim.expiration` |
+| Requirement | TIM-001, TIM-002, TIM-004, HDR-013 | TIM-001, TIM-002, TIM-004, HDR-013 |
+
+A `t=` or `x=` of more than 12 digits counts as infinite (HDR-013), and the parameter keeps the digits as written.
+
+### `dkim.key`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 5 of `dkim.signature` |
+| Parameters | `selected`: count, the records left after hallmark dropped those that don't apply; `limit`: keyword, `key_records`, when there are more records than the limit |
+| Outcomes | `found`, `no_key`, `tempfail`, `permfail` |
+| Cites | `RFC 6376 §3.6.2.2`, `RFC 6376 §6.1.2` |
+| English | "The key lookup: {outcome}, with {selected} records." When the limit stopped it: "The selector has more records than the limit {limit}." |
+| Requirement | DKV-005, REC-050, REC-052, SAF-002 |
+
+### `dkim.key_record`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 + j of `dkim.key`, for the j-th record in ascending order of its octets |
+| Parameters | `record`: data, from DNS, the record with its strings joined (DNS-006); `flags`: list of keywords, the `t=` flags hallmark knows, `y` and `s`, in that order; `form`: keyword, `rsa_public_key`, `subject_public_key_info` or `ed25519`, when the key data decodes; `bits`: count, the bits of an RSA modulus; `reason`: keyword, for `dropped`: `version` or `service`, for `permfail`: the check that failed, as `DkimKeyCheck` names it, such as `revoked`, and for `failed`: `body_hash` or `signature` |
+| Outcomes | `verified`, `failed`, `permfail`, `dropped` |
+| Cites | `RFC 6376 §3.6.1`, `RFC 6376 §6.1.2` |
+| English | "The key record {record}: {outcome}." |
+| Requirement | DKV-005, REC-050, REC-051, REC-052, [ADR 0025](../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) |
+
+### `dkim.header_hash`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 6 of `dkim.signature` |
+| Parameters | `canonicalization`: keyword, `simple` or `relaxed`; `hash`: hash, the SHA-256 hash of the header hash input |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.7` |
+| English | "The header hash, with {canonicalization} canonicalization: {hash}." |
+| Requirement | HCN-001 to HCN-003, HCN-009 |
+
+### `dkim.h_name`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child i of `dkim.header_hash`, for the i-th name in `h=` |
+| Parameters | `name`: data, from the sender, the name as written in `h=`; `instance`: count, when a field was selected, its place among the fields of that name, counted from the bottom of the header section; `field`: data, from the sender, the selected field in canonical form |
+| Outcomes | `selected`, `none`, `own_field` |
+| Cites | `RFC 6376 §5.4`, and `RFC 6376 §3.5` for `none` |
+| English | "{name} selects {field}." or "{name} has no field left, so it adds nothing." or "{name} selects the signature's own field." |
+| Requirement | DKV-011, HCN-004, HCN-009, [ADR 0028](../adr/0028-dkim-h-selection-counts-the-signatures-own-dkim-signature-field.md) |
+
+### `dkim.signature_field`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child m + 1 of `dkim.header_hash`, where `h=` has m names |
+| Parameters | `field`: data, from the sender, the DKIM-Signature field in canonical form, with the `b=` value and the white space around it deleted |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.7` |
+| English | "The signature field as hashed: {field}" |
+| Requirement | HCN-003, HCN-009 |
+
+### `dkim.body_hash`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 7 of `dkim.signature` |
+| Parameters | `canonicalization`: keyword, `simple` or `relaxed`; `computed`: hash; `stated`: data, from the sender, `bh=` as written; `octets`: count, the canonical octets hashed; `l`: number, `l=` as written, when the field has one; `unsigned`: count, the canonical octets after the `l=` cut, when the field has `l=` |
+| Outcomes | `match`, `mismatch` |
+| Cites | `RFC 6376 §3.4.3`, `RFC 6376 §3.4.4`, `RFC 6376 §6.1.3` |
+| English | "The body hash, with {canonicalization} canonicalization over {octets} octets: {outcome}." |
+| Requirement | DKV-001, DKV-006, TRC-010 |
+
+### `dkim.l_exceeds`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 7 of `dkim.body_hash` |
+| Parameters | `l`: number, `l=` as written; `octets`: count, the canonical body's length; `excess`: count, how many octets `l=` exceeds it by, left out when `l=` is too large to hold (HDR-013) |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.5` |
+| English | "l= exceeds the canonical body by {excess} octets, which RFC 6376 §3.5 forbids signers to do." |
+| Requirement | DKV-008, [ADR 0009](../adr/0009-a-dkim-l-tag-larger-than-the-body-gets-no-special-rule.md) |
+
+### `dkim.verification`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 8 of `dkim.signature`, when the body hash matched |
+| Parameters | `key`: position, the `dkim.key_record` that verified the signature, or the one whose reason the signature takes |
+| Outcomes | `verified`, `failed` |
+| Cites | `RFC 6376 §6.1.3` |
+| English | "The signature over the header hash: {outcome}." |
+| Requirement | DKV-001, REC-052 |
+
+### `dkim.header_changed`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dkim.verification`, when the body hash matched and the signature failed |
+| Parameters | none |
+| Outcomes | none |
+| Cites | `RFC 6376 §6.1.3` |
+| English | "The body is unchanged, and the signature over the header hash failed: a signed header field, the DKIM-Signature field or the key changed after signing. DKIM keeps nothing that tells which field changed." |
+| Requirement | DKV-012 |
+
+### DKIM cautions
+
+A caution never changes the result (TRC-003). The first three fire only on a signature that passes.
+
+| Code | Position | Parameters | Cites | English | Requirement |
+|---|---|---|---|---|---|
+| `dkim.caution.short_key` | Child 4 of `dkim.verification` | `bits`: count | `RFC 8301 §3.2` | "The signature passed with a {bits}-bit RSA key." | DKV-010 |
+| `dkim.caution.l_tag` | Child 8 of `dkim.body_hash` | `unsigned`: count | `RFC 6376 §8.2` | "The signature passed with l=, and {unsigned} octets of the body are unsigned." | DKV-010 |
+| `dkim.caution.from_not_oversigned` | Child m + 2 of `dkim.header_hash` | none | `RFC 6376 §5.4`, `RFC 6376 §8.15` | "h= names From only as many times as the message has From fields, so a From field added later leaves the signature valid." | DKV-010 |
+| `dkim.caution.several_key_records` | Child 2 + r of `dkim.key` | `records`: count | `RFC 6376 §3.6.2.2`, `draft-ietf-dkim-dkim2-dns-03 §3` | "The selector has {records} key records." | REC-052 |
+| `dkim.caution.own_field` | Child 1 of `dkim.h_name` | none | `RFC 6376 §3.5`, `RFC 6376 §3.7`, `RFC 6376 §5.4` | "The signer broke the MUST NOT of RFC 6376, unless a DKIM-Signature field below this one was removed or moved after signing." | HCN-004 |
+
+Each caution has the kind `caution` and no outcomes.
+
+## Body
+
+The steps that describe a body under a body hash step (TRC-010, [ADR 0041](../adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)). They hold places, counts and hashes, never body content. A place has the members of [The body](trace-format.md#the-body). Lists of places stop at the limit `trace_places`, and `cut_short` says when they did (TRC-005).
+
+### `body.cut`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of a body hash step, when the signature has `l=` and the body is longer |
+| Parameters | `place`: place, where the `l=` cut falls |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.5` |
+| English | "l= cuts the body at {place}." |
+| Requirement | TRC-010, DKV-006 |
+
+### `body.empty_lines`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of a body hash step, when the body ends with empty lines |
+| Parameters | `place`: place, where the first empty line at the end starts; `lines`: count, the empty lines |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.4.3`, `RFC 6376 §3.4.4` |
+| English | "{lines} empty lines at the end, from {place}, aren't hashed." |
+| Requirement | TRC-010 |
+
+### `body.crlf_added`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 3 of a body hash step, when canonicalization added a CRLF at the end |
+| Parameters | none |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.4.3`, `RFC 6376 §3.4.4` |
+| English | "The body doesn't end with CRLF, so canonicalization added one." |
+| Requirement | TRC-010 |
+
+### `body.wsp_runs` and `body.wsp_trailing`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 4 (`body.wsp_runs`) and child 5 (`body.wsp_trailing`) of a body hash step, when `relaxed` changed the body that way |
+| Parameters | `count`: count; `places`: list of places, the first ones; `cut_short`: boolean |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.4.4` |
+| English | "Relaxed canonicalization turned {count} runs of white space into one space." and "Relaxed canonicalization removed white space at the end of {count} lines." |
+| Requirement | TRC-010 |
+
+### `body.bare_cr_lf`
+
+| Field | Value |
+|---|---|
+| Kind | `caution` |
+| Position | Child 6 of a body hash step, when the body holds a bare CR or LF |
+| Parameters | `cr`: count; `lf`: count; `places`: list of places, the first ones; `cut_short`: boolean |
+| Outcomes | none |
+| Cites | `RFC 5322 §2.3`, `RFC 5321 §2.3.8` |
+| English | "The body holds {cr} bare CR and {lf} bare LF octets, which canonicalization keeps as octets." |
+| Requirement | STR-011, [ADR 0037](../adr/0037-the-core-takes-crlf-line-endings-only-and-a-bare-cr-or-lf-in-the-body-is-an-octet.md) |
+
 ## DNS
 
-A DNS lookup step holds one question and the answer to it, as the resolver gave it, under the step that read the answer (TRC-008). It never holds the question's identifier (DNS-007). The outcomes keep the names of the [snapshot](trace-format.md#snapshots) results. Scenarios RUN-004, RES-004, RES-020 and STEP-080 to STEP-093 check them.
+A DNS lookup step holds one question and the answer to it, as the resolver gave it, under the step that read the answer (TRC-008). It never holds the question's identifier (DNS-007). The outcomes keep the names of the [snapshot](trace-format.md#snapshots) results. Scenarios RUN-004, RES-004, RES-020, API-125 and STEP-080 to STEP-093 check them.
 
 Each lookup code has these parameters first, then its records:
 
@@ -309,6 +629,7 @@ Each lookup code has these parameters first, then its records:
 |---|---|---|---|
 | `name` | data | always | The name asked, from the parties of the value it was built from. A reverse name under `in-addr.arpa` or `ip6.arpa`, built from the client address, is from the sender |
 | `description` | data, from DNS | when the outcome is `tempfail` and the resolver described the failure | The resolver's description, as it gave it (DNS-009) |
+| `limit` | keyword | when the outcome is `tempfail` because the answer reached a limit | The limit, such as `answer_size` ([Limits](design/limits.md)) |
 
 | Outcome | Meaning |
 |---|---|
@@ -323,7 +644,7 @@ Each lookup code has these parameters first, then its records:
 |---|---|
 | Kind | `fact` |
 | Position | A child of the step that read the answer |
-| Parameters | `name`, `description`; `records`: list of lists of data, from DNS, each record's strings in order and not joined (DNS-006) |
+| Parameters | `name`, `description`, `limit`; `records`: list of lists of data, from DNS, each record's strings in order and not joined (DNS-006) |
 | Outcomes | `records`, `nxdomain`, `nodata`, `tempfail` |
 | Cites | none |
 | English | "TXT {name}: {outcome}." |
@@ -335,7 +656,7 @@ Each lookup code has these parameters first, then its records:
 |---|---|
 | Kind | `fact` |
 | Position | A child of the step that read the answer |
-| Parameters | `name`, `description`; `records`: list of addresses |
+| Parameters | `name`, `description`, `limit`; `records`: list of addresses |
 | Outcomes | `records`, `nxdomain`, `nodata`, `tempfail` |
 | Cites | none |
 | English | "A {name}: {outcome}." and "AAAA {name}: {outcome}." |
@@ -347,7 +668,7 @@ Each lookup code has these parameters first, then its records:
 |---|---|
 | Kind | `fact` |
 | Position | A child of the step that read the answer |
-| Parameters | `name`, `description`; `preferences`: list of counts; `exchanges`: list of data, from DNS. The n-th preference and the n-th exchange form the n-th record, in the order of the answer |
+| Parameters | `name`, `description`, `limit`; `preferences`: list of counts; `exchanges`: list of data, from DNS. The n-th preference and the n-th exchange form the n-th record, in the order of the answer |
 | Outcomes | `records`, `nxdomain`, `nodata`, `tempfail` |
 | Cites | none |
 | English | "MX {name}: {outcome}." |
@@ -359,7 +680,7 @@ Each lookup code has these parameters first, then its records:
 |---|---|
 | Kind | `fact` |
 | Position | A child of the step that read the answer |
-| Parameters | `name`, `description`; `records`: list of data, from DNS, the names in the order of the answer |
+| Parameters | `name`, `description`, `limit`; `records`: list of data, from DNS, the names in the order of the answer |
 | Outcomes | `records`, `nxdomain`, `nodata`, `tempfail` |
 | Cites | none |
 | English | "PTR {name}: {outcome}." |
@@ -374,7 +695,7 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Field | Value |
 |---|---|
 | Kind | `hint` |
-| Position | A child of the body hash step of a DKIM signature |
+| Position | Child 9 of `dkim.body_hash` |
 | Parameters | none |
 | Outcomes | none |
 | Cites | `RFC 6377 §3.3`, `RFC 7960 §3.1.2.1`, `RFC 7960 §3.2.3` |
@@ -386,7 +707,7 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Field | Value |
 |---|---|
 | Kind | `hint` |
-| Position | A child of the signature check step of a DKIM signature |
+| Position | Child 2 of `dkim.verification` |
 | Parameters | `fields`: list of keywords, from `subject`, `reply-to` and `sender`, in that order |
 | Outcomes | none |
 | Cites | `RFC 6377 §3.3`, `RFC 7960 §3.2.3` |
@@ -398,7 +719,7 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Field | Value |
 |---|---|
 | Kind | `hint` |
-| Position | A child of the signature check step of a DKIM signature |
+| Position | Child 3 of `dkim.verification` |
 | Parameters | none |
 | Outcomes | none |
 | Cites | `RFC 6376 §3.4`, `RFC 7960 §2.3`, `RFC 7960 §3.1.2.2` |
