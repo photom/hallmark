@@ -134,8 +134,8 @@ impl Signature {
 /// The caller hands it to [`Check::answer_signing`], and signing stops with
 /// [`SigningError::SignerFailed`] in the results. The check keeps the
 /// description only in that error, and the trace says that the signer failed,
-/// without the description (SEC-002). [`MemorySigner::sign`] gives one for a
-/// broken rule, whose description names the code: `signer.key_unknown`,
+/// without the description (SEC-002). [`MemorySigner`] gives one for a broken
+/// rule, whose description names the code: `signer.key_unknown`,
 /// `signer.random_mismatch` or `signer.random_unavailable`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

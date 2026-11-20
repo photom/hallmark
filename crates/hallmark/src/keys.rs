@@ -14,7 +14,7 @@ use crate::*;
 /// | Rule | Requirements |
 /// |---|---|
 /// | It finds the key by the public key in the request's statement | SGN-003 |
-/// | It draws no random number. ML-DSA-44 uses the hedged variant with a random value from the caller: the `random` parameter of [`sign`](Self::sign), or the [`RandomSource`] through the [`Signer`] trait | SGN-005, IO-001 |
+/// | It draws no random number. ML-DSA-44 uses the hedged variant with a random value from the caller: the `random` parameter of [`sign_now`](Self::sign_now), or the [`RandomSource`] through the [`Signer`] trait | SGN-005, IO-001 |
 /// | Its keys neither print nor format, and their memory is zeroed when the signer is dropped. No error holds a byte of a key | SEC-001, SEC-002 |
 /// | It doesn't verify its own signatures at run time. Tests do | ADR 0042 |
 pub struct MemorySigner {
@@ -105,10 +105,13 @@ impl MemorySigner {
         unimplemented!()
     }
 
-    /// Signs a request at once.
+    /// Signs a request at once, with the random value of ML-DSA-44 as a
+    /// parameter.
     ///
-    /// A broken rule gives a [`SignerFailure`] whose description names the
-    /// code, so the caller can hand it to the check as it is (SGN-004).
+    /// [`Signer::sign`] does the same through the trait, and takes the random
+    /// value from the signer's [`RandomSource`]. A broken rule gives a
+    /// [`SignerFailure`] whose description names the code, so the caller can
+    /// hand it to the check as it is (SGN-004).
     ///
     /// # Parameters
     ///
@@ -124,7 +127,7 @@ impl MemorySigner {
     /// | VAL-411 | `random` | `Some` when the algorithm is `Mldsa44`, and `None` otherwise | `signer.random_mismatch`, in a [`SignerFailure`] | SGN-005 | API-411 |
     ///
     /// Requirements: SGN-005.
-    pub fn sign(
+    pub fn sign_now(
         &self,
         request: &SigningRequest,
         random: Option<&[u8; 32]>,

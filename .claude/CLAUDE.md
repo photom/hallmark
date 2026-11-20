@@ -44,6 +44,7 @@ These rules apply to every task in this repository.
 
 - Maintain all documentation under Diátaxis (see the diataxis skill). Each document is exactly one type: tutorial (`docs/tutorials/`), how-to guide (`docs/how-to/`), reference (`docs/reference/`), or explanation (`docs/explanation/`). Do not mix types in one document; link between them instead.
 - Write the API reference as doc comments in the crates, not in `docs/` (ADR 0052). An item that isn't implemented yet carries `#[cfg(doc)]`, and the bodies of its functions are `unimplemented!()`. When you implement an item, remove its `#[cfg(doc)]` and keep its doc comment.
+- Public items follow the API conventions of ADR 0054: how callers build and read values, which enums are `#[non_exhaustive]`, the error enums, and what a doc comment holds.
 - Link to an API item by its GitHub Pages URL with the rustdoc anchor, such as `https://photom.github.io/hallmark/api/hallmark/struct.Check.html#method.answer`. CI checks these links against the rustdoc it builds.
 - Record architecture decisions as ADRs in `docs/adr/`, outside the Diátaxis structure (see `docs/adr/README.md`). Do not rewrite an accepted ADR; supersede it with a new one.
 - Write test scenarios in `docs/testing/`, outside the Diátaxis structure, as Given/When/Then tables with IDs that link to spec rules (see `docs/testing/README.md`). Add a scenario before writing its test.
