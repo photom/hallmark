@@ -56,11 +56,11 @@ pub enum DmarcOutcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DmarcReason {
-    /// The identifier at `identifier` aligned with the author domain and
-    /// passed, for `Pass`. It is the first such identifier, in the order
-    /// checked (RFC 9989 §5.3.5, DMC-005).
+    /// An identifier aligned with the author domain and passed, for `Pass`
+    /// (RFC 9989 §5.3.5, DMC-005).
     AlignedPass {
-        /// The SPF or DKIM result of the identifier.
+        /// The SPF or DKIM result of the first such identifier, in the order
+        /// checked.
         identifier: Position,
     },
     /// A record applies, and no identifier aligned with a pass, for `Fail`
@@ -111,6 +111,9 @@ pub enum NotApplied {
     SeveralAuthorDomains,
     /// More author domains than `author_domains` (DMC-002, SAF-002).
     AuthorDomainLimit,
+    /// More than one DMARC Policy Record remains at a name, in RFC 7489 mode
+    /// (REC-030, RFC 7489 §6.6.3).
+    SeveralRecords,
     /// The policy tag is missing or invalid, and `rua` holds no valid URI
     /// (REC-032,
     /// [ADR 0023](https://github.com/photom/hallmark/blob/main/docs/adr/0023-dmarc-follows-rfc-9989-section-4-10-1-for-invalid-policy-tags-and-section-4-7-for-nonexistent-subdomains.md)).
