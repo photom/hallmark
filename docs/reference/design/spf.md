@@ -140,9 +140,13 @@ DMARC takes the MAIL FROM result as its SPF identifier, by its position (DMC-005
 
 ## Trace
 
-| Step | Records | Requirements |
-|---|---|---|
-| Each `check_host()` | The domain, the sender, each question and answer, the record as published and as read | TRC-008 |
-| Each term | Its text, its expansion, its questions, the running counts, and whether it matched | TRC-002 |
-| A limit | The limit, the count and the term that reached it | SPF-006 |
-| The explanation | The text as fetched and as expanded, marked as from a third party | REC-016, TRC-013 |
+| Step | Code | Records | Requirements |
+|---|---|---|---|
+| The identity | `spf.helo`, `spf.mail_from` | The client, the sender and the domain, and the result | TRC-002 |
+| Each `check_host()` | `spf.check_host`, with `dns.txt`, `spf.records`, `spf.record` and `spf.parse` | The domain, the question and answer, each record as published and as read, and the parse | TRC-008 |
+| Each term | `spf.term`, with `spf.target` and the `dns.*` lookups | Its text, its expansion, its questions, the running counts, and whether it matched | TRC-002 |
+| A limit | `spf.limit.lookups`, `spf.limit.void_lookups`, `spf.limit.mx`, `spf.limit.check` | The limit, the count and the term that reached it | SPF-006 |
+| The default | `spf.default` | That no mechanism matched | RFC 7208 §4.7 |
+| The explanation | `spf.explanation` | The text as fetched and as expanded, marked as from a third party | REC-016, TRC-013 |
+
+[Trace codes](../trace-codes.md#the-spf-tree) gives the position of each step and the parameters of each code.
