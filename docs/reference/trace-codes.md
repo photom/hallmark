@@ -42,6 +42,23 @@ The codes that trace events carry, and the slots under the root of the tree (TRC
   - [`dkim.verification`](#dkimverification)
   - [`dkim.header_changed`](#dkimheader_changed)
   - [DKIM cautions](#dkim-cautions)
+- [DMARC](#dmarc)
+  - [The DMARC tree](#the-dmarc-tree)
+  - [`dmarc`](#dmarc-1)
+  - [`dmarc.author`](#dmarcauthor)
+  - [`dmarc.mailbox`](#dmarcmailbox)
+  - [`dmarc.result`](#dmarcresult)
+  - [`dmarc.discovery`](#dmarcdiscovery)
+  - [`dmarc.suffix`](#dmarcsuffix)
+  - [`dmarc.query`](#dmarcquery)
+  - [`dmarc.txt_record`](#dmarctxt_record)
+  - [`dmarc.record`](#dmarcrecord)
+  - [`dmarc.tag`](#dmarctag)
+  - [`dmarc.alignment`](#dmarcalignment)
+  - [`dmarc.org_domain`](#dmarcorg_domain)
+  - [`dmarc.identifier`](#dmarcidentifier)
+  - [`dmarc.policy`](#dmarcpolicy)
+  - [`dmarc.pct_ignored`](#dmarcpct_ignored)
 - [DKIM signing](#dkim-signing)
   - [The signing tree](#the-signing-tree)
   - [`dkim.sign`](#dkimsign)
@@ -114,7 +131,7 @@ Each kind of check has a fixed slot under the root, which it keeps whether or no
 | `[7]` | `dkim2.sign` | DKIM2 signing |
 | `[8]` | `header.section` | The header section, when a check in the call reads it |
 
-The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
+The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DMARC](#dmarc) the fifth, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
 
 ## Codes
 
@@ -571,6 +588,241 @@ A caution never changes the result (TRC-003). The first three fire only on a sig
 
 Each caution has the kind `caution` and no outcomes.
 
+## DMARC
+
+The steps of a DMARC check, in RFC 9989 mode or RFC 7489 mode, as [DMARC](design/dmarc.md) describes them. Scenarios STEP-020, STEP-044, STEP-074 to STEP-077 and STEP-130 to STEP-150, and the DMARC record, test mode and address scenarios that name a trace step, check them. A cite that differs between the modes gives the RFC 9989 section first and the RFC 7489 section after it.
+
+### The DMARC tree
+
+`dmarc` holds the step that reads the From fields, then one `dmarc.result` for each author domain. When the From fields give no author domain to evaluate, one `dmarc.result` still says why DMARC wasn't applied. Each result's position is the `position` of its `DmarcResult` (DMC-005).
+
+```mermaid
+flowchart TD
+    slot["dmarc"] --> author["1: dmarc.author"]
+    author --> mailbox["k: dmarc.mailbox for the k-th mailbox"]
+    slot --> result["1 + k: dmarc.result for the k-th author domain"]
+    result --> disc["1: dmarc.discovery"]
+    disc --> suffix["1: dmarc.suffix, in RFC 7489 mode"]
+    disc --> query["1 + j: dmarc.query for the j-th name asked"]
+    query --> txt["1: dns.txt"]
+    query --> rec["1 + i: dmarc.txt_record for the i-th TXT record"]
+    result --> record["2: dmarc.record"]
+    record --> tag["i: dmarc.tag for the i-th tag"]
+    result --> align["3: dmarc.alignment"]
+    align --> aorg["1: dmarc.org_domain of the author domain"]
+    align --> ident["1 + i: dmarc.identifier for the i-th identifier"]
+    ident --> iorg["1: dmarc.org_domain of its domain"]
+    align --> hint["2 + n: dmarc.hint.forwarded"]
+    result --> policy["4: dmarc.policy"]
+    policy --> exists["1: dns.a"]
+    policy --> pct["2: dmarc.pct_ignored"]
+```
+
+| Parent | Child number | Step |
+|---|---|---|
+| `dmarc` | 1 | `dmarc.author` |
+| `dmarc.author` | k | `dmarc.mailbox` for the k-th mailbox, in the order of the From fields and of the mailboxes in each |
+| `dmarc` | 1 + k | `dmarc.result` for the k-th author domain, in the order of the From fields. With no author domain to evaluate, one `dmarc.result` at child 2 |
+| `dmarc.result` | 1 | `dmarc.discovery` |
+| `dmarc.result` | 2 | `dmarc.record`, when discovery found a record |
+| `dmarc.result` | 3 | `dmarc.alignment`, when alignment ran |
+| `dmarc.result` | 4 | `dmarc.policy`, when discovery found a record |
+| `dmarc.discovery`, `dmarc.org_domain` | 1 | `dmarc.suffix`, in RFC 7489 mode, when the step needed the organizational domain |
+| `dmarc.discovery`, `dmarc.org_domain` | 1 + j | `dmarc.query` for the j-th name asked |
+| `dmarc.query` | 1 | `dns.txt` |
+| `dmarc.query` | 1 + i | `dmarc.txt_record` for the i-th TXT record, in the order of the answer |
+| `dmarc.record` | i | `dmarc.tag` for the i-th tag, in the order of the record |
+| `dmarc.alignment` | 1 | `dmarc.org_domain` of the author domain, when relaxed alignment compares it with a different domain |
+| `dmarc.alignment` | 1 + i | `dmarc.identifier` for the i-th authenticated identifier: the SPF identifier first, then the DKIM identifiers in the order of their result positions |
+| `dmarc.identifier` | 1 | `dmarc.org_domain` of the identifier's domain, when relaxed alignment compares it with a different author domain |
+| `dmarc.alignment` | 2 + n | `dmarc.hint.forwarded`, where the step checked n identifiers |
+| `dmarc.policy` | 1 | `dns.a`, the question whether the author domain exists ([ADR 0050](../adr/0050-dmarc-asks-whether-the-author-domain-exists-when-np-can-change-the-policy-and-needs-the-answer-only-for-a-message-that-fails.md)) |
+| `dmarc.policy` | 2 | `dmarc.pct_ignored` |
+
+An answer that several steps read sits under each of them (TRC-008). In RFC 9989 mode, a tree walk for an organizational domain repeats the `dmarc.query` steps of the names that discovery already asked, and in RFC 7489 mode, every step that reads a public suffix answer has its own `dmarc.suffix`.
+
+### `dmarc`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | `[5]` |
+| Parameters | `mode`: keyword, `rfc9989` or `rfc7489`; `results`: count, the `dmarc.result` children |
+| Outcomes | none |
+| Cites | `RFC 9989 §5.3`, `RFC 7489 §6.6` |
+| English | "DMARC under {mode}, with {results} results." |
+| Requirement | DMC-001, DMC-002 |
+
+### `dmarc.author`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dmarc` |
+| Parameters | `from_fields`: count, the From fields of the message; `domains`: list of data, from the sender, the distinct author domains in lookup form, in the order of the From fields; `case`: keyword, when the outcome is `none`: `no_from`, `from_unparsable`, `no_mailbox`, `domain_literal` or `no_lookup_form`; `limit`: keyword, `author_domains`, when the outcome is `limit` |
+| Outcomes | `one`; `each`, for several domains that hallmark evaluates one by one because `several_author_domains` is on; `several`, for several domains with the option off; `none`; `limit`, for more domains than `author_domains` |
+| Cites | `RFC 9989 §5.3.1`, `RFC 7489 §6.6.1`, and `RFC 9989 §11.5` for `each` and `several` |
+| English | "{from_fields} From fields give the author domains {domains}: {outcome}." |
+| Requirement | DMC-002, ADS-012, SAF-002 |
+
+### `dmarc.mailbox`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child k of `dmarc.author`, for the k-th mailbox |
+| Parameters | `field`: count, the From field that holds the mailbox, from 1 in the order of the header section; `display_name`: data, from the sender, as written, when the mailbox has one; `local_part`: data, from the sender, as written; `domain`: data, from the sender, the domain or the domain literal as written; `lookup`: data, from the sender, the lookup form, when the outcome is `lookup_form`; `unicode`: keyword, `12.0.0`, the Unicode version of the conversion tables, when the domain holds a non-ASCII label ([ADR 0055](../adr/0055-the-idna-tables-use-unicode-12-0-0.md)); `rule`: keyword, when the outcome is `invalid`: `no_lookup_form`, `empty_label`, `label_length` or `name_length`, as for `spf.domain_invalid` |
+| Outcomes | `lookup_form`, `domain_literal`, `invalid` |
+| Cites | `RFC 5322 §3.4`, and `RFC 5891 §5` when the domain holds a non-ASCII label |
+| English | "From field {field} holds {local_part}@{domain}: {outcome}." |
+| Requirement | ADS-002, ADS-005, ADS-030 |
+
+### `dmarc.result`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 + k of `dmarc`, for the k-th author domain |
+| Parameters | `domain`: data, from the sender, the author domain in lookup form, absent when there is none; `reason`: keyword, the case of `DmarcReason`: `aligned_pass`, `no_aligned_pass`, `no_record`, `temporary_failure`, `suffix_unavailable` or `limit`, and for `not_applied` the case of `NotApplied`: `no_from`, `from_unparsable`, `no_mailbox`, `domain_literal`, `no_lookup_form`, `several_author_domains`, `author_domain_limit`, `several_records` or `no_valid_policy`; `identifier`: position, for `aligned_pass`, the SPF or DKIM result of the first identifier that aligned; `limit`: keyword, for `limit`, the limit reached, such as `dns_questions` ([Limits](design/limits.md)); `testing_keys`: boolean, for `pass`, true when the pass rests only on DKIM keys with `t=y` (DMC-008) |
+| Outcomes | `pass`, `fail`, `none`, `temperror`, `permerror`, `not_applied` |
+| Cites | `RFC 9989 §5.3.5`, `RFC 7489 §6.6.2`, and `RFC 9989 §5.3.6` for `temperror` |
+| English | "DMARC for {domain}: {outcome}, {reason}." |
+| Requirement | DMC-002, DMC-006, DMC-008, GEN-004 |
+
+### `dmarc.discovery`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dmarc.result` |
+| Parameters | `found_at`: data, from the sender, the domain whose `_dmarc` name held the record that applies, when the outcome is `found` |
+| Outcomes | `found`, `no_record`, `tempfail`, `several_records` for more than one record at a name in RFC 7489 mode, `suffix_unavailable` |
+| Cites | `RFC 9989 §4.10.1`, `RFC 7489 §6.6.3` |
+| English | "Policy discovery: {outcome}." When a record applies: "The record at _dmarc.{found_at} applies." |
+| Requirement | DMC-003, REC-030, DMC-011 |
+
+### `dmarc.suffix`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dmarc.discovery` or `dmarc.org_domain`, in RFC 7489 mode |
+| Parameters | `domain`: data, from the sender, the domain asked about; `labels`: count, the labels of the public suffix, the x of RFC 7489 §3.2 step 3, when the outcome is `suffix`; `list`: data, from the caller, the name of the list, when the caller gave one; `organizational`: data, from the sender, when the outcome is `suffix`, the organizational domain: the last x + 1 labels, or the domain itself when x is its number of labels |
+| Outcomes | `suffix`, `unavailable` |
+| Cites | `RFC 7489 §3.2` |
+| English | "The public suffix of {domain} has {labels} labels, so its organizational domain is {organizational}." When x is the number of labels: "{domain} is a public suffix, so it is its own organizational domain." For `unavailable`: "No public suffix is available for {domain}." |
+| Requirement | DMC-010, DMC-011, TRC-008 |
+
+A snapshot takes its suffix answers from these steps ([Trace format](trace-format.md#snapshots)).
+
+### `dmarc.query`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 + j of `dmarc.discovery` or `dmarc.org_domain`, for the j-th name asked |
+| Parameters | `name`: data, from the sender, `_dmarc.` and the domain; `psd`: keyword, `y` or `n`, when the record found has a valid `psd` tag with that value, which stops the tree walk (RFC 9989 mode) |
+| Outcomes | `found`, for one DMARC record; `none`, for no DMARC record; `discarded`, for several DMARC records in RFC 9989 mode, which the tree walk discards; `several`, for several DMARC records in RFC 7489 mode; `tempfail` |
+| Cites | `RFC 9989 §4.10`, `RFC 7489 §6.6.3` |
+| English | "DMARC records at {name}: {outcome}." |
+| Requirement | REC-030, TRC-008 |
+
+### `dmarc.txt_record`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 + i of `dmarc.query`, for the i-th TXT record, in the order of the answer |
+| Parameters | `record`: data, from DNS, the record with its strings joined (DNS-006); `reason`: keyword, when the outcome is `not_dmarc`: `v_not_first`, when the first tag isn't `v`, or `version`, when the value of `v` isn't exactly `DMARC1` |
+| Outcomes | `dmarc`, `not_dmarc` |
+| Cites | `RFC 9989 §4.7`, `RFC 7489 §6.3` |
+| English | "The TXT record {record}: {outcome}." |
+| Requirement | REC-030 |
+
+### `dmarc.record`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of `dmarc.result`, when discovery found a record |
+| Parameters | `record`: data, from DNS, the record that applies, with its strings joined (DNS-006) |
+| Outcomes | none |
+| Cites | `RFC 9989 §4.7`, `RFC 9989 §4.8`, `RFC 7489 §6.3`, `RFC 7489 §6.4` |
+| English | "The record {record}." |
+| Requirement | REC-031, DMC-004 |
+
+### `dmarc.tag`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child i of `dmarc.record`, for the i-th tag |
+| Parameters | `name`: data, from DNS; `value`: data, from DNS, as published, without the white space at either end; `start` and `end`: counts, the byte range of the value in the record, `end` not included (PAR-002); `default`: keyword, the default value the tag took, when the outcome is `invalid` or `repeated` and the tag has one (REC-032); `invalid_uris`: list of counts, for `rua` and `ruf`, the entries that aren't valid URIs, from 1 (REC-033) |
+| Outcomes | `valid`; `invalid`; `unknown`, for a tag that the mode doesn't read; `repeated`, for each copy of a tag that appears more than once; `ignored`, for a `v` tag after the first |
+| Cites | `RFC 9989 §4.8`, `RFC 7489 §6.4` |
+| English | "{name}={value}: {outcome}." |
+| Requirement | REC-031, REC-032, REC-033, PAR-002, [ADR 0024](../adr/0024-dmarc-tag-names-keep-their-case-white-space-around-a-value-is-not-part-of-it-and-a-repeated-tag-is-invalid.md) |
+
+### `dmarc.alignment`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 3 of `dmarc.result`, when alignment ran |
+| Parameters | `aspf`: keyword, `relaxed` or `strict`; `adkim`: keyword, `relaxed` or `strict`; `identifiers`: count, the authenticated identifiers checked |
+| Outcomes | `aligned_pass`; `no_aligned_pass`; `unknown`, when an organizational domain that the result depends on is unknown and no identifier aligned |
+| Cites | `RFC 9989 §4.4`, `RFC 9989 §5.3.4`, `RFC 7489 §3.1` |
+| English | "{identifiers} authenticated identifiers, with aspf={aspf} and adkim={adkim}: {outcome}." |
+| Requirement | DMC-005 |
+
+### `dmarc.org_domain`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dmarc.alignment` for the author domain, or child 1 of `dmarc.identifier` for the identifier's domain |
+| Parameters | `domain`: data, from the sender; `organizational`: data, from the sender, when the outcome is `found` |
+| Outcomes | `found`, `unknown` |
+| Cites | `RFC 9989 §4.10.2`, `RFC 7489 §3.2` |
+| English | "The organizational domain of {domain} is {organizational}." or "The organizational domain of {domain} is unknown." |
+| Requirement | DMC-003, DMC-011 |
+
+### `dmarc.identifier`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 + i of `dmarc.alignment`, for the i-th authenticated identifier |
+| Parameters | `result`: position, the SPF result or the DKIM signature, in this call's trace or in the trace of the call that gave it (DMC-005); `domain`: data, from the sender, the MAIL FROM domain, the HELO name when MAIL FROM is null, or the `d=` domain; `mode`: keyword, `relaxed` or `strict`; `testing`: boolean, for a DKIM identifier, true when its key has `t=y` (DMC-008) |
+| Outcomes | `aligned`, `not_aligned`, `unknown` |
+| Cites | `RFC 9989 §4.4.1` for DKIM and `RFC 9989 §4.4.2` for SPF, `RFC 7489 §3.1.1` for DKIM and `RFC 7489 §3.1.2` for SPF |
+| English | "The identifier {domain} from {result}, in {mode} alignment: {outcome}." |
+| Requirement | DMC-005, DMC-008 |
+
+### `dmarc.policy`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 4 of `dmarc.result`, when discovery found a record |
+| Parameters | `tag`: keyword, `p`, `sp` or `np`, the tag that applied, absent under the rule of RFC 9989 §4.10.1 and for `undetermined`; `value`: data, from DNS, the tag's value as published, when `tag` is present; `policy`: keyword, `none`, `quarantine` or `reject`, when the outcome is `applied`: the tag's value in lowercase, or `none` under the rule of RFC 9989 §4.10.1; `rule`: keyword, `author_domain` for the author domain's own record, `subdomain` for a subdomain that exists or whose record has no `np` that applies, `nonexistent` for a subdomain that doesn't exist and whose record has a valid `np`, or `invalid_tag` for the rule of RFC 9989 §4.10.1; `test_mode`: keyword, `t` or `pct`, when the record asks for test mode |
+| Outcomes | `applied`; `undetermined`, when the question whether the author domain exists failed and an identifier aligned and passed; `not_applied`, under the rule of RFC 9989 §4.10.1 with no valid `rua` |
+| Cites | `RFC 9989 §4.10.1`, `RFC 7489 §6.6.3`, `RFC 9989 §3.2.13` for `nonexistent`, and `RFC 9989 §4.7` for `test_mode` |
+| English | "The policy {policy}, from {tag}={value} by the rule {rule}: {outcome}." For the rule `invalid_tag`: "The record has no valid policy tag, so the rule for an invalid policy tag applies: {outcome}." For `undetermined`: "The question whether the author domain exists failed, and the result doesn't need its answer, because an identifier aligned and passed." |
+| Requirement | DMC-006, DMC-007, REC-032, [ADR 0023](../adr/0023-dmarc-follows-rfc-9989-section-4-10-1-for-invalid-policy-tags-and-section-4-7-for-nonexistent-subdomains.md), [ADR 0050](../adr/0050-dmarc-asks-whether-the-author-domain-exists-when-np-can-change-the-policy-and-needs-the-answer-only-for-a-message-that-fails.md) |
+
+### `dmarc.pct_ignored`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of `dmarc.policy`, in RFC 7489 mode, when `pct` holds a valid value other than 0 and 100 |
+| Parameters | `pct`: data, from DNS, the value as published |
+| Outcomes | none |
+| Cites | `RFC 9989 Appendix A.6` |
+| English | "pct={pct} reads as if pct were absent, which means 100: hallmark supports only pct=0 and pct=100." |
+| Requirement | DMC-007, [ADR 0020](../adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md) |
+
 ## DKIM signing
 
 The steps of DKIM signing (RFC 6376 §5), as [DKIM](design/dkim.md#signing) describes them. Scenarios STEP-066, STEP-123 to STEP-127 and the signing scenarios check them. No step holds a byte of a private key (SEC-002, SIGN-019).
@@ -934,7 +1186,7 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Field | Value |
 |---|---|
 | Kind | `hint` |
-| Position | A child of the alignment step of the DMARC check |
+| Position | Child 2 + n of `dmarc.alignment`, where the step checked n identifiers |
 | Parameters | `spf`: position, the SPF result for MAIL FROM; `dkim`: position, the aligned DKIM signature that passed |
 | Outcomes | none |
 | Cites | `RFC 7960 §2.2`, `RFC 7960 §3.2.1` |
