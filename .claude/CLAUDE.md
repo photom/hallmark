@@ -38,7 +38,7 @@ These rules apply to every task in this repository.
 - Requirements, design, and tests come only from the specifications: the RFCs and the IETF drafts that `docs/reference/requirements.md` names. Each test cites the section it checks.
 - Do not read, copy, or compare behavior against other sender-authentication implementations, and do not cite them in documents, tests, or commit messages.
 - Published conformance test data may be used after a license check. The documentation records each source and its license.
-- Test messages and DNS names use domains under `.invalid`, such as `void.invalid`. Tests make no network calls; DNS answers come from snapshots. Published conformance data keeps its own names and DNS records (ADR 0039).
+- Test messages and DNS names use domains under `.test`, such as `void.test` (ADR 0058). Tests make no network calls; DNS answers come from snapshots. Published conformance data keeps its own names and DNS records (ADR 0039).
 
 ## Documentation
 
