@@ -21,7 +21,7 @@ pub struct SuffixQuestion {
 /// The answer to a public suffix question, which the caller builds (DMC-010).
 ///
 /// [`Check::answer_suffix`] checks it when the caller hands it back (VAL-130
-/// to VAL-133).
+/// to VAL-134).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SuffixAnswer {
     /// The public suffix (DMC-010, DMC-011).
@@ -33,6 +33,7 @@ pub enum SuffixAnswer {
         list: Option<String>,
     },
     /// The caller has no suffix for the domain. It gives `temperror` if the
-    /// result depends on that organizational domain (DMC-011).
-    Unavailable,
+    /// result depends on that organizational domain (DMC-011). It carries the
+    /// caller's description, which the trace records as given (DMC-010).
+    Unavailable(Option<Vec<u8>>),
 }

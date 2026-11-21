@@ -83,6 +83,8 @@ pub enum DmarcReason {
     SuffixUnavailable {
         /// The domain whose public suffix is unavailable.
         domain: Domain,
+        /// The caller's description.
+        description: Option<Vec<u8>>,
     },
     /// The check reached a limit, such as `dns_questions`, for `Permerror`
     /// (SAF-002).

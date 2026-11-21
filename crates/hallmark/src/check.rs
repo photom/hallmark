@@ -322,6 +322,7 @@ impl Check {
     /// | VAL-131 | `id` | The question has no answer yet | [`check.already_answered`](CheckError::AlreadyAnswered) | CHK-004 | API-131 |
     /// | VAL-132 | `answer` | `labels` is from 1 to the number of labels in the question's domain | [`check.suffix_out_of_range`](CheckError::SuffixOutOfRange) | DMC-011 | DMR-067 |
     /// | VAL-133 | `answer` | `list`, when given, holds 1 to 256 octets | [`check.list_name_invalid`](CheckError::ListNameInvalid) | DMC-010, RFC 7493 §2.1 | API-133 |
+    /// | VAL-134 | `answer` | The description of [`SuffixAnswer::Unavailable`] holds at most `answer_size` octets | Not an error: the check takes the answer as unavailable without the description, and the trace names the limit | SAF-004, DMC-010 | API-134 |
     ///
     /// Requirements: DMC-010.
     pub fn answer_suffix(

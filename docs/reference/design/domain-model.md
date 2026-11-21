@@ -242,7 +242,7 @@ classDiagram
 | `QuestionType` | `TXT`, `A`, `AAAA`, `MX`, `PTR` | DNS-001 |
 | `Answer` | Records, name not found (NXDOMAIN), no records of that type (NODATA), temporary failure with an optional description | DNS-002, DNS-009 |
 | `Record` | TXT as its strings, not joined. A and AAAA as addresses. MX as a preference and an exchange name. PTR as a name | DNS-006 |
-| `SuffixAnswer` | A number of labels from 1 to the labels of the domain, with an optional list name, or unavailable | DMC-010, DMC-011 |
+| `SuffixAnswer` | A number of labels from 1 to the labels of the domain, with an optional list name, or unavailable, with an optional description | DMC-010, DMC-011 |
 | `Algorithm` | `rsa-sha256`, `ed25519-sha256`, and with `unstable-dkim2` `mldsa44` | DKS-001, DK2-009 |
 | `SigningRequest` data | The SHA-256 hash for `rsa-sha256` and `ed25519-sha256`, and the whole signing input for `mldsa44` | SGN-002 |
 
