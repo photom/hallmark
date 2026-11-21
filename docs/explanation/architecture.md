@@ -170,9 +170,9 @@ The code that makes each decision records it in the trace at that moment ([ADR 0
 flowchart TD
     root["Trace of one call"] --> spf["SPF for MAIL FROM, slot 2"]
     root --> dkim["DKIM, slot 3"]
-    root --> dmarc["DMARC for void.invalid, slot 5"]
+    root --> dmarc["DMARC for void.test, slot 5"]
     spf --> inc["include: answer and lookup count"]
-    dkim --> sig["Signature d=void.invalid"]
+    dkim --> sig["Signature d=void.test"]
     sig --> key["Key record lookup"]
     sig --> bh["Body hash: computed and stated"]
     dmarc --> policy["Policy discovery under RFC 9989"]
