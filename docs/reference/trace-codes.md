@@ -486,11 +486,11 @@ A `t=` or `x=` of more than 12 digits counts as infinite (HDR-013), and the para
 |---|---|
 | Kind | `fact` |
 | Position | Child 1 + j of `dkim.key`, for the j-th record in ascending order of its octets |
-| Parameters | `record`: data, from DNS, the record with its strings joined (DNS-006); `flags`: list of keywords, the `t=` flags hallmark knows, `y` and `s`, in that order; `form`: keyword, `rsa_public_key`, `subject_public_key_info` or `ed25519`, when the key data decodes; `bits`: count, the bits of an RSA modulus; `reason`: keyword, for `dropped`: `version` or `service`, for `permfail`: the check that failed, as `DkimKeyCheck` names it, such as `revoked`, and for `failed`: `body_hash` or `signature` |
+| Parameters | `record`: data, from DNS, the record with its strings joined (DNS-006); `flags`: list of keywords, the `t=` flags hallmark knows, `y` and `s`, in that order; `form`: keyword, `rsa_public_key`, `subject_public_key_info` or `ed25519`, when the key data decodes; `bits`: count, the bits of an RSA modulus; `reason`: keyword, for `dropped`: `version` or `service`, for `permfail`: the check that failed, as `DkimKeyCheck` names it, such as `revoked`, and for `failed`: `body_hash` or `signature`; `limit`: keyword, `rsa_key_bits` when the reason is `key_size` for a modulus over that limit, and `rsa_exponent_bits` when the reason is `exponent_size` |
 | Outcomes | `verified`, `failed`, `permfail`, `dropped` |
-| Cites | `RFC 6376 §3.6.1`, `RFC 6376 §6.1.2` |
+| Cites | `RFC 6376 §3.6.1`, `RFC 6376 §6.1.2`, and `RFC 8301 §3.2` for `key_size`, `RFC 6376 §8.13` for `exponent_size` |
 | English | "The key record {record}: {outcome}." |
-| Requirement | DKV-005, REC-050, REC-051, REC-052, [ADR 0025](../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) |
+| Requirement | DKV-003, DKV-005, REC-050, REC-051, REC-052, [ADR 0025](../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md), [ADR 0043](../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 
 ### `dkim.header_hash`
 
