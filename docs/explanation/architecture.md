@@ -164,7 +164,7 @@ Each rebuild keeps only its position in its recipe, and the lines of the recipe'
 
 ## The trace
 
-The code that makes each decision records it in the trace at that moment ([ADR 0031](../adr/0031-the-code-that-decides-writes-the-trace-as-events-with-tree-positions.md)). A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it. Each step goes out as one event, which carries the step's position in the tree: the path of child numbers from the root. Each kind of check has a fixed slot under the root, so a DMARC alignment step can point at the SPF or DKIM result it used, even when that check ran in another call.
+The code that makes each decision records it in the trace at that moment ([ADR 0031](../adr/0031-the-code-that-decides-writes-the-trace-as-events-with-tree-positions.md)). A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it. Each step goes out as one event, which carries the step's position in the tree: the path of child numbers from the root. Each kind of check, and the header section that the checks share, has a fixed slot under the root, so a DMARC alignment step can point at the SPF or DKIM result it used, even when that check ran in another call.
 
 ```mermaid
 flowchart TD
