@@ -60,6 +60,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0054](0054-the-public-api-follows-one-set-of-conventions.md) | The public API follows one set of conventions | Accepted |
 | [0055](0055-the-idna-tables-use-unicode-12-0-0.md) | The IDNA tables use Unicode 12.0.0 | Accepted |
 | [0056](0056-authentication-results-map-each-typed-reason-to-one-result-value.md) | Authentication-Results map each typed reason to one result value | Accepted |
+| [0057](0057-the-conversion-to-a-labels-runs-the-contexto-rules.md) | The conversion to A-labels runs the CONTEXTO rules | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
