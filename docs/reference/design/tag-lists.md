@@ -55,8 +55,8 @@ The parser reads left to right without recursion (PAR-005). A semicolon can't oc
 | A tag named twice makes the whole list invalid | `a=1; a=2` | HDR-006 | TAG-003 |
 | A tag the check doesn't know is ignored | `zz=9` in a DKIM-Signature | HDR-006 | TAG-004 |
 | An empty value differs from an omitted tag | `a=;` | HDR-006 | TAG-005 |
-| A VALCHAR is `%x21-3A / %x3C-7E`. In a DKIM-Signature of an internationalized message, well-formed UTF-8 is allowed too | `d=例え.invalid` | HDR-006, RFC 3629 §4 | TAG-008 |
-| DKIM2 values stay ASCII | `d=例え.invalid` in a DKIM2-Signature is a syntax error | HDR-006 | TAG-009 |
+| A VALCHAR is `%x21-3A / %x3C-7E`. In a DKIM-Signature of an internationalized message, well-formed UTF-8 is allowed too | `d=例え.test` | HDR-006, RFC 3629 §4 | TAG-008 |
+| DKIM2 values stay ASCII | `d=例え.test` in a DKIM2-Signature is a syntax error | HDR-006 | TAG-009 |
 
 ## Value decoders
 
