@@ -1,6 +1,6 @@
 # Test scenarios: Trace
 
-Scenarios for the trace: its levels and limits, step codes, the order of steps, marked values, cautions and hints, the trace items of DKIM and SPF, events and their positions, the format's bytes, the body in the trace, and the first hints. Conventions are in [README.md](README.md).
+Scenarios for the trace: its levels and limits, step codes, the order of steps, marked values, cautions and hints, the trace items of DKIM, SPF, the header section and DKIM signing, events and their positions, the format's bytes, the body in the trace, and the first hints. Conventions are in [README.md](README.md).
 
 Unless a row says otherwise, the check runs at the full level, and DNS answers come from a snapshot. "The sorted trace" means the events sorted by position ([Trace format](../reference/trace-format.md#positions)).
 
@@ -11,6 +11,8 @@ Unless a row says otherwise, the check runs at the full level, and DNS answers c
 - [Marked values](#marked-values)
 - [DKIM trace items](#dkim-trace-items)
 - [SPF trace items](#spf-trace-items)
+- [Header section in the trace](#header-section-in-the-trace)
+- [DKIM signing trace items](#dkim-signing-trace-items)
 - [Events and positions](#events-and-positions)
 - [Format](#format)
 - [The body in the trace](#the-body-in-the-trace)
@@ -91,6 +93,28 @@ Unless a row says otherwise, the SPF check is for MAIL FROM `<user@void.invalid>
 | STEP-091 | unit | The client 192.0.2.3, the record `v=spf1 exists:%{p}.void.invalid -all`, the PTR name `mail.void.invalid`, and the A record 192.0.2.3 for `mail.void.invalid` | the check runs | the `spf.target` step of the term has the name `mail.void.invalid.void.invalid`, and its children are `dns.ptr` and then `dns.a` for `mail.void.invalid`, the lookups that `%{p}` made. The term's own `dns.a` for `mail.void.invalid.void.invalid` follows the `spf.target` step | [REC-014](../reference/requirements.md#dns-records), [`spf.target`](../reference/trace-codes.md#spftarget), [RFC 7208 §7.3](https://www.rfc-editor.org/rfc/rfc7208.html#section-7.3) |
 | STEP-092 | unit | The record `v=spf1 -all exp=explain.void.invalid`, and a temporary failure for the TXT question at `explain.void.invalid` | the check runs | `fail`, and the event `[2,1,8]` `spf.explanation` with the outcome `unexplained` and the reason `dns_error`: the record has two terms, so the explanation is child 6 + 2. Its children are `spf.target` and `dns.txt` with the outcome `tempfail` | [REC-016](../reference/requirements.md#dns-records), [`spf.explanation`](../reference/trace-codes.md#spfexplanation), [RFC 7208 §6.2](https://www.rfc-editor.org/rfc/rfc7208.html#section-6.2) |
 | STEP-093 | unit | A TXT answer at `void.invalid` with one record of two strings, `v=spf1 ip4:192.0.2.1` and ` -all` | the check runs | `pass`. The `dns.txt` step holds the record as the list of its two strings, and the `spf.record` step holds the joined record `v=spf1 ip4:192.0.2.1 -all` | [DNS-006](../reference/requirements.md#dns), [`dns.txt`](../reference/trace-codes.md#dnstxt), [`spf.record`](../reference/trace-codes.md#spfrecord), [RFC 7208 §3.3](https://www.rfc-editor.org/rfc/rfc7208.html#section-3.3) |
+
+## Header section in the trace
+
+The header section has the slot `[8]` ([Trace codes](../reference/trace-codes.md#header-section)).
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| STEP-120 | unit | The header section `From: a@void.invalid\r\nbad line\r\nSubject: Hi\r\n`, passed with `whole_message` | DKIM runs | the event `[8]` `header.section` with the outcome `split`, the input `whole_message`, `fields` 2 and `malformed` 1, and the event `[8,4]` `header.malformed` with the line 2 and the raw bytes `bad line\r\n`, marked as from the sender | [HDR-004](../reference/requirements.md#header-parsing), [`header.section`](../reference/trace-codes.md#headersection), [`header.malformed`](../reference/trace-codes.md#headermalformed), [RFC 5322 §2.2](https://www.rfc-editor.org/rfc/rfc5322.html#section-2.2) |
+| STEP-121 | unit | A header section with three fields, and the limit `header_fields` set to 2 for the test | DKIM runs | the event `[8]` `header.section` with the outcome `permerror` and the limit `header_fields` | [SAF-002](../reference/requirements.md#hostile-input), [`header.section`](../reference/trace-codes.md#headersection) |
+| STEP-122 | unit | A call that runs only the SPF checks | it finishes | no event has the position `[8]`: no check read the header section | [`header.section`](../reference/trace-codes.md#headersection), [GEN-001](../reference/requirements.md#general) |
+
+## DKIM signing trace items
+
+DKIM signing has the slot `[6]` ([Trace codes](../reference/trace-codes.md#the-signing-tree)).
+
+| ID | Level | Given | When | Then | Spec |
+|----|-------|-------|------|------|------|
+| STEP-123 | unit | DKIM signing with one `DkimSigning`: `d=void.invalid`, `s=sel` and `ed25519-sha256`, through a test signer that answers with a 64-octet signature | the check finishes | these events: `[6]` `dkim.sign` with the outcome `written` and `signatures` 1; `[6,1]` `dkim.sign.signature` with the outcome `written`, the algorithm `ed25519-sha256`, and the domain and selector marked as from the caller; `[6,1,1]` `dkim.sign.h`; `[6,1,2]` `dkim.sign.body_hash`; `[6,1,3]` `dkim.header_hash`; `[6,1,4]` `dkim.sign.request` with the outcome `answered`; `[6,1,5]` `dkim.sign.check` with the outcome `passed`, `size` 64 and `expected` 64; and `[6,1,6]` `dkim.sign.field` with the field marked as from the caller | [DKS-005](../reference/requirements.md#dkim-signing), [TRC-013](../reference/requirements.md#trace-and-reasoning), [`dkim.sign.signature`](../reference/trace-codes.md#dkimsignsignature), [RFC 6376 §5](https://www.rfc-editor.org/rfc/rfc6376.html#section-5) |
+| STEP-124 | unit | The signing of STEP-123, with a signer that answers with a failure whose description is `HSM offline` | the check finishes | `[6]` `dkim.sign` has the outcome `stopped` and the error `signing.signer_failed`, `[6,1,4]` `dkim.sign.request` has the outcome `failed`, no event has the position `[6,1,5]` or `[6,1,6]`, and no event holds `HSM offline` | [SGN-004](../reference/requirements.md#signers), [SEC-002](../reference/requirements.md#private-keys), [`dkim.sign.request`](../reference/trace-codes.md#dkimsignrequest) |
+| STEP-125 | unit | The signing of STEP-123, with a signer that answers with 63 octets | the check finishes | `[6,1,5]` `dkim.sign.check` has the outcome `wrong_size`, `size` 63 and `expected` 64, `[6]` `dkim.sign` has the error `signing.wrong_size`, and no event has the position `[6,1,6]` | [SGN-004](../reference/requirements.md#signers), [`dkim.sign.check`](../reference/trace-codes.md#dkimsigncheck) |
+| STEP-126 | unit | DKIM signing with two `DkimSigning` entries, `rsa-sha256` then `ed25519-sha256` | the check finishes | `[6,1]` `dkim.sign.signature` has the algorithm `rsa-sha256` and `[6,2]` has `ed25519-sha256`, in the order of the options | [DKS-002](../reference/requirements.md#dkim-signing), [`dkim.sign`](../reference/trace-codes.md#dkimsign), [RFC 8463 §6](https://www.rfc-editor.org/rfc/rfc8463.html#section-6) |
+| STEP-127 | unit | A message with one From field and one DKIM-Signature field, and DKIM signing that signs From and DKIM-Signature fields with oversigning on | the check finishes | `[6,1,1]` `dkim.sign.h` lists `from` twice and `dkim-signature` once, with `oversigned` 1 | [DKS-003](../reference/requirements.md#dkim-signing), [DKS-006](../reference/requirements.md#dkim-signing), [`dkim.sign.h`](../reference/trace-codes.md#dkimsignh), [RFC 6376 §5.4](https://www.rfc-editor.org/rfc/rfc6376.html#section-5.4) |
 
 ## Events and positions
 
