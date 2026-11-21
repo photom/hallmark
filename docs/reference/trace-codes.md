@@ -42,6 +42,21 @@ The codes that trace events carry, and the slots under the root of the tree (TRC
   - [`dkim.verification`](#dkimverification)
   - [`dkim.header_changed`](#dkimheader_changed)
   - [DKIM cautions](#dkim-cautions)
+- [DKIM signing](#dkim-signing)
+  - [The signing tree](#the-signing-tree)
+  - [`dkim.sign`](#dkimsign)
+  - [`dkim.sign.signature`](#dkimsignsignature)
+  - [`dkim.sign.h`](#dkimsignh)
+  - [`dkim.sign.body_hash`](#dkimsignbody_hash)
+  - [`dkim.sign.request`](#dkimsignrequest)
+  - [`dkim.sign.check`](#dkimsigncheck)
+  - [`dkim.sign.field`](#dkimsignfield)
+- [Header section](#header-section)
+  - [`header.section`](#headersection)
+  - [`header.bare_cr_lf`](#headerbare_cr_lf)
+  - [`header.no_line_ending`](#headerno_line_ending)
+  - [`header.rebuilt`](#headerrebuilt)
+  - [`header.malformed`](#headermalformed)
 - [Body](#body)
   - [`body.cut`](#bodycut)
   - [`body.empty_lines`](#bodyempty_lines)
@@ -85,7 +100,7 @@ Each code has an entry with these fields:
 
 ## Slots under the root
 
-Each kind of check has a fixed slot under the root, which it keeps whether or not the other checks run in the same call. So a position names the same step in every call (GEN-001, DMC-005).
+Each kind of check has a fixed slot under the root, which it keeps whether or not the other checks run in the same call, and the header section has one too. So a position names the same step in every call (GEN-001, DMC-005).
 
 | Position | Code | Step |
 |---|---|---|
@@ -97,8 +112,9 @@ Each kind of check has a fixed slot under the root, which it keeps whether or no
 | `[5]` | `dmarc` | DMARC evaluation |
 | `[6]` | `dkim.sign` | DKIM signing, with each signature it makes as a child |
 | `[7]` | `dkim2.sign` | DKIM2 signing |
+| `[8]` | `header.section` | The header section, when a check in the call reads it |
 
-The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, and [DKIM verification](#dkim-verification) the third.
+The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
 
 ## Codes
 
@@ -462,7 +478,7 @@ A `t=` or `x=` of more than 12 digits counts as infinite (HDR-013), and the para
 | Field | Value |
 |---|---|
 | Kind | `fact` |
-| Position | Child 6 of `dkim.signature` |
+| Position | Child 6 of `dkim.signature`, or child 3 of `dkim.sign.signature` |
 | Parameters | `canonicalization`: keyword, `simple` or `relaxed`; `hash`: hash, the SHA-256 hash of the header hash input |
 | Outcomes | none |
 | Cites | `RFC 6376 §3.7` |
@@ -475,7 +491,7 @@ A `t=` or `x=` of more than 12 digits counts as infinite (HDR-013), and the para
 |---|---|
 | Kind | `fact` |
 | Position | Child i of `dkim.header_hash`, for the i-th name in `h=` |
-| Parameters | `name`: data, from the sender, the name as written in `h=`; `instance`: count, when a field was selected, its place among the fields of that name, counted from the bottom of the header section; `field`: data, from the sender, the selected field in canonical form |
+| Parameters | `name`: data, the name as written in `h=`, from the sender in verification and from the caller in signing; `instance`: count, when a field was selected, its place among the fields of that name, counted from the bottom of the header section; `field`: data, from the sender, the selected field in canonical form |
 | Outcomes | `selected`, `none`, `own_field` |
 | Cites | `RFC 6376 §5.4`, and `RFC 6376 §3.5` for `none` |
 | English | "{name} selects {field}." or "{name} has no field left, so it adds nothing." or "{name} selects the signature's own field." |
@@ -487,7 +503,7 @@ A `t=` or `x=` of more than 12 digits counts as infinite (HDR-013), and the para
 |---|---|
 | Kind | `fact` |
 | Position | Child m + 1 of `dkim.header_hash`, where `h=` has m names |
-| Parameters | `field`: data, from the sender, the DKIM-Signature field in canonical form, with the `b=` value and the white space around it deleted |
+| Parameters | `field`: data, the DKIM-Signature field in canonical form, with the `b=` value and the white space around it deleted, from the sender in verification and from the caller in signing |
 | Outcomes | none |
 | Cites | `RFC 6376 §3.7` |
 | English | "The signature field as hashed: {field}" |
@@ -555,6 +571,181 @@ A caution never changes the result (TRC-003). The first three fire only on a sig
 
 Each caution has the kind `caution` and no outcomes.
 
+## DKIM signing
+
+The steps of DKIM signing (RFC 6376 §5), as [DKIM](design/dkim.md#signing) describes them. Scenarios STEP-066, STEP-123 to STEP-127 and the signing scenarios check them. No step holds a byte of a private key (SEC-002, SIGN-019).
+
+### The signing tree
+
+`dkim.sign` holds one `dkim.sign.signature` for each `DkimSigning` of the options, in their order.
+
+| Parent | Child number | Step |
+|---|---|---|
+| `dkim.sign` | k | `dkim.sign.signature` for the k-th `DkimSigning` |
+| `dkim.sign.signature` | 1 | `dkim.sign.h`, the `h=` list |
+| `dkim.sign.signature` | 2 | `dkim.sign.body_hash`, with the `body.*` steps as its children 1 to 6 |
+| `dkim.sign.signature` | 3 | `dkim.header_hash`, with a `dkim.h_name` for each name in `h=` and the `dkim.signature_field` |
+| `dkim.sign.signature` | 4 | `dkim.sign.request` |
+| `dkim.sign.signature` | 5 | `dkim.sign.check` |
+| `dkim.sign.signature` | 6 | `dkim.sign.field` |
+
+### `dkim.sign`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | `[6]` |
+| Parameters | `signatures`: count, the `DkimSigning` entries; `error`: keyword, when the outcome is `stopped`, the code of the `SigningError` that stopped signing, such as `signing.signer_failed` |
+| Outcomes | `written`, `stopped` |
+| Cites | `RFC 6376 §5` |
+| English | "DKIM signing with {signatures} signatures: {outcome}." |
+| Requirement | DKS-001, DKS-002, DKS-005, SGN-004 |
+
+### `dkim.sign.signature`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child k of `dkim.sign`, for the k-th `DkimSigning` |
+| Parameters | `domain`: data, from the caller, `d=`; `selector`: data, from the caller, `s=`; `algorithm`: keyword, `rsa-sha256` or `ed25519-sha256` |
+| Outcomes | `written`, `stopped` |
+| Cites | `RFC 6376 §5` |
+| English | "The signature by {domain} with the selector {selector}: {outcome}." |
+| Requirement | DKS-001, DKS-002 |
+
+### `dkim.sign.h`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 1 of `dkim.sign.signature` |
+| Parameters | `names`: list of data, from the caller, the names in `h=`, in order; `oversigned`: count, the names that `h=` holds once more than the message has fields of that name |
+| Outcomes | none |
+| Cites | `RFC 6376 §5.4` |
+| English | "h= names {names}." |
+| Requirement | DKS-003, DKS-006 |
+
+### `dkim.sign.body_hash`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of `dkim.sign.signature` |
+| Parameters | `canonicalization`: keyword, `simple` or `relaxed`; `hash`: hash, the body hash that `bh=` gets; `octets`: count, the canonical octets hashed |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.4.3`, `RFC 6376 §3.4.4`, `RFC 6376 §3.7` |
+| English | "The body hash, with {canonicalization} canonicalization over {octets} octets: {hash}." |
+| Requirement | DKS-004, TRC-010 |
+
+### `dkim.sign.request`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 4 of `dkim.sign.signature` |
+| Parameters | `algorithm`: keyword, `rsa-sha256` or `ed25519-sha256`; `hash`: hash, the SHA-256 hash that the signer gets (SGN-002) |
+| Outcomes | `answered`, `failed` |
+| Cites | `RFC 6376 §3.3`, `RFC 8463 §3` for `ed25519-sha256` |
+| English | "The signer got the hash {hash}: {outcome}." |
+| Requirement | SGN-001, SGN-002, SGN-004 |
+
+The trace leaves out the signer's description of a failure, which only the `SigningError` holds (SEC-002).
+
+### `dkim.sign.check`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 5 of `dkim.sign.signature`, when the signer answered with a signature |
+| Parameters | `size`: count, the octets of the signature; `expected`: count, the octets its algorithm and key give; `verified`: boolean, present when the caller turned verification on |
+| Outcomes | `passed`, `wrong_size`, `not_verified` |
+| Cites | none |
+| English | "The signature has {size} octets, as {expected} are expected: {outcome}." |
+| Requirement | SGN-004, SGN-006 |
+
+### `dkim.sign.field`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 6 of `dkim.sign.signature` |
+| Parameters | `field`: data, from the caller, the DKIM-Signature field that hallmark writes, in the form the caller asked for (STR-009) |
+| Outcomes | none |
+| Cites | `RFC 6376 §3.5` |
+| English | "The field to add: {field}" |
+| Requirement | DKS-005, STR-009 |
+
+## Header section
+
+The steps of the header section that the checks of a call read, as [Header section](design/header-section.md) describes them. The slot `[8]` appears when DKIM, DKIM2, DMARC or signing runs, and a check that names a header step names it by its position. Scenarios STEP-120 to STEP-122 and the header field and canonicalization scenarios that name a trace step check them.
+
+| Parent | Child number | Step |
+|---|---|---|
+| `header.section` | 1 | `header.bare_cr_lf` |
+| `header.section` | 2 | `header.no_line_ending` |
+| `header.section` | 3 | `header.rebuilt`, for fields that came one at a time |
+| `header.section` | 3 + j | `header.malformed` for the j-th malformed line, in the order of the header section |
+
+### `header.section`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | `[8]` |
+| Parameters | `input`: keyword, `whole_message`, `header_section` or `header_field`, the call that gave it; `fields`: count, the header fields; `malformed`: count, the malformed lines; `limit`: keyword, when the outcome is `permerror`, the header limit that stopped the splitter, such as `header_fields` |
+| Outcomes | `split`, `permerror` |
+| Cites | `RFC 5322 §2.2` |
+| English | "The header section holds {fields} fields and {malformed} malformed lines." or "The header section reached the limit {limit}." |
+| Requirement | HDR-001, HDR-004, SAF-002 |
+
+### `header.bare_cr_lf`
+
+| Field | Value |
+|---|---|
+| Kind | `caution` |
+| Position | Child 1 of `header.section`, when the header section holds a bare CR or LF |
+| Parameters | `cr`: count; `lf`: count; `places`: list of places in the raw header section, the first ones up to `trace_places`; `cut_short`: boolean |
+| Outcomes | none |
+| Cites | `RFC 5322 §2.2`, `RFC 5321 §2.3.8`, and also `RFC 6376 §5.3` when DKIM signing runs in the call, and `draft-ietf-dkim-dkim2-spec-09 §17` when DKIM2 signing runs |
+| English | "The header section holds {cr} bare CR and {lf} bare LF octets, which stay octets of the lines that hold them." |
+| Requirement | HDR-012, [ADR 0051](../adr/0051-a-bare-cr-or-lf-in-the-header-section-is-an-octet-of-the-line-that-holds-it.md) |
+
+### `header.no_line_ending`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 2 of `header.section`, when the input ended inside the last line of the header section |
+| Parameters | `line`: count, the line, from 1 |
+| Outcomes | none |
+| Cites | `RFC 5322 §2.2` |
+| English | "Line {line}, the last of the header section, has no line ending. Canonicalization ends it with CRLF." |
+| Requirement | HCN-008, [ADR 0030](../adr/0030-a-last-header-line-without-a-line-ending-is-a-header-field-that-canonicalization-ends-with-crlf.md) |
+
+### `header.rebuilt`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 3 of `header.section`, when the fields came one at a time |
+| Parameters | `folds`: keyword, `lf` or `crlf`, from `field_form`; `leading_space`: keyword, `removed` or `kept`, from `field_form`; `assumed`: count, the fields that got one SP after the colon because the receiving side removed it |
+| Outcomes | none |
+| Cites | none |
+| English | "The fields were rebuilt from their names and values. One leading space was assumed after the colon in {assumed} fields." |
+| Requirement | STR-008 |
+
+### `header.malformed`
+
+| Field | Value |
+|---|---|
+| Kind | `fact` |
+| Position | Child 3 + j of `header.section`, for the j-th malformed line |
+| Parameters | `raw`: data, from the sender, the line as it arrived; `line`: count, the line, from 1 |
+| Outcomes | none |
+| Cites | `RFC 5322 §2.2` |
+| English | "Line {line} isn't a header field: {raw}" |
+| Requirement | HDR-004, [ADR 0010](../adr/0010-header-parsers-follow-the-abnf-and-never-repair-input.md) |
+
 ## Body
 
 The steps that describe a body under a body hash step (TRC-010, [ADR 0041](../adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)). They hold places, counts and hashes, never body content. A place has the members of [The body](trace-format.md#the-body). Lists of places stop at the limit `trace_places`, and `cut_short` says when they did (TRC-005).
@@ -564,7 +755,7 @@ The steps that describe a body under a body hash step (TRC-010, [ADR 0041](../ad
 | Field | Value |
 |---|---|
 | Kind | `fact` |
-| Position | Child 1 of a body hash step, when the signature has `l=` and the body is longer |
+| Position | Child 1 of a body hash step, when the signature has `l=` and the body is longer. Signing writes no `l=` (DKS-004) |
 | Parameters | `place`: place, where the `l=` cut falls |
 | Outcomes | none |
 | Cites | `RFC 6376 §3.5` |
