@@ -21,5 +21,5 @@
 - [ ] Documentation in `docs/` matches the change.
 - [ ] A design decision has an ADR in `docs/adr/`.
 - [ ] Every new test has a scenario in `docs/testing/` that cites the RFC or draft section it checks.
-- [ ] Email addresses and domains in tests and examples use `.invalid`.
+- [ ] Email addresses and domains in tests and examples use `.test`.
 - [ ] No secrets, private keys (other than RFC example keys or keys generated in a test), or real email addresses are committed.

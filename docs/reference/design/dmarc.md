@@ -63,11 +63,11 @@ The policy questions go out when the header section ends, so they resolve while 
 sequenceDiagram
     participant Check
     participant Caller
-    Check->>Caller: TXT _dmarc.a.b.mail.void.invalid
+    Check->>Caller: TXT _dmarc.a.b.mail.void.test
     Caller-->>Check: no record
-    Check->>Caller: TXT _dmarc.b.mail.void.invalid
+    Check->>Caller: TXT _dmarc.b.mail.void.test
     Caller-->>Check: no record
-    Check->>Caller: TXT _dmarc.mail.void.invalid
+    Check->>Caller: TXT _dmarc.mail.void.test
     Caller-->>Check: one record with v=DMARC1
     Note over Check: the record applies, and its sp or np decides the policy for a subdomain
 ```

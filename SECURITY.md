@@ -10,7 +10,7 @@
 
 Report vulnerabilities privately through [GitHub's private vulnerability reporting](https://github.com/photom/hallmark/security/advisories/new). Do not open a public issue, pull request, or discussion for them.
 
-Include the hallmark version or commit, the check involved (SPF, DKIM, DKIM2, DMARC, or the trace), and the smallest input that shows the problem: the message, the DNS records, the verification time, and the options. Replace real addresses and domains with names under `void.invalid`, and never send a private key that is in use.
+Include the hallmark version or commit, the check involved (SPF, DKIM, DKIM2, DMARC, or the trace), and the smallest input that shows the problem: the message, the DNS records, the verification time, and the options. Replace real addresses and domains with names under `void.test`, and never send a private key that is in use.
 
 ## What counts as a vulnerability
 

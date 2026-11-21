@@ -2,7 +2,7 @@
 
 Scenarios for the checks on a DKIM-Signature field before its key is looked up: the algorithm, the version, the From field in `h=`, and the order of `t=` and `x=`. Key records are in [key-records.md](key-records.md), hashes in [canonicalization.md](canonicalization.md), and the result values in [authentication-results.md](authentication-results.md). Conventions are in [README.md](README.md).
 
-Unless a row says otherwise, the message has one From field and one DKIM-Signature with `d=void.invalid` and `s=sel`, signed while the test runs with a 2,048-bit RSA key published at `sel._domainkey.void.invalid`, and DNS answers come from a snapshot.
+Unless a row says otherwise, the message has one From field and one DKIM-Signature with `d=void.test` and `s=sel`, signed while the test runs with a 2,048-bit RSA key published at `sel._domainkey.void.test`, and DNS answers come from a snapshot.
 
 | ID | Level | Given | When | Then | Spec |
 |----|-------|-------|------|------|------|

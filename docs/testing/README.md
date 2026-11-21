@@ -60,7 +60,7 @@ Byte strings in the tables use `\r`, `\n`, and `\t` for CR, LF, and HTAB. Hashes
 5. When a requirement changes, the scenarios that link to it are updated in the same change.
 6. A scenario whose expected result depends on an open decision is marked "open" in its Then column and links to the question.
 7. A scenario that turns out to be impossible is withdrawn, not deleted: it keeps its row and ID, its Then column starts with "Withdrawn:" and gives the reason, and it has no test.
-8. Tests make no network calls. hallmark's own test domains are under `.invalid`, and their DNS answers come from snapshots. A test that runs third-party test data keeps the data's names and answers DNS from the data's records.
+8. Tests make no network calls. hallmark's own test domains are under `.test` ([ADR 0058](../adr/0058-test-names-are-under-test.md)), and their DNS answers come from snapshots. A test that runs third-party test data keeps the data's names and answers DNS from the data's records.
 
 ## Requirements checked outside tests
 
