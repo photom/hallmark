@@ -80,6 +80,8 @@ The codes that trace events carry, and the slots under the root of the tree (TRC
   - [`body.crlf_added`](#bodycrlf_added)
   - [`body.wsp_runs` and `body.wsp_trailing`](#bodywsp_runs-and-bodywsp_trailing)
   - [`body.bare_cr_lf`](#bodybare_cr_lf)
+- [Domain names](#domain-names)
+  - [Domain name rules](#domain-name-rules)
 - [DNS](#dns)
   - [`dns.txt`](#dnstxt)
   - [`dns.a` and `dns.aaaa`](#dnsa-and-dnsaaaa)
@@ -213,11 +215,11 @@ An answer that several steps read sits under each of them (TRC-008).
 |---|---|
 | Kind | `fact` |
 | Position | Child 1 of `spf.check_host` |
-| Parameters | `rule`: keyword, `single_label` for a HELO name that isn't a multi-label domain name, `no_lookup_form`, `empty_label`, `label_length` or `name_length` |
+| Parameters | `rule`: keyword, `single_label` for a HELO name that isn't a multi-label domain name, or a keyword of [Domain name rules](#domain-name-rules); `label` and `code_point`: counts, as [Domain name rules](#domain-name-rules) gives them |
 | Outcomes | `none` |
-| Cites | `RFC 7208 §4.3`, and `RFC 7208 §2.3` for `single_label` |
+| Cites | `RFC 7208 §4.3`, `RFC 7208 §2.3` for `single_label`, and the cites of the rule |
 | English | "The domain isn't a valid domain name ({rule}), so the result is none." |
-| Requirement | ADS-004, ADS-023 |
+| Requirement | ADS-002, ADS-004, ADS-023 |
 
 ### `spf.records`
 
@@ -671,9 +673,9 @@ An answer that several steps read sits under each of them (TRC-008). In RFC 9989
 |---|---|
 | Kind | `fact` |
 | Position | Child k of `dmarc.author`, for the k-th mailbox |
-| Parameters | `field`: count, the From field that holds the mailbox, from 1 in the order of the header section; `display_name`: data, from the sender, as written, when the mailbox has one; `local_part`: data, from the sender, as written; `domain`: data, from the sender, the domain or the domain literal as written; `lookup`: data, from the sender, the lookup form, when the outcome is `lookup_form`; `unicode`: keyword, `12.0.0`, the Unicode version of the conversion tables, when the domain holds a non-ASCII label ([ADR 0055](../adr/0055-the-idna-tables-use-unicode-12-0-0.md)); `rule`: keyword, when the outcome is `invalid`: `no_lookup_form`, `empty_label`, `label_length` or `name_length`, as for `spf.domain_invalid` |
+| Parameters | `field`: count, the From field that holds the mailbox, from 1 in the order of the header section; `display_name`: data, from the sender, as written, when the mailbox has one; `local_part`: data, from the sender, as written; `domain`: data, from the sender, the domain or the domain literal as written; `lookup`: data, from the sender, the lookup form, when the outcome is `lookup_form`; `unicode`: keyword, `12.0.0`, the Unicode version of the conversion tables, when the domain holds a non-ASCII label ([ADR 0055](../adr/0055-the-idna-tables-use-unicode-12-0-0.md)); `rule`: keyword, when the outcome is `invalid`, a keyword of [Domain name rules](#domain-name-rules); `label` and `code_point`: counts, when the outcome is `invalid`, as [Domain name rules](#domain-name-rules) gives them |
 | Outcomes | `lookup_form`, `domain_literal`, `invalid` |
-| Cites | `RFC 5322 §3.4`, and `RFC 5891 §5` when the domain holds a non-ASCII label |
+| Cites | `RFC 5322 §3.4`, `RFC 5891 §5` when the domain holds a non-ASCII label, and the cites of the rule when the outcome is `invalid` |
 | English | "From field {field} holds {local_part}@{domain}: {outcome}." |
 | Requirement | ADS-002, ADS-005, ADS-030 |
 
@@ -1061,6 +1063,31 @@ The steps that describe a body under a body hash step (TRC-010, [ADR 0041](../ad
 | Cites | `RFC 5322 §2.3`, `RFC 5321 §2.3.8` |
 | English | "The body holds {cr} bare CR and {lf} bare LF octets, which canonicalization keeps as octets." |
 | Requirement | STR-011, [ADR 0037](../adr/0037-the-core-takes-crlf-line-endings-only-and-a-bare-cr-or-lf-in-the-body-is-an-octet.md) |
+
+## Domain names
+
+A step that reads a domain name converts it to its lookup form (ADS-002) and checks it against the limits of ADS-004. When the name fails, the step names the rule it broke with one of the keywords below. Scenarios DOM-004 to DOM-008, DOM-010 and DOM-018 to DOM-024 check them.
+
+### Domain name rules
+
+The rules from `a_label` to `bidi` apply only to a label that holds a non-ASCII character or begins with `xn--` in any case. Any other label stays as written ([ADR 0014](../adr/0014-hallmark-looks-up-header-domains-as-written-whatever-ascii-they-hold.md)), and the rules from `empty_label` to `name_length` apply to every label and to the whole name. A label that begins with `xn--` is decoded first, and the rules from `not_nfc` to `bidi` apply to the decoded label. The labels go from left to right, each checked against the rules in the order of the table, and the step names the first rule broken, so the trace doesn't depend on the order in which the code runs its checks (TRC-012).
+
+| Keyword | A label breaks it when | Cites |
+|---|---|---|
+| `a_label` | It begins with `xn--` but isn't an A-label: its Punycode doesn't decode, it decodes to a string with no non-ASCII character, or the decoded label doesn't encode back to the same label | `RFC 5891 §5.3`, `RFC 5890 §2.3.2.1`, `RFC 3492 §6.2` |
+| `not_nfc` | It isn't in Normalization Form C | `RFC 5891 §5.4` |
+| `hyphens_3_4` | Its third and fourth characters are both `-` | `RFC 5891 §5.4` |
+| `leading_combining_mark` | Its first character is a combining mark | `RFC 5891 §5.4` |
+| `disallowed` | It holds a code point whose category is DISALLOWED | `RFC 5891 §5.4`, `RFC 5892 §3` |
+| `unassigned` | It holds a code point that Unicode 12.0.0 leaves unassigned ([ADR 0055](../adr/0055-the-idna-tables-use-unicode-12-0-0.md)) | `RFC 5891 §5.4`, `RFC 5892 §2.10` |
+| `contextj` | It holds a CONTEXTJ code point, ZERO WIDTH NON-JOINER or ZERO WIDTH JOINER, whose rule fails | `RFC 5891 §5.4`, `RFC 5892 Appendix A.1` or `RFC 5892 Appendix A.2` |
+| `contexto` | It holds a CONTEXTO code point whose rule fails ([ADR 0057](../adr/0057-the-conversion-to-a-labels-runs-the-contexto-rules.md)) | `RFC 5891 §5.4`, and the rule's section, `RFC 5892 Appendix A.3` to `RFC 5892 Appendix A.9` |
+| `bidi` | It breaks the Bidi Rule | `RFC 5891 §5.4`, `RFC 5893 §2` |
+| `empty_label` | It is empty, other than the root after a final dot | `RFC 1035 §2.3.4` |
+| `label_length` | Its lookup form has more than 63 octets | `RFC 1035 §2.3.4` |
+| `name_length` | The lookup form of the whole name has more than 255 octets | `RFC 1035 §2.3.4` |
+
+A step that names a rule also gives `label`: count, the label that broke it, counted from 1 at the left, absent for `name_length`; and `code_point`: count, the scalar value of the first code point that broke it, for `leading_combining_mark`, `disallowed`, `unassigned`, `contextj` and `contexto`.
 
 ## DNS
 
