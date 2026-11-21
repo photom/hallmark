@@ -1,6 +1,6 @@
 # Test scenarios: Key records
 
-Scenarios for DKIM key records, DKIM2 key records and DKIM2 Domain Policy Records: selection, tags, key data, several records at one name, and the outcome of each problem. Conventions are in [README.md](README.md).
+Scenarios for DKIM key records, DKIM2 key records and DKIM2 Domain Policy Records: selection, tags, key data and key sizes, several records at one name, and the outcome of each problem. Conventions are in [README.md](README.md).
 
 Unless a row says otherwise, the signature has `d=void.invalid` and `s=sel`, the key record is the only TXT record at `sel._domainkey.void.invalid`, its key is generated while the test runs and signed the message, and DNS answers come from a snapshot. The snapshot answers every question the check asks, and a name that a row doesn't mention has no records of the type asked. `<key>` stands for that key's `p=` value.
 
@@ -9,7 +9,7 @@ Unless a row says otherwise, the signature has `d=void.invalid` and `s=sel`, the
 - [DKIM key records](#dkim-key-records)
 - [RSA and Ed25519 key data](#rsa-and-ed25519-key-data)
 - [Several records at a DKIM selector](#several-records-at-a-dkim-selector)
-- [RSA public exponents](#rsa-public-exponents)
+- [RSA key sizes](#rsa-key-sizes)
 - [DKIM2 key records](#dkim2-key-records)
 - [Domain Policy Records](#domain-policy-records)
 - [Properties](#properties)
@@ -42,7 +42,7 @@ Unless a row says otherwise, the signature has `d=void.invalid` and `s=sel`, the
 | KEY-023 | unit | The key of KEY-021 in a SubjectPublicKeyInfo that names `id-RSASSA-PSS` | the message is verified | PERMFAIL (key syntax error) | [REC-051](../reference/requirements.md#dns-records), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md), [RFC 4055 §1.2](https://www.rfc-editor.org/rfc/rfc4055.html#section-1.2) |
 | KEY-024 | unit | The key of KEY-021 in a SubjectPublicKeyInfo with `rsaEncryption` and no parameters | the message is verified | PERMFAIL (key syntax error): the parameters must be NULL | [REC-051](../reference/requirements.md#dns-records), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md), [RFC 4055 §1.2](https://www.rfc-editor.org/rfc/rfc4055.html#section-1.2) |
 | KEY-025 | unit | The RSAPublicKey of KEY-021 followed by one more byte | the message is verified | PERMFAIL (key syntax error) | [REC-051](../reference/requirements.md#dns-records), [ADR 0026](../adr/0026-rsa-keys-in-key-records-may-be-rsapublickey-or-subjectpublickeyinfo.md) |
-| KEY-026 | unit | The Ed25519 public key of RFC 8463 Appendix A.2 in the key record `v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=`, and a message the test signs with the secret key of Appendix A.1 | the message is verified | `pass` | [REC-051](../reference/requirements.md#dns-records), [RFC 8463 §4.2](https://www.rfc-editor.org/rfc/rfc8463.html#section-4.2), [RFC 8463 Appendix A](https://www.rfc-editor.org/rfc/rfc8463.html#appendix-A) |
+| KEY-026 | unit | The Ed25519 public key of RFC 8463 Appendix A.2 in the key record `v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=`, and a message the test signs with the secret key of Appendix A.1 | the message is verified | `pass` | [TST-003](../reference/requirements.md#quality-and-process), [REC-051](../reference/requirements.md#dns-records), [RFC 8463 §4.2](https://www.rfc-editor.org/rfc/rfc8463.html#section-4.2), [RFC 8463 Appendix A](https://www.rfc-editor.org/rfc/rfc8463.html#appendix-A) |
 | KEY-027 | unit | A `k=ed25519` record whose `p=` decodes to 31 octets | the message is verified | PERMFAIL (key syntax error) | [REC-051](../reference/requirements.md#dns-records), [dns-03 §4.3](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-dns-03#section-4.3) |
 | KEY-028 | unit | The key record `v=DKIM1; p=` | the message is verified | PERMFAIL (key revoked) | [REC-051](../reference/requirements.md#dns-records), [RFC 6376 §6.1.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-6.1.2) |
 | KEY-029 | unit | The key record `v=DKIM1; k=ed25519; p=<Ed25519 key>`, and an `rsa-sha256` signature | the message is verified | PERMFAIL (inappropriate key algorithm) | [REC-051](../reference/requirements.md#dns-records), [RFC 6376 §6.1.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-6.1.2) |
@@ -58,13 +58,16 @@ Unless a row says otherwise, the signature has `d=void.invalid` and `s=sel`, the
 | KEY-034 | unit | The records `v=DKIM2; p=<old key>` and `v=DKIM1; p=<key>` | the message is verified | `pass` with no caution: one record remains after hallmark drops the `v=DKIM2` record | [REC-050](../reference/requirements.md#dns-records), [REC-052](../reference/requirements.md#dns-records) |
 | KEY-035 | property | Any set of up to 4 key records, each valid or not, and a signed message | the message is verified with the records in every order | every order gives the same result | [REC-052](../reference/requirements.md#dns-records), [ADR 0025](../adr/0025-a-dkim-selector-with-several-key-records-passes-if-any-of-them-verifies-the-signature.md) |
 
-## RSA public exponents
+## RSA key sizes
 
 | ID | Level | Given | When | Then | Spec |
 |----|-------|-------|------|------|------|
-| KEY-040 | unit | A 2048-bit RSA key with a public exponent of 34 bits, and a message signed with it | the message is verified | PERMFAIL, and a trace step that names the exponent limit of 32 bits and cites RFC 6376 §8.13 | [REC-051](../reference/requirements.md#dns-records), [SAF-002](../reference/requirements.md#hostile-input), [ADR 0043](../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md), [RFC 6376 §8.13](https://www.rfc-editor.org/rfc/rfc6376.html#section-8.13) |
+| KEY-040 | unit | A 2048-bit RSA key with a public exponent of 34 bits, and a message signed with it | the message is verified | PERMFAIL (key exponent too large), and a trace step that names the limit `rsa_exponent_bits` and cites RFC 6376 §8.13 | [REC-051](../reference/requirements.md#dns-records), [SAF-002](../reference/requirements.md#hostile-input), [ADR 0043](../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md), [RFC 6376 §8.13](https://www.rfc-editor.org/rfc/rfc6376.html#section-8.13) |
 | KEY-041 | unit | The key and message of KEY-040, and a caller that raises the exponent limit to 40 bits for the call | the message is verified | `pass` | [REC-051](../reference/requirements.md#dns-records), [PAR-004](../reference/requirements.md#parsers), [ADR 0043](../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 | KEY-042 | unit | A 2048-bit RSA key with the public exponent 3, and a message signed with it | the message is verified | `pass`: for signers, RFC 6376 makes 65537 a SHOULD | [REC-051](../reference/requirements.md#dns-records), [ADR 0043](../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md), [RFC 6376 §3.3.2](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.3.2) |
+| KEY-043 | unit | A 512-bit RSA key, and a message signed with it | the message is verified | PERMFAIL (key size out of range), and the trace step of the key record gives 512 bits and cites RFC 8301 §3.2 | [DKV-003](../reference/requirements.md#dkim-verification), [REC-051](../reference/requirements.md#dns-records), [RFC 8301 §3.2](https://www.rfc-editor.org/rfc/rfc8301.html#section-3.2) |
+| KEY-044 | unit | A 1,024-bit RSA key, then a 4,096-bit one, each with a message signed with it | each message is verified under the default limits | `pass` both times, the first with the caution `dkim.caution.short_key` | [DKV-003](../reference/requirements.md#dkim-verification), [RFC 8301 §3.2](https://www.rfc-editor.org/rfc/rfc8301.html#section-3.2) |
+| KEY-045 | unit | An 8,192-bit RSA key, and a message signed with it | the message is verified under the default limits, then with `rsa_key_bits` raised to 8,192 | PERMFAIL (key size out of range) with a trace step that names the limit `rsa_key_bits`, then `pass` | [DKV-003](../reference/requirements.md#dkim-verification), [SAF-002](../reference/requirements.md#hostile-input), [PAR-004](../reference/requirements.md#parsers), [RFC 8301 §3.2](https://www.rfc-editor.org/rfc/rfc8301.html#section-3.2) |
 
 ## DKIM2 key records
 

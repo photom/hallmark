@@ -22,7 +22,7 @@ flowchart TD
     kind -->|"on the trace"| cut["The trace is cut short. Results stay the same"]
 ```
 
-A limit never makes hallmark panic (SAF-001), and every trace step for a limit names the limit and its value.
+A limit never makes hallmark panic (SAF-001), and every trace step for a limit names the limit.
 
 ## Limits of a check
 
@@ -44,7 +44,7 @@ The caller sets these in `Limits`, part of the options of each check (PAR-004).
 | `rsa_exponent_bits` | 32 | 2 to 16,384 | Bits of an RSA public exponent in a DKIM key | Key decoding | PERMFAIL with a step that cites RFC 6376 §8.13 | Holds 65537 and any common exponent | REC-051, [ADR 0043](../../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 | `author_domains` | 4 | 1 to 100 | Author domains evaluated when the caller asks for several | DMARC | DMARC isn't applied, and the result names the limit | Each domain costs up to nine questions | DMC-002 |
 | `dns_questions` | 512 | 1 to 100,000 | Distinct questions in one check | Question table | The kind that needed the question gives its permanent error: SPF `permerror`, PERMFAIL for the DKIM signature, DKIM2 PERMERROR, DMARC `permerror` | Above the most that mail within every other limit needs: two SPF evaluations of about 120 questions each, 16 DKIM keys, the keys and policies of DKIM2, and four DMARC walks | SAF-002 |
-| `answer_size` | 65,535 | 512 to 16,777,216 | Octets of record data in one answer | Answer input | The check takes the answer as a temporary failure that names the limit (GEN-005) | The largest DNS message, whose length field has 16 bits (RFC 1035 §4.2.2) | SAF-004 |
+| `answer_size` | 65,535 | 512 to 16,777,216 | Octets of record data and description in one DNS answer, and of the description in one public suffix answer | Answer input | The check takes a DNS answer as a temporary failure that names the limit (GEN-005), and a public suffix answer as unavailable without its description, with a trace step that names the limit | The largest DNS message, whose length field has 16 bits (RFC 1035 §4.2.2) | SAF-004 |
 | `dkim2_signatures` | 32 | 1 to 1,000 | DKIM2-Signature fields | DKIM2 | PERMERROR | Each hop adds one | SAF-002 |
 | `message_instances` | 32 | 1 to 1,000 | Message-Instance fields | DKIM2 | PERMERROR | Each hop that changes the message adds one | SAF-002 |
 | `recipe_steps` | 10,000 | 1 to 1,000,000 | Steps in one recipe | Recipe parser | PERMERROR for the signatures that depend on the recipe | Draft-09 §14.2 lets a verifier refuse recipes that are too complex | SAF-002, DK2-007 |
@@ -52,7 +52,7 @@ The caller sets these in `Limits`, part of the options of each check (PAR-004).
 | `recipe_depth` | 8 | 1 to 64 | Levels of nesting in recipe JSON | JSON reader | As `recipe_steps` | The recipe schema of draft-09 §5 nests five levels | PAR-005, PRS-005 |
 | `spf_void_lookups` | 2 | 0 to 10 | Void lookups in one SPF evaluation | SPF | `permerror` | RFC 7208 §4.6.4 | SPF-006 |
 | `trace_size` | 1,048,576 | 1,024 to 268,435,456 | Octets of trace events written, read or not | Recorder | The trace is cut short, and the root event says so. Results stay the same | Holds the header hash inputs of every signature within the other limits (HCN-009) | TRC-005 |
-| `trace_places` | 16 | 0 to 10,000 | Places listed for each kind of body change, and for bare CR and LF | Body steps | The count stays exact, the list stops and says it was cut short | Enough to find the first changes | TRC-010 |
+| `trace_places` | 16 | 0 to 10,000 | Places listed for each kind of body change, and for bare CR and LF in the body and the header section | Body and header section steps | The count stays exact, the list stops and says it was cut short | Enough to find the first changes | TRC-010 |
 
 ## Limits outside a check
 

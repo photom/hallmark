@@ -268,10 +268,15 @@ classDiagram
         +Domain domain
         +Option~Data~ explanation
     }
+    class DkimResults {
+        +Option~Limit~ stopped
+    }
     class DkimResult {
         +Position position
         +Option~Domain~ domain
+        +Option~Data~ identity
         +Option~Data~ selector
+        +Option~Data~ algorithm
         +DkimOutcome outcome
         +DkimReason reason
         +bool testing

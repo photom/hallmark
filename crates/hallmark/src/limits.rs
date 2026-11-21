@@ -191,7 +191,8 @@ impl Limits {
         unimplemented!()
     }
 
-    /// `answer_size`: the most octets of record data in one answer (SAF-004).
+    /// `answer_size`: the most octets of record data and description in one DNS
+    /// answer, and of the description in one public suffix answer (SAF-004).
     pub fn answer_size(&self) -> u32 {
         unimplemented!()
     }
@@ -279,7 +280,8 @@ impl Limits {
         unimplemented!()
     }
 
-    /// `trace_places`: the most places listed for each kind of body change, and for bare CR and LF (TRC-010).
+    /// `trace_places`: the most places listed for each kind of body change, and
+    /// for bare CR and LF in the body and the header section (TRC-010).
     pub fn trace_places(&self) -> u32 {
         unimplemented!()
     }
@@ -392,7 +394,8 @@ pub enum Limit {
     AuthorDomains,
     /// `dns_questions`: distinct DNS questions in one check.
     DnsQuestions,
-    /// `answer_size`: octets of record data in one answer.
+    /// `answer_size`: octets of record data and description in one DNS answer,
+    /// and of the description in one public suffix answer.
     AnswerSize,
     /// `dkim2_signatures`: DKIM2-Signature fields.
     Dkim2Signatures,
@@ -408,7 +411,8 @@ pub enum Limit {
     SpfVoidLookups,
     /// `trace_size`: octets of trace events written, read or not.
     TraceSize,
-    /// `trace_places`: places listed for each kind of body change, and for bare CR and LF.
+    /// `trace_places`: places listed for each kind of body change, and for bare
+    /// CR and LF in the body and the header section.
     TracePlaces,
     /// `pasted_records_size`: octets of pasted records.
     PastedRecordsSize,
