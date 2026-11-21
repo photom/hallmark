@@ -707,11 +707,11 @@ An answer that several steps read sits under each of them (TRC-008). In RFC 9989
 |---|---|
 | Kind | `fact` |
 | Position | Child 1 of `dmarc.discovery` or `dmarc.org_domain`, in RFC 7489 mode |
-| Parameters | `domain`: data, from the sender, the domain asked about; `labels`: count, the labels of the public suffix, the x of RFC 7489 §3.2 step 3, when the outcome is `suffix`; `list`: data, from the caller, the name of the list, when the caller gave one; `organizational`: data, from the sender, when the outcome is `suffix`, the organizational domain: the last x + 1 labels, or the domain itself when x is its number of labels |
+| Parameters | `domain`: data, from the sender, the domain asked about; `labels`: count, the labels of the public suffix, the x of RFC 7489 §3.2 step 3, when the outcome is `suffix`; `list`: data, from the caller, the name of the list, when the caller gave one; `organizational`: data, from the sender, when the outcome is `suffix`, the organizational domain: the last x + 1 labels, or the domain itself when x is its number of labels; `description`: data, from the caller, when the outcome is `unavailable` and the caller described why; `limit`: keyword, `answer_size`, when the description went over that limit and the step leaves it out |
 | Outcomes | `suffix`, `unavailable` |
 | Cites | `RFC 7489 §3.2` |
-| English | "The public suffix of {domain} has {labels} labels, so its organizational domain is {organizational}." When x is the number of labels: "{domain} is a public suffix, so it is its own organizational domain." For `unavailable`: "No public suffix is available for {domain}." |
-| Requirement | DMC-010, DMC-011, TRC-008 |
+| English | "The public suffix of {domain} has {labels} labels, so its organizational domain is {organizational}." When x is the number of labels: "{domain} is a public suffix, so it is its own organizational domain." For `unavailable`: "No public suffix is available for {domain}.", followed by the description when there is one. |
+| Requirement | DMC-010, DMC-011, TRC-008, SAF-004 |
 
 A snapshot takes its suffix answers from these steps ([Trace format](trace-format.md#snapshots)).
 
