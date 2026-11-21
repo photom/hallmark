@@ -228,8 +228,8 @@ pub struct Parties {
 
 /// A place in the body (TRC-010), or in the raw header section (HDR-012).
 ///
-/// A place in the header section counts its offset and line in the header
-/// section the caller passed, and has no `canonical`.
+/// A place in the header section counts its offset and line in the raw header
+/// section instead, and has no `canonical`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Place {
