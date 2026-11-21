@@ -155,5 +155,6 @@ sequenceDiagram
 | The hashes | `dkim.header_hash`, `dkim.signature_field`, `dkim.body_hash` and the `body.*` steps | The header hash input, the body steps, the computed and stated hashes | HCN-009, TRC-010 |
 | The signature | `dkim.verification`, with `dkim.header_changed` | The key record that decided, and what a body hash match with a failed signature shows | DKV-012 |
 | Cautions | `dkim.caution.*` | The cautions of DKV-010, HCN-004 and REC-052 | TRC-003 |
+| Signing | `dkim.sign`, `dkim.sign.signature` and its children | The `h=` list, the hashes, the request to the signer, the size check and the field written, with no byte of a key | DKS-005, SGN-004, SEC-002 |
 
-[Trace codes](../trace-codes.md#the-dkim-tree) gives the position of each step and the parameters of each code.
+[Trace codes](../trace-codes.md#the-dkim-tree) gives the position of each step and the parameters of each code, and [the signing tree](../trace-codes.md#the-signing-tree) those of signing.
