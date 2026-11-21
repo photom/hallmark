@@ -166,6 +166,7 @@ Each suffix answer has these members, in this order:
 | `result` | keyword | always | `suffix`, or `unavailable` when the caller had no suffix (DMC-011) |
 | `labels` | count | when `result` is `suffix` | The number of labels in the public suffix, the x of RFC 7489 §3.2 step 3 |
 | `list` | string | when the caller named the list | The name of the list, such as its date or a hash |
+| `description` | data | when `result` is `unavailable` and the caller described why | The caller's description, as it gave it (DMC-010) |
 
 The library extracts a snapshot from a trace, its events sorted or not (TRC-008).
 
