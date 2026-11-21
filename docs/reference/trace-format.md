@@ -41,7 +41,7 @@ Each event is one step of a check. Its members appear in this order:
 
 A position is a list of counts: the child numbers on the path from the root of the tree. `[]` is the root, `[3]` is the third slot under the root, and `[3,1]` is the first child of `[3]`. Child numbers start at 1.
 
-The slots under the root are fixed, one for each kind of check ([Trace codes](trace-codes.md#slots-under-the-root)). Below them, a step's number comes from the order that the specifications fix and from the order of items in the input, such as header fields, terms in a record and records in an answer. It never depends on when a DNS answer arrived, where the body chunks were cut, or how many events went out before it (TRC-012). A step that didn't happen leaves its number unused, and the numbers after it don't move.
+The slots under the root are fixed, one for each kind of check and one for the header section ([Trace codes](trace-codes.md#slots-under-the-root)). Below them, a step's number comes from the order that the specifications fix and from the order of items in the input, such as header fields, terms in a record and records in an answer. It never depends on when a DNS answer arrived, where the body chunks were cut, or how many events went out before it (TRC-012). A step that didn't happen leaves its number unused, and the numbers after it don't move.
 
 To sort events, compare their positions element by element as integers. The first element that differs decides, and the smaller sorts first. A position that is a prefix of another sorts before it. So `[]`, `[3]`, `[3,1]`, `[3,1,2]`, `[3,2]` and `[10]` are in order. This puts each parent before its children, and siblings in their order. The trace in its canonical form is its events sorted this way.
 
@@ -56,8 +56,8 @@ To sort events, compare their positions element by element as integers. The firs
 | position | list of counts | A step in the same trace, or the step in the same slot of another call's trace, such as the SPF or DKIM result that a DMARC alignment step used (DMC-005) |
 | hash | string in base64 (RFC 4648 §4) | Hashes that hallmark computed |
 | address | string | An IPv4 address as a dotted quad, or an IPv6 address in the text form of RFC 5952 §4 |
-| place | object | A place in the body ([The body](#the-body)) |
-| data | object | Bytes from the message, the envelope or DNS, and values made from them |
+| place | object | A place in the body or the header section ([The body](#the-body)) |
+| data | object | Bytes from the message, the envelope, DNS or the caller, and values made from them |
 | list | list of values of one type | Several values |
 
 A data value has these members, in this order:
@@ -66,7 +66,7 @@ A data value has these members, in this order:
 |---|---|---|
 | `text` | when the bytes are UTF-8 with no noncharacters (RFC 3629, RFC 7493 §2.1) | The bytes, as a string |
 | `base64url` | otherwise | The bytes in base64url (RFC 4648 §5), without padding (RFC 4648 §3.2) |
-| `from` | always | The parties that control the bytes (TRC-013): `["dns"]`, `["sender"]` or `["dns","sender"]`. `sender` covers the message and the envelope that the SMTP client gave, and `dns` covers whoever publishes the records |
+| `from` | always | The parties that control the bytes (TRC-013): one or more of `caller`, `dns` and `sender`, in that order, such as `["sender"]` or `["dns","sender"]`. `caller` covers the values that the caller of hallmark gave, such as the signing domain and selector, `dns` covers whoever publishes the records, and `sender` covers the message and the envelope that the SMTP client gave |
 
 Header field values, header fields in canonical form, addresses, domain names in both forms, DNS record contents, SPF macro expansions and recipe content are data values. A reader escapes `text` for wherever it shows it (TRC-013), and shows the SPF explanation as text from a third party (RFC 7208 §6.2).
 
@@ -112,6 +112,8 @@ The trace records the body only as hashes, byte counts, line counts and places, 
 | `offset` | count | always | The byte offset in the body that the caller passed, from 0 |
 | `line` | count | always | The line number in that body, from 1 |
 | `canonical` | count | when the hash depends on it | The byte offset in the canonical body, from 0, as for the `l=` cut |
+
+A place in a header step, such as the bare CR and LF of the header section, counts its offset and line in the raw header section instead, and has no `canonical` (HDR-012).
 
 The steps of the body record the `l=` cut (RFC 6376 §3.5), where the empty lines at the end start (RFC 6376 §3.4.3 and §3.4.4, draft-09 §6.1), whether a CRLF was added at the end, and the places where canonicalization changed bytes. Those changes come in two kinds: a run of WSP turned into one SP, and WSP removed at the end of a line (RFC 6376 §3.4.4). The steps also record, under a caution, the places of bare CR and LF, which canonicalization keeps as octets (STR-011). For each kind of change, and for bare CR and LF, the trace gives the count and the first places, up to a limit (TRC-005), and says when the list is cut short. [Trace codes](trace-codes.md) gives the parameters.
 

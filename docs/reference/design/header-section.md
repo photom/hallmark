@@ -152,13 +152,15 @@ Authentication-Results fields are parsed only when the caller asks (AR-003). A c
 
 ## Trace
 
-| Step | Records | Requirements |
-|---|---|---|
-| The header section | The number of fields and malformed lines | TRC-002 |
-| A malformed line | Its raw bytes as a data value. DKIM2 adds a caution when it leaves the line out of its header hash | HDR-004, HCN-006 |
-| A last line with no CRLF | That the line ending is missing, citing RFC 5322 §2.2 | HCN-008 |
-| Bare CR and LF | A caution with the count and the first places, citing RFC 5322 §2.2 and RFC 5321 §2.3.8, and in signing also RFC 6376 §5.3 and draft-09 §17 | HDR-012 |
-| A field from a milter | Each assumption of the rebuild | STR-008 |
-| A limit | The limit and its value | SAF-002 |
+| Step | Code | Records | Requirements |
+|---|---|---|---|
+| The header section | `header.section`, in the slot `[8]` | The input, and the number of fields and malformed lines | TRC-002 |
+| A malformed line | `header.malformed` | Its raw bytes as a data value. DKIM2 adds a caution when it leaves the line out of its header hash | HDR-004, HCN-006 |
+| A last line with no CRLF | `header.no_line_ending` | That the line ending is missing, citing RFC 5322 §2.2 | HCN-008 |
+| Bare CR and LF | `header.bare_cr_lf` | A caution with the count and the first places, citing RFC 5322 §2.2 and RFC 5321 §2.3.8, and in signing also RFC 6376 §5.3 and draft-09 §17 | HDR-012 |
+| Fields from a milter | `header.rebuilt` | The field form and the leading spaces the rebuild assumed | STR-008 |
+| A limit | `header.section` with the outcome `permerror` | The limit | SAF-002 |
+
+[Trace codes](../trace-codes.md#header-section) gives the parameters of each code. The checks of a call share one header section, so it has one slot of its own.
 
 Field contents are values the sender controls (TRC-013).
