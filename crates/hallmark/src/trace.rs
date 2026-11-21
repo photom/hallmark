@@ -192,7 +192,7 @@ pub enum Value {
     /// An IP address, from a JSON string: a dotted quad, or an IPv6 address in
     /// the text form of RFC 5952 §4.
     Address(IpAddr),
-    /// A place in the body, a JSON object.
+    /// A place in the body or the header section, a JSON object.
     Place(Place),
     /// Bytes with the parties that control them, a JSON object.
     Data(Data),
@@ -218,13 +218,18 @@ pub struct Data {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Parties {
+    /// The caller of hallmark gave the value, such as the signing domain.
+    pub caller: bool,
     /// A DNS publisher controls the value.
     pub dns: bool,
     /// The sender controls the value.
     pub sender: bool,
 }
 
-/// A place in the body (TRC-010).
+/// A place in the body (TRC-010), or in the raw header section (HDR-012).
+///
+/// A place in the header section counts its offset and line in the header
+/// section the caller passed, and has no `canonical`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Place {
