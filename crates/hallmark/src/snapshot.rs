@@ -88,7 +88,7 @@ impl Snapshot {
 /// | Rule | Requirements |
 /// |---|---|
 /// | The resolver matches a question by type and name, without regard to ASCII case | DNS-004, RFC 4343 §2 |
-/// | A question the snapshot lacks gets a temporary failure that says so. A public suffix question it lacks gets [`SuffixAnswer::Unavailable`] | DNS-004, DNS-009 |
+/// | A question the snapshot lacks gets a temporary failure that says so. A public suffix question it lacks gets [`SuffixAnswer::Unavailable`] with a description that says so | DNS-004, DNS-009 |
 /// | A snapshot from [`PastedRecords::parse`] answers as complete zone data. A name with no pasted records and none below it doesn't exist. A name with records of other types, or with records below it, has no records of the asked type | DNS-010, RFC 8020 §2 |
 #[derive(Debug)]
 pub struct SnapshotResolver {
