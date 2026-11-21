@@ -138,10 +138,14 @@ Each result carries a `DmarcReason` that names the case of this table: the ident
 
 ## Trace
 
-| Step | Records | Requirements |
-|---|---|---|
-| Author domain | The From fields, the domains found and the case that applied | DMC-002 |
-| Policy discovery | Each question and answer, each public suffix question and answer, the records kept and dropped | TRC-008, DMC-011 |
-| Alignment | Each identifier, its mode, its organizational domain and the result it came from | DMC-005 |
-| Policy | The tag that applied, the existence question, test mode, an ignored `pct` | DMC-006, DMC-007 |
-| Hints | The forwarding hint of DMC-009 | DMC-009 |
+| Step | Code | Records | Requirements |
+|---|---|---|---|
+| Author domain | `dmarc.author`, with a `dmarc.mailbox` for each mailbox | The From fields, each mailbox and its domain in both forms, the domains found and the case that applied | DMC-002, ADS-030 |
+| Each result | `dmarc.result`, one for each author domain | The outcome and the reason | DMC-006, GEN-004 |
+| Policy discovery | `dmarc.discovery`, with `dmarc.suffix`, `dmarc.query`, `dns.txt` and `dmarc.txt_record` | Each question and answer, each public suffix question and answer, the records kept and dropped | TRC-008, DMC-011 |
+| The record | `dmarc.record` and `dmarc.tag` | Each tag as published, with its byte range, and why hallmark ignored or rejected it | REC-031, REC-032, REC-033 |
+| Alignment | `dmarc.alignment`, with `dmarc.org_domain` and `dmarc.identifier` | Each identifier, its mode, its organizational domain and the result it came from | DMC-005 |
+| Policy | `dmarc.policy`, with `dns.a` and `dmarc.pct_ignored` | The tag that applied, the existence question, test mode, an ignored `pct` | DMC-006, DMC-007 |
+| Hints | `dmarc.hint.forwarded` | The forwarding hint of DMC-009 | DMC-009 |
+
+[Trace codes](../trace-codes.md#the-dmarc-tree) gives the position of each step and the parameters of each code.
