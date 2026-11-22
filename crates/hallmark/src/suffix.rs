@@ -2,13 +2,13 @@
 
 use crate::*;
 
-/// A public suffix question that a check hands the caller (DMC-010).
+/// A public suffix question that a check hands the verifying caller (DMC-010).
 ///
 /// In RFC 7489 mode, the check asks for the public suffix of each domain whose
 /// organizational domain it may need. RFC 9989 mode asks none
 /// ([ADR 0038](https://github.com/photom/hallmark/blob/main/docs/adr/0038-in-rfc-7489-mode-the-caller-answers-public-suffix-questions.md)).
 /// [`Check::take_requests`] gives it inside [`Request::Suffix`], and the
-/// caller answers it with [`Check::answer_suffix`].
+/// verifying caller answers it with [`Check::answer_suffix`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SuffixQuestion {
@@ -18,10 +18,11 @@ pub struct SuffixQuestion {
     pub domain: Vec<u8>,
 }
 
-/// The answer to a public suffix question, which the caller builds (DMC-010).
+/// The answer to a public suffix question, which the verifying caller builds
+/// (DMC-010).
 ///
-/// [`Check::answer_suffix`] checks it when the caller hands it back (VAL-130
-/// to VAL-134).
+/// [`Check::answer_suffix`] checks it when the verifying caller hands it back
+/// (VAL-130 to VAL-134).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SuffixAnswer {
     /// The public suffix (DMC-010, DMC-011).
@@ -32,8 +33,9 @@ pub enum SuffixAnswer {
         /// The name of the list, such as its date or a hash.
         list: Option<String>,
     },
-    /// The caller has no suffix for the domain. It gives `temperror` if the
-    /// result depends on that organizational domain (DMC-011). It carries the
-    /// caller's description, which the trace records as given (DMC-010).
+    /// The verifying caller has no suffix for the domain. It gives `temperror`
+    /// if the result depends on that organizational domain (DMC-011). It
+    /// carries the verifying caller's description, which the trace records as
+    /// given (DMC-010).
     Unavailable(Option<Vec<u8>>),
 }

@@ -2,7 +2,7 @@
 
 use crate::*;
 
-/// The caller's authserv-id (AR-001).
+/// The verifying caller's authserv-id (AR-001).
 ///
 /// [`AuthservId::new`] checks it, and the field is private.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11,7 +11,7 @@ pub struct AuthservId {
 }
 
 impl AuthservId {
-    /// Makes the caller's authserv-id.
+    /// Makes the verifying caller's authserv-id.
     ///
     /// # Parameters
     ///
@@ -39,11 +39,11 @@ impl AuthservId {
 }
 
 /// An Authentication-Results header field (RFC 8601): writing one from
-/// results, reading one, and telling whether one carries the caller's
+/// results, reading one, and telling whether one carries the verifying caller's
 /// authserv-id.
 ///
-/// [`AuthenticationResults::parse`] builds the value, and the caller reads its
-/// fields. Comments don't appear in these types.
+/// [`AuthenticationResults::parse`] builds the value, and the verifying caller
+/// reads its fields. Comments don't appear in these types.
 ///
 /// | Rule | Requirements |
 /// |---|---|
@@ -51,8 +51,8 @@ impl AuthservId {
 /// | [`generate`](Self::generate) builds each `reason` and comment from the typed reasons, so it works at every trace level | AR-002 |
 /// | [`generate`](Self::generate) writes `dkim2=none` for a message without DKIM2 fields, when the results hold DKIM2 | AR-004 |
 /// | [`generate`](Self::generate) adds a comment that says time checks were off, when they were | TIM-005 |
-/// | [`carries_authserv_id`](Self::carries_authserv_id) compares after converting A-labels to U-labels, as RFC 8601 §5 asks for internationalized messages, so a field that names the caller's ID in either form matches | AR-005 |
-/// | hallmark deletes no field. The caller decides whether to delete a field that carries its authserv-id | AR-005, GEN-006 |
+/// | [`carries_authserv_id`](Self::carries_authserv_id) compares after converting A-labels to U-labels, as RFC 8601 §5 asks for internationalized messages, so a field that names the verifying caller's ID in either form matches | AR-005 |
+/// | hallmark deletes no field. The verifying caller decides whether to delete a field that carries its authserv-id | AR-005, GEN-006 |
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AuthenticationResults {
@@ -78,7 +78,7 @@ impl AuthenticationResults {
     /// # Parameters
     ///
     /// - `results`: the results of a check.
-    /// - `id`: the caller's authserv-id.
+    /// - `id`: the verifying caller's authserv-id.
     /// - `form`: the form of the value.
     ///
     /// Requirements: AR-001, AR-002, AR-004, AR-006, TIM-005, STR-009.
@@ -109,18 +109,19 @@ impl AuthenticationResults {
         unimplemented!()
     }
 
-    /// Tells whether one Authentication-Results field carries the caller's
-    /// authserv-id.
+    /// Tells whether one Authentication-Results field carries the verifying
+    /// caller's authserv-id.
     ///
-    /// A field whose authserv-id doesn't parse can't be matched. The error
-    /// says so, and the caller decides what to do with the field (GEN-006).
+    /// A field whose authserv-id doesn't parse can't be matched. The error says
+    /// so, and the verifying caller decides what to do with the field
+    /// (GEN-006).
     ///
     /// # Parameters
     ///
     /// - `value`: the value of one Authentication-Results field: the octets
     ///   after the colon, with any folds, without the line ending that ends
     ///   the field.
-    /// - `id`: the caller's authserv-id.
+    /// - `id`: the verifying caller's authserv-id.
     /// - `limits`: the limits that apply: `header_field_size` and
     ///   `comment_depth`.
     ///

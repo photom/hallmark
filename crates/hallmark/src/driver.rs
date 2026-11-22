@@ -88,7 +88,7 @@ impl SuffixSource for NoSuffixSource {
 ///   RFC 7489 mode.
 /// - `in_flight`: how many futures the driver keeps pending at once, the
 ///   `driver_in_flight` of
-///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
 ///
 /// # Validation
 ///
@@ -128,7 +128,7 @@ pub async fn drive<R: Resolver, S: SuffixSource>(
 /// - `signer`: signs each signing request.
 /// - `in_flight`: how many futures the driver keeps pending at once, the
 ///   `driver_in_flight` of
-///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
 ///
 /// # Validation
 ///

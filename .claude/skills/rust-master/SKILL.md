@@ -37,7 +37,7 @@ description: Project Rust conventions for naming, module layout, error handling,
 
 ## Async code
 
-The hallmark core has no async runtime and does no I/O: the caller drives DNS and streams, and a check holds no future and no socket (ADR 0017). Async code lives in the library's driver, in `hallmark-wasm`, in examples, and in tests.
+The hallmark core has no async runtime and does no I/O: its callers drive DNS, signers and streams, and a check or a signing holds no future and no socket (ADR 0017). Async code lives in the library's driver, in `hallmark-wasm`, in examples, and in tests.
 
 ### Runtime independence
 
@@ -46,7 +46,7 @@ The hallmark core has no async runtime and does no I/O: the caller drives DNS an
 
 ### Cancellation
 
-- A caller cancels a check by dropping it or by dropping the driver's future. Write the driver so that a drop at any `.await` leaves nothing to clean up.
+- A caller cancels a check or a signing by dropping it or by dropping the driver's future. Write the driver so that a drop at any `.await` leaves nothing to clean up.
 - In examples and tests that run on Tokio, stop tasks with `tokio::select!` and `tokio_util::sync::CancellationToken`.
 
 ### Executor safety

@@ -10,7 +10,7 @@ use crate::*;
 /// named `set_` and the limit. A setter takes the new value and checks it, so
 /// a `Limits` value is always valid, and an API that takes one checks nothing
 /// more about it.
-/// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check) gives each limit's default,
+/// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives each limit's default,
 /// range and effect. Every value fits in `u32`.
 ///
 /// [`Limits::default`] sets every limit to its default.
@@ -22,7 +22,7 @@ use crate::*;
 ///
 /// | ID | Input | Rule | Error code | Requirement | Scenario |
 /// |---|---|---|---|---|---|
-/// | VAL-202 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-202 |
+/// | VAL-202 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-202 |
 /// | VAL-203 | `value` of [`set_header_field_size`](Self::set_header_field_size) or [`set_header_section_size`](Self::set_header_section_size) | `header_field_size` at most `header_section_size`, after the change | [`limits.conflict`](LimitsError::Conflict) | PAR-004 | API-203 |
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Limits {
@@ -31,7 +31,7 @@ pub struct Limits {
 
 impl Default for Limits {
     /// Every limit of a check or a signing at the default that
-    /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check) gives (PAR-004).
+    /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives (PAR-004).
     fn default() -> Limits {
         unimplemented!()
     }
@@ -170,7 +170,8 @@ impl Limits {
         unimplemented!()
     }
 
-    /// `author_domains`: the most author domains evaluated when the caller asks for several (DMC-002).
+    /// `author_domains`: the most author domains evaluated when the verifying
+    /// caller asks for several (DMC-002).
     pub fn author_domains(&self) -> u32 {
         unimplemented!()
     }
@@ -294,13 +295,13 @@ impl Limits {
     }
 }
 
-/// The limits of the APIs that read documents outside a check: snapshots,
-/// traces and pasted records.
+/// The limits of the APIs that read documents outside a check or a signing:
+/// snapshots, traces and pasted records.
 ///
 /// [`sort_trace`], [`Event::parse`], [`Snapshot::parse`], [`Snapshot::from_trace`]
 /// and [`PastedRecords::parse`] take one. Each limit has a getter and a setter,
 /// as in [`Limits`], and a setter checks its value, so a `DocumentLimits`
-/// value is always valid. [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check)
+/// value is always valid. [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing)
 /// gives each limit's default, range and effect.
 ///
 /// [`DocumentLimits::default`] sets every limit to its default.
@@ -309,7 +310,7 @@ impl Limits {
 ///
 /// | ID | Input | Rule | Error code | Requirement | Scenario |
 /// |---|---|---|---|---|---|
-/// | VAL-204 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-204 |
+/// | VAL-204 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-204 |
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentLimits {
     values: [u32; 3],
@@ -317,7 +318,7 @@ pub struct DocumentLimits {
 
 impl Default for DocumentLimits {
     /// Every limit at the default that
-    /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check) gives (DNS-004,
+    /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing) gives (DNS-004,
     /// DNS-010).
     fn default() -> DocumentLimits {
         unimplemented!()
@@ -391,7 +392,7 @@ pub enum Limit {
     RsaKeyBits,
     /// `rsa_exponent_bits`: bits of an RSA public exponent in a DKIM key.
     RsaExponentBits,
-    /// `author_domains`: author domains evaluated when the caller asks for several.
+    /// `author_domains`: author domains evaluated when the verifying caller asks for several.
     AuthorDomains,
     /// `dns_questions`: distinct DNS questions in one check.
     DnsQuestions,

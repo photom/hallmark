@@ -93,8 +93,8 @@ pub enum Kind {
 pub enum DmarcMode {
     /// DMARC under RFC 9989, the default.
     Rfc9989,
-    /// DMARC under RFC 7489, with public suffix questions to the caller
-    /// (DMC-010).
+    /// DMARC under RFC 7489, with public suffix questions to the verifying
+    /// caller (DMC-010).
     Rfc7489,
 }
 

@@ -133,7 +133,7 @@ Each kind of check and of signing has a fixed slot under the root, which it keep
 | `[7]` | `dkim2.sign` | DKIM2 signing |
 | `[8]` | `header.section` | The header section, when a check or a signing in the call reads it |
 
-The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DMARC](#dmarc) the fifth, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
+The entries for these slots and for the steps below them come with the scenarios of each kind of check and signing. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DMARC](#dmarc) the fifth, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
 
 ## Codes
 
@@ -709,7 +709,7 @@ An answer that several steps read sits under each of them (TRC-008). In RFC 9989
 |---|---|
 | Kind | `fact` |
 | Position | Child 1 of `dmarc.discovery` or `dmarc.org_domain`, in RFC 7489 mode |
-| Parameters | `domain`: data, from the sender, the domain asked about; `labels`: count, the labels of the public suffix, the x of RFC 7489 §3.2 step 3, when the outcome is `suffix`; `list`: data, from the caller, the name of the list, when the caller gave one; `organizational`: data, from the sender, when the outcome is `suffix`, the organizational domain: the last x + 1 labels, or the domain itself when x is its number of labels; `description`: data, from the caller, when the outcome is `unavailable` and the caller described why; `limit`: keyword, `answer_size`, when the description went over that limit and the step leaves it out |
+| Parameters | `domain`: data, from the sender, the domain asked about; `labels`: count, the labels of the public suffix, the x of RFC 7489 §3.2 step 3, when the outcome is `suffix`; `list`: data, from the caller, the name of the list, when the verifying caller gave one; `organizational`: data, from the sender, when the outcome is `suffix`, the organizational domain: the last x + 1 labels, or the domain itself when x is its number of labels; `description`: data, from the caller, when the outcome is `unavailable` and the verifying caller described why; `limit`: keyword, `answer_size`, when the description went over that limit and the step leaves it out |
 | Outcomes | `suffix`, `unavailable` |
 | Cites | `RFC 7489 §3.2` |
 | English | "The public suffix of {domain} has {labels} labels, so its organizational domain is {organizational}." When x is the number of labels: "{domain} is a public suffix, so it is its own organizational domain." For `unavailable`: "No public suffix is available for {domain}.", followed by the description when there is one. |
@@ -923,7 +923,7 @@ The trace leaves out the signer's description of a failure, which only the `Sign
 |---|---|
 | Kind | `fact` |
 | Position | Child 6 of `dkim.sign.signature` |
-| Parameters | `field`: data, from the caller, the DKIM-Signature field that hallmark writes, in the form the caller asked for (STR-009) |
+| Parameters | `field`: data, from the caller, the DKIM-Signature field that hallmark writes, in the form the signing caller asked for (STR-009) |
 | Outcomes | none |
 | Cites | `RFC 6376 §3.5` |
 | English | "The field to add: {field}" |
@@ -931,7 +931,7 @@ The trace leaves out the signer's description of a failure, which only the `Sign
 
 ## Header section
 
-The steps of the header section that the checks of a call read, as [Header section](design/header-section.md) describes them. The slot `[8]` appears when DKIM, DKIM2, DMARC or signing runs, and a check that names a header step names it by its position. Scenarios STEP-120 to STEP-122 and the header field and canonicalization scenarios that name a trace step check them.
+The steps of the header section that the checks or the signings of a call read, as [Header section](design/header-section.md) describes them. The slot `[8]` appears when DKIM, DKIM2, DMARC or signing runs, and a check that names a header step names it by its position. Scenarios STEP-120 to STEP-122 and the header field and canonicalization scenarios that name a trace step check them.
 
 | Parent | Child number | Step |
 |---|---|---|

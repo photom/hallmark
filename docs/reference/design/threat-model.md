@@ -22,7 +22,7 @@ flowchart LR
     subgraph host["Caller's host, trusted"]
         mta["MTA and hallmark-milter"]
         resolver["Resolver"]
-        core["hallmark check"]
+        core["hallmark check or signing"]
         signer["Signer: memory, HSM or key service"]
         logs["Logs and trace stores"]
     end
@@ -47,7 +47,7 @@ flowchart LR
 |---|---|---|
 | Internet to the caller | The message, the envelope and DNS answers | All of it is hostile (SAF-001) |
 | Caller to the core | Options, input, answers, public suffix answers and signatures | The caller is trusted. A mistake of the caller gives an error, never a result (CHK-004) |
-| Core to the signer | Data to sign, and signatures back | The signer is the caller's. The core checks each signature's size, and verifies it if asked (SGN-004, SGN-006) |
+| Core to the signer | Data to sign, and signatures back | The signer is the signing caller's. The core checks each signature's size, and verifies it if asked (SGN-004, SGN-006) |
 | Core to trace readers | Events that hold values from senders and publishers | A reader displays values in places where they could run as markup (TRC-013) |
 
 ## Assets
@@ -68,7 +68,7 @@ flowchart LR
 | Sender | The message, the envelope through its SMTP client, the signatures it makes and the recipes it writes | None |
 | DNS publisher | The records of its zone: SPF, DKIM and DKIM2 keys, Domain Policy Records and DMARC records | None |
 | Mediator | Changes to messages in transit, and the header fields it adds | None |
-| Attacker on the DNS path | Forged answers | Outside hallmark: the caller's resolver handles it |
+| Attacker on the DNS path | Forged answers | Outside hallmark: the verifying caller's resolver handles it |
 | Caller | Options, input, the resolver and the signer | Trusted |
 | Demo user | Pasted messages, records and keys, and cases shared by others | Trusted for their own input. A shared case comes from a stranger |
 
@@ -77,7 +77,7 @@ flowchart LR
 | ID | Type | Threat | Mitigation | Requirements |
 |---|---|---|---|---|
 | THR-001 | Spoofing | A message claims a From domain it doesn't come from | DMARC aligns the author domain with the domains that SPF and DKIM authenticated | DMC-005 |
-| THR-002 | Spoofing | An upstream host adds Authentication-Results with the receiver's authserv-id | hallmark reports the fields that carry the caller's authserv-id, and the caller deletes them | AR-005 |
+| THR-002 | Spoofing | An upstream host adds Authentication-Results with the receiver's authserv-id | hallmark reports the fields that carry the verifying caller's authserv-id, and the verifying caller deletes them | AR-005 |
 | THR-003 | Spoofing | A domain that looks like another through U-labels | The conversion to A-labels maps nothing and enforces RFC 5891, and comparisons use the lookup form | ADS-002, ADS-003 |
 | THR-004 | Tampering | Content appended after signing, under a DKIM `l=` | The result reports how much of the body went unsigned, with a caution | DKV-006, DKV-010 |
 | THR-005 | Tampering | A From field added after signing | A caution when `h=` names From only as often as the message has From fields. hallmark's own signatures oversign | DKV-010, DKS-003 |
@@ -106,10 +106,10 @@ flowchart LR
 
 | Risk | Why hallmark leaves it | Who handles it |
 |---|---|---|
-| Forged DNS answers | hallmark has no network code | The caller's resolver, with DNSSEC validation if it chooses |
-| Keys of the memory signer stay in process memory while it lives | That signer serves tests and the demo | Production callers keep keys in an HSM or a key service (SGN-001) |
-| A signature made with the wrong key leaves when verification is off | Verification costs one more operation per signature | The caller turns on verification (SGN-006) |
-| Replay inside the windows that the specifications allow | RFC 6376 and draft-09 set those windows | The caller's own defenses |
+| Forged DNS answers | hallmark has no network code | The verifying caller's resolver, with DNSSEC validation if it chooses |
+| Keys of the memory signer stay in process memory while it lives | That signer serves tests and the demo | Production signing callers keep keys in an HSM or a key service (SGN-001) |
+| A signature made with the wrong key leaves when verification is off | Verification costs one more operation per signature | The signing caller turns on verification (SGN-006) |
+| Replay inside the windows that the specifications allow | RFC 6376 and draft-09 set those windows | The verifying caller's own defenses |
 | Personal data in stored traces | The trace is the main feature | The caller picks the level and where traces go (TRC-006) |
-| Acting on test modes | hallmark acts on nothing (GEN-006) | The caller ([ADR 0020](../../adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)) |
+| Acting on test modes | hallmark acts on nothing (GEN-006) | The verifying caller ([ADR 0020](../../adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)) |
 | Demo page policies, such as its Content-Security-Policy | Decided with the demo | The demo ([open item](../requirements.md#open-items)) |

@@ -1,14 +1,16 @@
-//! The verification time.
+//! The verification time, which a signing also takes as its signing time.
 
 use crate::*;
 
-/// The time a message was received, in seconds since 1970-01-01T00:00:00Z.
+/// A time in seconds since 1970-01-01T00:00:00Z: for a check, the time the
+/// message was received, and for a signing, the signing time.
 ///
-/// The core reads no clock, so the caller passes this time (TIM-001). RFC 6376
-/// §3.5 asks for the time the message was first received at the verifier's
-/// administrative domain, and draft-09 §14.3 measures DKIM2 timestamps against
-/// the time the message was accepted over SMTP. A caller that checks a stored
-/// message later passes the time it was received, not the current time.
+/// The core reads no clock, so the caller passes this time (TIM-001, DKS-004).
+/// RFC 6376 §3.5 asks for the time the message was first received at the
+/// verifier's administrative domain, and draft-09 §14.3 measures DKIM2
+/// timestamps against the time the message was accepted over SMTP. A verifying
+/// caller that checks a stored message later passes the time it was received,
+/// not the current time.
 ///
 /// The value lies from 0 to 999,999,999,999, the largest `t=` of twelve
 /// digits (VAL-201).

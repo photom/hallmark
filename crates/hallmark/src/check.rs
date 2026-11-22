@@ -42,7 +42,7 @@ pub use results::CheckResults;
 /// | A method that returns an error changes nothing in the check, and the verifying caller can go on | CHK-004, INV-003 |
 /// | An error of the verifying caller never becomes a protocol result, and a protocol result never comes back as an error | INV-010 |
 /// | A rule whose error code reads "Not an error" never stops the call. The check takes the input and applies the rule named | CHK-004 |
-/// | Syntax inside the message, the envelope and DNS records is no caller error. The parsers read it, and the check applies the rule of the requirement that covers it | PAR-001, ADS-020 to ADS-023 |
+/// | Syntax inside the message, the envelope and DNS records is no error of the verifying caller. The parsers read it, and the check applies the rule of the requirement that covers it | PAR-001, ADS-020 to ADS-023 |
 #[derive(Debug)]
 pub struct Check {
     state: (),
@@ -95,7 +95,7 @@ impl Check {
     /// | VAL-103 | `helo` | `Some` when the kinds hold `SpfHelo`, or hold `SpfMailFrom` and `mail_from` is `<>` | [`check.envelope_incomplete`](CheckError::EnvelopeIncomplete) | ADS-023, RFC 7208 §2.4 | API-103 |
     /// | VAL-104 | `mail_from` | `Some` when the kinds hold `SpfMailFrom` or `Dkim2` | [`check.envelope_incomplete`](CheckError::EnvelopeIncomplete) | GEN-002, draft-09 §14.4 | API-104 |
     /// | VAL-105 | `rcpt_to` | At least one path when the kinds hold `Dkim2` | [`check.envelope_incomplete`](CheckError::EnvelopeIncomplete) | GEN-002, draft-09 §14.4 | API-105 |
-    /// | VAL-106 | `rcpt_to` | At most `rcpt_to` paths ([Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check)) | [`check.rcpt_to_limit`](CheckError::RcptToLimit) | SAF-004 | API-106 |
+    /// | VAL-106 | `rcpt_to` | At most `rcpt_to` paths ([Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing)) | [`check.rcpt_to_limit`](CheckError::RcptToLimit) | SAF-004 | API-106 |
     ///
     /// The syntax of `helo`, `mail_from` and each `rcpt_to` path isn't checked
     /// here. A malformed one gets the rule of ADS-020 to ADS-023, and the

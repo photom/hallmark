@@ -140,7 +140,7 @@ flowchart TB
 | `check` | `Check`, its states, and the public types of the context | The only module that takes the verifying caller's input and gives requests and results | CHK-001 to CHK-005 |
 | `check::options` | `CheckOptions` | Public. The verifying caller fills them, and the check takes them by value (INV-015) | GEN-001 |
 | `check::results` | `CheckResults` | Public | GEN-004 |
-| `check::inputs` | `Inputs`: a write-once slot for the envelope as the caller passed it, one for the `ParsedEnvelope`, and one for the header section | Header fields that arrive one at a time collect in the check until the end of the header fields, and only the finished header section goes into its slot. A second envelope or a second end of the header fields is the slot's error, which the check gives as `check.out_of_order` | CHK-004, STR-008, INV-017 |
+| `check::inputs` | `Inputs`: a write-once slot for the envelope as the verifying caller passed it, one for the `ParsedEnvelope`, and one for the header section | Header fields that arrive one at a time collect in the check until the end of the header fields, and only the finished header section goes into its slot. A second envelope or a second end of the header fields is the slot's error, which the check gives as `check.out_of_order` | CHK-004, STR-008, INV-017 |
 | `check::evaluations` | `Evaluations`, with a field for SPF HELO, SPF MAIL FROM, DKIM, DKIM2 and DMARC | Private fields. `new` alone decides which fields hold an evaluation, and `None` means the verifying caller didn't ask for that kind. Accessors give `Option<&T>`, and no method gives `&mut Option<T>`. Input methods pass each input to the evaluations that exist | GEN-001, INV-016 |
 | `check::requests` | The question table and the table of public suffix questions | Each entry keeps its answer in a write-once slot, so a second answer is `check.already_answered` and the first stays. The tables number requests and turn each answer back into the needs of the evaluations that asked | DNS-007, CHK-004, INV-001 to INV-003 |
 | `check::identifiers` | The translation of SPF and DKIM results, from this check or from earlier results, into DMARC's authenticated identifiers | The only place where DMARC meets SPF and DKIM results | DMC-005 |
@@ -153,11 +153,11 @@ The states of [Lifecycle](lifecycle.md#check) cover only the order of the input.
 | Each input that the check keeps: the envelope, the parsed envelope and the header section | Empty until the input is complete, then set once and never changed (INV-017). The header section is complete at the end of the header fields | `Inputs` |
 | Each evaluation | Its own states, from its first state on, even before its input arrives | Its protocol context: [SPF](spf.md#evaluation-without-recursion), [DKIM](dkim.md#one-signature), [DKIM2](dkim2.md#verification) and [DMARC](dmarc.md#flow) |
 
-An answer from the caller reaches the evaluations through the question table, which is the anti-corruption layer between the language of the exchange and the language of the protocols:
+An answer from the verifying caller reaches the evaluations through the question table, which is the anti-corruption layer between the language of the exchange and the language of the protocols:
 
 ```mermaid
 sequenceDiagram
-    participant Caller
+    participant Caller as Verifying caller
     participant Check
     participant Table as Question table
     participant Evaluations
@@ -261,7 +261,7 @@ Each code belongs to the module that owns its area, which declares it in a crate
 | Only `trace` writes trace bytes. Other modules record steps through the recorder | The deciding code records, and one writer keeps the fixed form | TRC-001, TRC-007 |
 | No module outside `keys` holds a private key | The core never holds a key that an outside signer keeps | SGN-001, SEC-002 |
 | No module opens a socket or a file, reads a clock or draws a random number | The caller supplies everything from outside | IO-001 |
-| No module depends on an async runtime. `driver` uses only `core::future` and `core::task` | Any runtime can drive a check | DNS-003 |
+| No module depends on an async runtime. `driver` uses only `core::future` and `core::task` | Any runtime can drive a check or a signing | DNS-003 |
 | No module depends on a browser crate | Browser code lives in `hallmark-wasm` | WSM-002 |
 
 Review checks each `use crate::` path against these rules, and once the modules hold code, a CI job checks them too.
@@ -274,7 +274,7 @@ Review checks each `use crate::` path against these rules, and once the modules 
 | Open/closed | The specifications fix the kinds of check and of signing, so the check and the signing name each one in a field instead of loading them as plug-ins ([ADR 0063](../../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)). The caller extends the core through traits that it implements, `Resolver`, `SuffixSource`, `Signer` and `RandomSource`, without changing the core ([Crates](crates.md#traits-the-caller-implements)) |
 | Liskov substitution | Any implementation of the caller's traits can stand in for another, because the core checks what it gets back instead of trusting it: the shape of an answer (VAL-120 to VAL-125), a public suffix answer (VAL-130 to VAL-134), and the size of a signature and, when `verify` is on, its verification (VAL-142, VAL-143) |
 | Interface segregation | Each trait covers one capability, and `NoSuffixSource` serves a verifying caller that needs no suffix source. A verifying caller and a signing caller each see only their own entry type, options and driver ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)). Inside the crate, each protocol takes only the input it reads, so SPF never gets the body, and a context sees the recorder only through the `Code` trait |
-| Dependency inversion | The core defines the exchange values and the caller's traits, and the caller's resolver and signer depend on them ([ADR 0017](../../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md), [ADR 0042](../../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)). In the kernel, the recorder depends on the `Code` trait, which each code owner implements. `crypto` calls the cryptography crates directly, because they do no I/O and hallmark has no second implementation ([ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)) |
+| Dependency inversion | The core defines the exchange values and the caller's traits, and the verifying caller's resolver and the signing caller's signer depend on them ([ADR 0017](../../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md), [ADR 0042](../../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)). In the kernel, the recorder depends on the `Code` trait, which each code owner implements. `crypto` calls the cryptography crates directly, because they do no I/O and hallmark has no second implementation ([ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)) |
 
 ## Features in the modules
 

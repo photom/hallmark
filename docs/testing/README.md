@@ -23,7 +23,7 @@ Ordered as the components will be built:
 | [tag-lists.md](tag-lists.md) | Tag=value lists in DKIM and DKIM2, and the decoders of their values | `TAG` |
 | [authentication-results.md](authentication-results.md) | Parsing and generating Authentication-Results | `ARH` |
 | [addresses.md](addresses.md) | Header addresses, envelope paths and HELO names, the lookup form of domain names, and the checks that read addresses | `ADDR`, `PATH`, `DOM` |
-| [checks.md](checks.md) | Driving a check: input order, questions and answers, caller errors, and the driver | `RUN` |
+| [checks.md](checks.md) | Driving a check: input order, questions and answers, errors from the verifying caller's side, and the driver | `RUN` |
 | [dns.md](dns.md) | Answer shapes, question names, temporary failures, snapshots and demo cases, pasted records, and public suffix answers | `RES` |
 | [spf-records.md](spf-records.md) | The SPF record parser: selection, terms, addresses, macros, target names, explanations, and the address answers SPF reads | `SPR` |
 | [dmarc-records.md](dmarc-records.md) | The DMARC record parser: selection, tag syntax, invalid values, the test of whether the author domain exists, reporting URIs, and RFC 7489 mode | `DMR` |

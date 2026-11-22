@@ -3,12 +3,13 @@
 use crate::*;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-/// A DNS question that a check hands the caller (DNS-001).
+/// A DNS question that a check hands the verifying caller (DNS-001).
 ///
 /// [`Check::take_requests`] gives it inside [`Request::Question`], and the
-/// caller answers it with [`Check::answer`]. A check holds each type and name
-/// once (INV-001), so the caller never gets the same question twice. The
-/// check builds it, and the caller reads its fields.
+/// verifying caller answers it with [`Check::answer`]. A check holds each type
+/// and name once (INV-001), so the verifying caller never gets the same
+/// question twice. The check builds it, and the verifying caller reads its
+/// fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Question {
@@ -26,8 +27,8 @@ pub struct Question {
 /// check (DNS-007, INV-002).
 ///
 /// The two kinds of question share one ID space. A check numbers its requests
-/// in the order they appear, so an ID depends on when a question was asked,
-/// and the trace never shows it (TRC-008). The caller gets IDs only from
+/// in the order they appear, so an ID depends on when a question was asked, and
+/// the trace never shows it (TRC-008). The verifying caller gets IDs only from
 /// requests: the type has no public field or constructor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuestionId(u64);
@@ -47,10 +48,10 @@ pub enum QuestionType {
     Ptr,
 }
 
-/// The answer to a DNS question, which the caller builds (DNS-002).
+/// The answer to a DNS question, which the verifying caller builds (DNS-002).
 ///
-/// [`Check::answer`] checks it when the caller hands it back (VAL-120 to
-/// VAL-125). [`drive`] hands a resolver's answers to the check in the same
+/// [`Check::answer`] checks it when the verifying caller hands it back (VAL-120
+/// to VAL-125). [`drive`] hands a resolver's answers to the check in the same
 /// way (VAL-804), and [`Snapshot::parse`] checks the answers that a snapshot
 /// holds (VAL-901 to VAL-908).
 ///

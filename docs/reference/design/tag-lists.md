@@ -81,7 +81,7 @@ A parse error never becomes a returned error. It gives the outcome of the protoc
 |---|---|---|
 | DKIM-Signature field | PERMFAIL for that signature (RFC 6376 §6.1.1) | DKV-004 |
 | DKIM key record | PERMFAIL for the signature that asked for the key | REC-050 |
-| Message-Instance or DKIM2-Signature field | PERMERROR, with the string of draft-09 §14 | DK2-013, TAG-009, TAG-047 |
+| Message-Instance or DKIM2-Signature field | PERMERROR, with the string of draft-09 §14 | DK2-013 |
 | DKIM2 key record | The outcome REC-053 gives | REC-053 |
 | Domain Policy Record | PERMERROR | REC-054 |
 
