@@ -137,7 +137,7 @@ flowchart TB
 | Submodule | Holds | Rules | Requirements |
 |---|---|---|---|
 | `check` | `Check`, its states, and the public types of the context | The only module that takes the caller's input and gives requests and results | CHK-001 to CHK-005 |
-| `check::options`, `check::signing_options`, `check::dkim2_signing` | `Options` and the options of DKIM and DKIM2 signing | Public. The caller fills them, and the check takes them by value (INV-015) | GEN-001, DKS-003, DK2-014 |
+| `check::options`, `check::dkim_signing`, `check::dkim2_signing` | `Options` and the options of DKIM and DKIM2 signing | Public. The caller fills them, and the check takes them by value (INV-015) | GEN-001, DKS-003, DK2-014 |
 | `check::results` | `Results` | Public | GEN-004 |
 | `check::inputs` | `Inputs`: a write-once slot for the envelope as the caller passed it, one for the `ParsedEnvelope`, and one for the header section | Header fields that arrive one at a time collect in the check until the end of the header fields, and only the finished header section goes into its slot. A second envelope or a second end of the header fields is the slot's error, which the check gives as `check.out_of_order` | CHK-004, STR-008, INV-017 |
 | `check::evaluations` | `Evaluations`, with a field for SPF HELO, SPF MAIL FROM, DKIM, DKIM2 and DMARC, and `Signings`, with a field for DKIM and DKIM2 signing | Private fields. `new` alone decides which fields hold an evaluation, and `None` means the caller didn't ask for that kind. Accessors give `Option<&T>`, and no method gives `&mut Option<T>`. Input methods pass each input to the evaluations that exist | GEN-001, INV-016 |
