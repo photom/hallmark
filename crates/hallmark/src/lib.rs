@@ -77,7 +77,7 @@
 //! | Strong types | A rule that a type already enforces, such as a 32-octet key or a `Kind` that exists only with `unstable-dkim2`, gets no row |
 //! | Errors | A function that can fail returns `Result`, and its error type is an enum with one variant for each code |
 //! | Panics | No function or method panics on any input (SAF-001, [ADR 0004](https://github.com/photom/hallmark/blob/main/docs/adr/0004-no-input-makes-hallmark-panic.md)), so no entry has a Panics section |
-//! | Closures | No API takes a closure, a function pointer or a type bound on `Fn` ([ADR 0003](https://github.com/photom/hallmark/blob/main/docs/adr/0003-rust-code-is-written-in-a-procedural-style.md)). A caller supplies behavior by implementing a trait |
+//! | Closures | No API takes a closure, a function pointer or a type bound on `Fn` ([ADR 0064](https://github.com/photom/hallmark/blob/main/docs/adr/0064-rust-code-is-procedural-and-lints-types-and-size-limits-keep-it-efficient-and-reviewable.md)). A caller supplies behavior by implementing a trait |
 //! | `unstable-dkim2` | APIs, fields and variants that say they are available with the feature exist only when it is on, and can change in any release (DK2-005) |
 //!
 //! # Types
@@ -163,6 +163,13 @@
 //! | Feature | Default | Turns on |
 //! |---|---|---|
 //! | `unstable-dkim2` | Off | DKIM2 verification and signing, ML-DSA-44, the DKIM2 mode of the canonicalizer, and the `dkim2` method of Authentication-Results (DK2-001, DK2-005) |
+
+// No file in this crate can allow or expect clippy::disallowed_methods
+// (ADR 0064). Integration tests and benchmarks are crates of their own, and
+// each forbids the lint itself. hallmark-wasm can't forbid it, because the
+// macros of wasm-bindgen emit #[allow(clippy::all)] on imported functions,
+// which a forbidden lint rejects.
+#![forbid(clippy::disallowed_methods)]
 
 #[cfg(doc)]
 mod address;

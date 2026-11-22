@@ -27,7 +27,8 @@ These rules apply to every task in this repository.
 
 - Start small and grow the change step by step.
 - Avoid over-abstraction. Readable, maintainable code comes first.
-- Prefer strong type definitions to complex runtime checks.
+- Prefer strong type definitions to complex runtime checks. Hold an assumption in a type instead of filling a missing value with a default that no specification gives, or an `Option` that is only `None` while a value is built (ADR 0064).
+- Keep each pull request within 400 lines of Rust under `crates/`, and split larger work. Ask the user before going over the limit. In the description of each pull request, explain what the change assumes, which invariants its types hold, and why it takes this approach.
 - Match the sophistication of the approach to the size of the task.
 - Check the output or logs to confirm each command did what you expected.
 - Follow test-driven development (see the canon-tdd skill).
@@ -92,7 +93,7 @@ Skills do not load automatically. Invoke one when its domain knowledge is needed
 
 - `/canon-tdd`: Kent Beck's TDD workflow (red, green, refactor)
 - `/rust-master`: Rust conventions, error handling, async code
-- `/procedural-rust`: the procedural style of ADR 0003, the panic rule of ADR 0004, and how to check and fix code
+- `/procedural-rust`: the style, efficiency, type, exception and size rules of ADR 0064, the panic rule of ADR 0004, and how to check and fix code
 - `/design-master`: DDD, Clean Architecture, SOLID, system design
 - `/docs-first`: documentation-first design with Mermaid diagrams
 - `/diataxis`: technical documentation with the Diátaxis framework
