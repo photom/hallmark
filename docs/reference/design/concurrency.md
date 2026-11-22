@@ -1,12 +1,12 @@
 # Concurrency
 
-hallmark starts no threads. A check is a state machine that the caller drives one call at a time ([ADR 0017](../../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)), and the driver only polls futures ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)). This page covers what the library does and doesn't do with threads, which types move between threads, how a caller runs checks in parallel, and how cancellation and memory work. [Lifecycle](lifecycle.md) gives the states.
+hallmark starts no threads. A check or a signing is a state machine that its caller drives one call at a time ([ADR 0017](../../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)), and the driver only polls futures ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)). This page covers what the library does and doesn't do with threads, which types move between threads, how a caller runs checks and signings in parallel, and how cancellation and memory work. [Lifecycle](lifecycle.md) gives the states.
 
 ## Contents
 
 - [What hallmark never does](#what-hallmark-never-does)
 - [Send and Sync](#send-and-sync)
-- [Checks in parallel](#checks-in-parallel)
+- [Checks and signings in parallel](#checks-and-signings-in-parallel)
 - [Inside one check](#inside-one-check)
 - [The driver](#the-driver)
 - [WebAssembly and blocking callers](#webassembly-and-blocking-callers)
@@ -17,11 +17,11 @@ hallmark starts no threads. A check is a state machine that the caller drives on
 
 | hallmark never | So | Requirements |
 |---|---|---|
-| Starts a thread or a task | The caller decides where each check runs | DNS-003 |
-| Takes a lock, or uses atomics or interior mutability | A check has no shared state to protect | |
-| Keeps mutable global state | Two checks never affect each other. The IDNA tables and the English texts are immutable statics | CHK-003 |
+| Starts a thread or a task | The caller decides where each check or signing runs | DNS-003 |
+| Takes a lock, or uses atomics or interior mutability | A check or a signing has no shared state to protect | |
+| Keeps mutable global state | Two checks or signings never affect each other. The IDNA tables and the English texts are immutable statics | CHK-003 |
 | Blocks, sleeps or reads a clock | A call returns as soon as its work is done. Time limits belong to the caller | IO-001, DNS-009 |
-| Calls the caller back from inside a check | Only the driver calls the caller's traits, and only between calls to the check | ADR 0017 |
+| Calls the caller back from inside a check or a signing | Only a driver calls the caller's traits, and only between calls to the check or the signing | ADR 0017 |
 | Uses `unsafe` | The workspace forbids it | |
 
 ## Send and Sync
@@ -40,7 +40,7 @@ hallmark starts no threads. A check is a state machine that the caller drives on
 
 A test asserts each row at compile time, so a change that breaks one fails the build.
 
-## Checks in parallel
+## Checks and signings in parallel
 
 ```mermaid
 flowchart LR
@@ -60,18 +60,18 @@ flowchart LR
 
 | Rule | Why |
 |---|---|
-| One check serves one message. The caller runs as many checks at once as it likes | Checks share nothing |
+| One check or signing serves one message. The caller runs as many at once as it likes | Checks and signings share nothing |
 | The caller may share a resolver, a suffix source and a `SnapshotResolver` among checks, and a `MemorySigner` among signings | They are `Sync`, and checks and signings only read them |
 | `CheckOptions`, `SigningOptions` and `Limits` are copied into each check or signing | INV-015: options never change after creation |
 | A long-running caller can change options between messages | Each check and each signing takes its own options, so the next one sees new ones, the `verify` of the signing options included (SGN-006) |
 
 ## Inside one check
 
-A check takes one call at a time, because each input method takes it by unique reference. The caller can resolve many questions at once and hand back the answers one by one, in any order.
+A check takes one call at a time, because each input method takes it by unique reference. The verifying caller can resolve many questions at once and hand back the answers one by one, in any order.
 
 ```mermaid
 sequenceDiagram
-    participant Task as Caller's task
+    participant Task as Verifying caller's task
     participant Check
     participant R1 as Resolution 1
     participant R2 as Resolution 2
@@ -119,7 +119,7 @@ A caller cancels by dropping the check or the signing, or by dropping the driver
 | The driver's future | The resolver, suffix source or signer futures it held are dropped. The check or the signing stays as the last delivered answer left it, and the caller can drive it again or drop it | What a dropped resolver or signer future leaves behind, such as a socket |
 | A `MemorySigner` | Its keys are zeroed | |
 
-A check never waits, so it needs no timeout of its own. A caller that stops waiting for an answer reports a temporary failure for that question (CHK-002, DNS-009).
+A check never waits, so it needs no timeout of its own. A verifying caller that stops waiting for an answer reports a temporary failure for that question (CHK-002, DNS-009).
 
 ## Memory
 
