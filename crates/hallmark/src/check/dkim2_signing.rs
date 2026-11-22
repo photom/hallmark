@@ -32,6 +32,10 @@ pub struct Dkim2Signing {
     /// The changes a Reviser made. Default `None`, so the message is unchanged
     /// (DK2-014).
     pub revision: Option<Revision>,
+    /// Whether hallmark verifies each signature from the signers with the
+    /// public key of its [`Dkim2Signer`] before it writes the field. Default
+    /// `false`, so hallmark checks only each signature's size (SGN-006).
+    pub verify: bool,
 }
 
 impl Dkim2Signing {

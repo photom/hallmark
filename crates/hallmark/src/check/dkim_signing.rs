@@ -32,6 +32,10 @@ pub struct DkimSigning {
     /// Seconds after `t=`: `x=` is `t=` plus this. Default `None`, so no `x=`
     /// (DKS-004).
     pub expiration: Option<u64>,
+    /// Whether hallmark verifies the signature from the signer with the
+    /// public key of `statement` before it writes the field. Default `false`,
+    /// so hallmark checks only the signature's size (SGN-006).
+    pub verify: bool,
 }
 
 impl DkimSigning {

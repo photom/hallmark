@@ -52,9 +52,6 @@ pub struct Options {
     /// the `unstable-dkim2` feature.
     #[cfg(feature = "unstable-dkim2")]
     pub dkim2_signing: Option<Dkim2Signing>,
-    /// Whether each signature from the signer is verified before its field is
-    /// written. Default `false` (SGN-006).
-    pub verify_signatures: bool,
 }
 
 impl Options {
