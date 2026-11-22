@@ -5,8 +5,8 @@ use crate::*;
 
 /// The result of SPF for one identity (SPF-001, SPF-002).
 ///
-/// [`Results::spf_helo`] and [`Results::spf_mail_from`] hold one. hallmark
-/// builds it, and the caller reads its fields.
+/// [`CheckResults::spf_helo`] and [`CheckResults::spf_mail_from`] hold one.
+/// hallmark builds it, and the verifying caller reads its fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SpfResult {
