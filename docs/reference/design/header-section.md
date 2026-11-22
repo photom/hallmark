@@ -1,6 +1,6 @@
 # Header section
 
-The steps from a check's header input to header fields and malformed lines: the two input forms, the splitter, the limits, bare CR and LF, the fields that hallmark parses further, and what the trace records. [Canonicalization](canonicalization.md) takes the fields from here.
+The steps from the header input of a check or a signing to header fields and malformed lines: the two input forms, the splitter, the limits, bare CR and LF, the fields that hallmark parses further, and what the trace records. [Canonicalization](canonicalization.md) takes the fields from here.
 
 ## Contents
 
@@ -17,9 +17,9 @@ The steps from a check's header input to header fields and malformed lines: the 
 
 ```mermaid
 flowchart LR
-    whole["Check::whole_message"] -->|"bytes up to the first empty line"| raw["Raw header section"]
-    section["Check::header_section"] --> raw
-    milter["Check::header_field, one at a time"] --> rebuild["Rebuild the raw bytes from the name, the value and field_form"]
+    whole["whole_message, of a Check or a Signing"] -->|"bytes up to the first empty line"| raw["Raw header section"]
+    section["header_section"] --> raw
+    milter["header_field, one at a time"] --> rebuild["Rebuild the raw bytes from the name, the value and field_form"]
     rebuild --> raw
     raw --> split["Splitter"]
     split --> fields["Header fields, with byte ranges"]
@@ -30,7 +30,7 @@ flowchart LR
 | Input | The header section ends at | Requirements |
 |---|---|---|
 | `whole_message` | The first empty line, or the end of the input when there is no body | HDR-001, GEN-003 |
-| `header_section` | The end of the input. An empty last line is allowed and ends it, and an empty line before that is an error to the caller (VAL-110) | HDR-001 |
+| `header_section` | The end of the input. An empty last line is allowed and ends it, and an empty line before that is an error to the caller (VAL-110 for a check, VAL-173 for a signing) | HDR-001 |
 | `header_field` | `end_of_header_fields` | STR-008, HDR-005 |
 
 The splitter keeps the raw bytes and never changes them (HDR-001). Every value it gives is a byte range into them (PAR-002).
@@ -137,7 +137,7 @@ A bare CR or LF is an octet of the line that holds it ([ADR 0051](../../adr/0051
 | `header_field_size` | Octets of one field or malformed line, folds included | As `header_fields` | SAF-002 |
 | `header_section_size` | Octets of the whole header section | As `header_fields` | SAF-002 |
 
-[Limits](limits.md#limits-of-a-check) gives the defaults and ranges.
+[Limits](limits.md#limits-of-a-check-or-a-signing) gives the defaults and ranges.
 
 ## Fields that hallmark parses
 
@@ -148,7 +148,7 @@ A bare CR or LF is an octet of the line that holds it ([ADR 0051](../../adr/0051
 | Message-Instance, DKIM2-Signature | Tag list parser | DKIM2 | HDR-006 |
 | Every field | None: only its name and raw bytes | DKIM `h=` selection, the DKIM2 header hash | HCN-003, HCN-005 |
 
-Authentication-Results fields are parsed only when the caller asks (AR-003). A check doesn't read them.
+Authentication-Results fields are parsed only when the verifying caller asks (AR-003). A check doesn't read them.
 
 ## Trace
 
@@ -161,6 +161,6 @@ Authentication-Results fields are parsed only when the caller asks (AR-003). A c
 | Fields from a milter | `header.rebuilt` | The field form and the leading spaces the rebuild assumed | STR-008 |
 | A limit | `header.section` with the outcome `permerror` | The limit | SAF-002 |
 
-[Trace codes](../trace-codes.md#header-section) gives the parameters of each code. The checks of a call share one header section, so it has one slot of its own.
+[Trace codes](../trace-codes.md#header-section) gives the parameters of each code. The checks of a call, or the signings of a call, share one header section, so it has one slot of its own.
 
 Field contents are values the sender controls (TRC-013).

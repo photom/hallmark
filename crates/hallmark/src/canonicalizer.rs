@@ -5,12 +5,12 @@
 
 use crate::*;
 
-/// Streams out the canonical body that a check hashes, for callers that want
-/// to see it, such as the demo (STR-012,
+/// Streams out the canonical body that a check or a signing hashes, for
+/// callers that want to see it, such as the demo (STR-012,
 /// [ADR 0041](https://github.com/photom/hallmark/blob/main/docs/adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)).
 ///
-/// It runs the same code as the checks and is separate from any check. The
-/// caller passes each body chunk to [`canonicalize`](Self::canonicalize),
+/// It runs the same code as checks and signings, and is separate from them.
+/// The caller passes each body chunk to [`canonicalize`](Self::canonicalize),
 /// calling again with the rest of the chunk until all of it is read, then
 /// calls [`finish`](Self::finish) until the output is complete.
 /// [Lifecycle](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#canonicalizer)

@@ -41,7 +41,7 @@ The policy questions go out when the header section ends, so they resolve while 
 | Step | RFC 9989, the default | RFC 7489 | Requirements |
 |---|---|---|---|
 | Policy discovery | `_dmarc.` the author domain, then the DNS tree walk of §4.10 | `_dmarc.` the author domain, then `_dmarc.` its organizational domain if different | DMC-003, REC-030 |
-| Organizational domain | The tree walk of §4.10.2 | The public suffix that the caller answers, plus one label | DMC-003, DMC-010, DMC-011 |
+| Organizational domain | The tree walk of §4.10.2 | The public suffix that the verifying caller answers, plus one label | DMC-003, DMC-010, DMC-011 |
 | Several records at one name | All discarded, and the walk goes on | Not applied | REC-030 |
 | Tags read | Adds `np`, `psd` and `t`. Drops `pct`, `rf` and `ri` | `pct`, `rf` and `ri` | DMC-004, REC-031 |
 | Test mode | `t=y` | `pct=0`. Other `pct` values read as 100 | DMC-007 |
@@ -62,7 +62,7 @@ The policy questions go out when the header section ends, so they resolve while 
 ```mermaid
 sequenceDiagram
     participant Check
-    participant Caller
+    participant Caller as Verifying caller
     Check->>Caller: TXT _dmarc.a.b.mail.void.test
     Caller-->>Check: no record
     Check->>Caller: TXT _dmarc.b.mail.void.test
@@ -97,7 +97,7 @@ A signature from a key with `t=y` counts like any other, and the result says whe
 | Strict, `aspf=s` or `adkim=s` | Its domain equals the author domain, in lookup form without regard to case | DMC-005, ADS-003 |
 | Relaxed, the default | Its organizational domain equals the author domain's | DMC-005, RFC 9989 §4.10.2, RFC 7489 §3.1 |
 
-In RFC 7489 mode, the check asks a public suffix question for each domain it compares. Each alignment step names the identifier's result by its position, so a caller that ran the checks one at a time can match them (DMC-005). An SPF failure next to an aligned DKIM pass adds the hint of DMC-009.
+In RFC 7489 mode, the check asks a public suffix question for each domain it compares. Each alignment step names the identifier's result by its position, so a verifying caller that ran the checks one at a time can match them (DMC-005). An SPF failure next to an aligned DKIM pass adds the hint of DMC-009.
 
 ## Policy tag and test mode
 
@@ -121,7 +121,7 @@ flowchart TD
 | A missing or invalid policy tag follows RFC 9989 §4.10.1: `none` if `rua` holds a valid URI, otherwise not applied | REC-032, REC-033, ADR 0023 |
 | The A question goes out only when `np` can change the policy, as soon as the record is found | REC-032, [ADR 0050](../../adr/0050-dmarc-asks-whether-the-author-domain-exists-when-np-can-change-the-policy-and-needs-the-answer-only-for-a-message-that-fails.md) |
 | Test mode comes from `t=y`, or from `pct=0` in RFC 7489 mode. hallmark samples nothing | DMC-007, [ADR 0020](../../adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md) |
-| hallmark computes no other policy. The caller decides what to do with the message | DMC-006, GEN-006 |
+| hallmark computes no other policy. The verifying caller decides what to do with the message | DMC-006, GEN-006 |
 
 ## Results
 

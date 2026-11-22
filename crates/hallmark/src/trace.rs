@@ -35,7 +35,7 @@ pub enum Level {
 ///
 /// - `trace`: the bytes of one whole trace, its events in any order.
 /// - `limits`: the size and depth limits of
-///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
 ///
 /// # Validation
 ///
@@ -96,7 +96,7 @@ impl Event {
     /// - `record`: one record: one JSON text, with or without the RS before it
     ///   and the LF after it.
     /// - `limits`: the size and depth limits of
-    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
     ///
     /// # Validation
     ///
@@ -128,7 +128,7 @@ pub struct Version {
 /// The kind of a step (TRC-003).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EventKind {
-    /// What the check found.
+    /// What the check or the signing found.
     Fact,
     /// A fact that a specification warns about, which cites the section with
     /// the warning.

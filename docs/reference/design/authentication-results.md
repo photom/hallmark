@@ -131,7 +131,7 @@ RFC 9989 §9.2 and RFC 7489 §11.2 register no result for a message that DMARC c
 |---|---|---|---|
 | `header.from` | The author domain as written in the From field | The result has an author domain | RFC 9989 §9.1, RFC 7489 §11.1 |
 
-hallmark never writes `policy.dmarc`: RFC 9989 §9.1 defines it as the policy applied after policy options, and the caller decides that (GEN-006).
+hallmark never writes `policy.dmarc`: RFC 9989 §9.1 defines it as the policy applied after policy options, and the verifying caller decides that (GEN-006).
 
 ## DKIM2
 

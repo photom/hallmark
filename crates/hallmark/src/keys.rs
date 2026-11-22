@@ -14,7 +14,7 @@ use crate::*;
 /// | Rule | Requirements |
 /// |---|---|
 /// | It finds the key by the public key in the request's statement | SGN-003 |
-/// | It draws no random number. ML-DSA-44 uses the hedged variant with a random value from the caller: the `random` parameter of [`sign_now`](Self::sign_now), or the [`RandomSource`] through the [`Signer`] trait | SGN-005, IO-001 |
+/// | It draws no random number. ML-DSA-44 uses the hedged variant with a random value from the signing caller: the `random` parameter of [`sign_now`](Self::sign_now), or the [`RandomSource`] through the [`Signer`] trait | SGN-005, IO-001 |
 /// | Its keys neither print nor format, and their memory is zeroed when the signer is dropped. No error holds a byte of a key | SEC-001, SEC-002 |
 /// | It doesn't verify its own signatures at run time. Tests do | ADR 0042 |
 pub struct MemorySigner {
@@ -40,7 +40,7 @@ impl MemorySigner {
     ///
     /// # Parameters
     ///
-    /// - `source`: the caller's source of random values for ML-DSA-44.
+    /// - `source`: the signing caller's source of random values for ML-DSA-44.
     ///
     /// Requirements: SGN-005, IO-001.
     pub fn with_random(source: Box<dyn RandomSource>) -> MemorySigner {
@@ -52,7 +52,7 @@ impl MemorySigner {
     /// # Parameters
     ///
     /// - `der`: an RSAPrivateKey in DER (RFC 8017 Appendix A.1.2). The signer
-    ///   copies it, and the caller zeroes its own copy.
+    ///   copies it, and the signing caller zeroes its own copy.
     ///
     /// # Validation
     ///
@@ -151,16 +151,16 @@ impl Signer for MemorySigner {
     }
 }
 
-/// The caller's source of random values, for ML-DSA-44 signing through the
-/// [`Signer`] trait (SGN-005, IO-001).
+/// The signing caller's source of random values, for ML-DSA-44 signing through
+/// the [`Signer`] trait (SGN-005, IO-001).
 ///
 /// The trait requires `Send` and `Sync`, so a [`MemorySigner`] that holds one
 /// stays `Send` and `Sync`.
 pub trait RandomSource: Send + Sync {
     /// Writes 32 random octets into `value`.
     ///
-    /// The caller implements it, and a failure stops that signature with
-    /// `signer.random_unavailable` (VAL-412).
+    /// The signing caller implements it, and a failure stops that signature
+    /// with `signer.random_unavailable` (VAL-412).
     fn fill(&self, value: &mut [u8; 32]) -> Result<(), RandomFailure>;
 }
 
@@ -177,7 +177,7 @@ impl RandomFailure {
     ///
     /// # Parameters
     ///
-    /// - `description`: text for the caller's logs.
+    /// - `description`: text for the signing caller's logs.
     ///
     /// Requirements: SGN-005.
     pub fn new(description: String) -> RandomFailure {

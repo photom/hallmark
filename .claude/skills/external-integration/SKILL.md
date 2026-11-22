@@ -1,11 +1,11 @@
 ---
 name: external-integration
-description: Rules for code that talks to DNS for hallmark, such as the DNS over HTTPS resolver in `hallmark-wasm`, the snapshot resolver, and resolvers that callers write. Use when writing or reviewing a resolver, its retries and caching, or how it checks and reports answers.
+description: Rules for code that talks to DNS for hallmark, such as the DNS over HTTPS resolver in `hallmark-wasm`, the snapshot resolver, and resolvers that verifying callers write. Use when writing or reviewing a resolver, its retries and caching, or how it checks and reports answers.
 ---
 
 # External system integration
 
-The hallmark core reaches nothing outside itself. It hands DNS questions to a resolver that the caller supplies and takes the answers back (DNS-001, ADR 0017). The outside system is DNS, reached through a resolver: the native one that hallmark-milter supplies, the DNS over HTTPS resolver in `hallmark-wasm`, or the snapshot resolver that tests and the demo use (DNS-004). Apply these rules when you write or review a resolver.
+The hallmark core reaches nothing outside itself. It hands DNS questions to a resolver that the verifying caller supplies and takes the answers back (DNS-001, ADR 0017). The outside system is DNS, reached through a resolver: the native one that hallmark-milter supplies, the DNS over HTTPS resolver in `hallmark-wasm`, or the snapshot resolver that tests and the demo use (DNS-004). Apply these rules when you write or review a resolver.
 
 ## 1. The resolver boundary
 
@@ -24,7 +24,7 @@ The hallmark core reaches nothing outside itself. It hands DNS questions to a re
 - Retry on connection errors, timeouts, and HTTP `5xx` status codes.
 - Use exponential backoff with jitter ("full jitter", for example), starting from a short interval. Jitter keeps many clients from retrying in lockstep.
 - Treat `429 Too Many Requests` (RFC 6585 §4) and `503` as retryable. If the response carries a `Retry-After` header (RFC 9110 §10.2.3), wait that long in place of the computed backoff.
-- Stop retrying before the time limit the caller sets, and report a temporary failure. RFC 7208 §4.6.4 asks for a limit on the time an SPF check takes, of at least 20 seconds, with `temperror` when the check runs past it.
+- Stop retrying before the time limit the verifying caller sets, and report a temporary failure. RFC 7208 §4.6.4 asks for a limit on the time an SPF check takes, of at least 20 seconds, with `temperror` when the check runs past it.
 
 ## 4. DNS over HTTPS
 
@@ -39,7 +39,7 @@ Write unit tests for the unlikely cases: malformed DNS messages, empty answers, 
 
 - [ ] Map every answer to one of the four outcomes of DNS-002.
 - [ ] Keep cached answers no longer than their TTL.
-- [ ] Retry 5xx, 429, and timeout errors with exponential backoff and jitter, honor `Retry-After`, and stop within the caller's time limit.
+- [ ] Retry 5xx, 429, and timeout errors with exponential backoff and jitter, honor `Retry-After`, and stop within the verifying caller's time limit.
 - [ ] Check that each response answers the question you asked.
 - [ ] Keep message content and private keys out of logs.
 - [ ] Unit-test malformed and unexpected responses.

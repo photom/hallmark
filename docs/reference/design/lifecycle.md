@@ -17,9 +17,9 @@ The states of each object that lives longer than one call: a check, a signing, t
 
 ```mermaid
 sequenceDiagram
-    participant Caller
+    participant Caller as Verifying caller
     participant Check
-    participant Resolver as Caller's resolver
+    participant Resolver as Verifying caller's resolver
     Caller->>Check: create with options
     Caller->>Check: envelope
     Check-->>Caller: SPF questions
@@ -38,7 +38,7 @@ sequenceDiagram
     Caller->>Check: take the results once finished
 ```
 
-After each call, the caller takes the requests the check now has. It can answer them at once, later, or together (CHK-001).
+After each call, the verifying caller takes the requests the check now has. It can answer them at once, later, or together (CHK-001).
 
 ## Check
 
@@ -72,8 +72,8 @@ In every state from Envelope on, the check also accepts an answer to a question 
 
 | Input that breaks the order | What happens | Requirement |
 |---|---|---|
-| Message input in the wrong state, such as a body chunk before the header section ends, or a second envelope | An error to the caller. The check stays in its state and loses nothing | CHK-004 |
-| An answer to a question the check never handed out, or a second answer | An error to the caller. The check keeps the first answer | CHK-004 |
+| Message input in the wrong state, such as a body chunk before the header section ends, or a second envelope | An error to the verifying caller. The check stays in its state and loses nothing | CHK-004 |
+| An answer to a question the check never handed out, or a second answer | An error to the verifying caller. The check keeps the first answer | CHK-004 |
 | Taking the results before Finished | The check names what it still waits for, and gives no result | CHK-002 |
 
 How a check keeps its other parts, such as its inputs and which evaluations it runs, is internal, and [Modules](modules.md#inside-the-check) gives it.
@@ -97,7 +97,7 @@ stateDiagram-v2
 | A second step needs the same question type and name | It reads the existing question and its answer. No new request appears | DNS-007 |
 | The caller answers a Waiting request | Error: the caller can know an ID only after taking the request | CHK-004 |
 | The caller answers an Answered request | Error, and the first answer stays | CHK-004 |
-| The caller gives up waiting | It answers with a temporary failure, which becomes the protocol's temporary error | CHK-002, DNS-009 |
+| The verifying caller gives up waiting | It answers with a temporary failure, which becomes the protocol's temporary error | CHK-002, DNS-009 |
 | A step no longer needs an answer, such as the author domain question of a message with an aligned identifier | The request stays, and its answer is still accepted | REC-032 |
 
 ## Signing
@@ -193,7 +193,7 @@ flowchart LR
 
 ## Canonicalizer
 
-The public canonicalizer of STR-012 is separate from any check.
+The public canonicalizer of STR-012 is separate from any check or signing.
 
 ```mermaid
 stateDiagram-v2
@@ -227,7 +227,7 @@ stateDiagram-v2
 |---|---|
 | A driver hands each answer over in the order its future completes. The result and the sorted trace stay the same | CHK-003, CHK-005 |
 | A signer failure is an answer like any other: the signing stops that kind of signing, and `drive_signing` goes on | SGN-004 |
-| The driver reads no clock. The caller's resolver applies its own time limits | DNS-009 |
+| The driver reads no clock. The verifying caller's resolver applies its own time limits | DNS-009 |
 
 ## How long objects live
 
@@ -236,8 +236,8 @@ stateDiagram-v2
 | `Check`, `Signing` | The caller | The caller | When the caller drops it | [Limits](limits.md) |
 | Body chunk | The caller | The caller | When the call that passed it returns | None. No chunk is copied (STR-007) |
 | Header section | The check or the signing, from the input | The check or the signing | With it | `header_section_size` |
-| Question and its answer | A step that needs it, and the caller's answer | The check. The caller gets a copy of the question | With the check | `dns_questions`, `answer_size` |
+| Question and its answer | A step that needs it, and the verifying caller's answer | The check. The verifying caller gets a copy of the question | With the check | `dns_questions`, `answer_size` |
 | Signing request data | The signing, at the end of the message | The signing. The signing caller gets a copy | With the signing | `header_section_size` (SGN-002) |
 | Trace bytes not yet read | The recorder | The check or the signing | When the caller reads them | `trace_size` |
 | `CheckResults`, `SigningResults` | The check or the signing, when it finishes | The caller | When the caller drops them | The limits of the value that made them |
-| Private key | The caller, inside a `MemorySigner` or its own signer | The signer | When the signer is dropped, zeroed (SEC-001) | |
+| Private key | The signing caller, inside a `MemorySigner` or its own signer | The signer | When the signer is dropped, zeroed (SEC-001) | |

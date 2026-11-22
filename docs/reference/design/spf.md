@@ -42,7 +42,7 @@ flowchart TD
     terms -->|"nothing matches"| redir{"redirect= present and no all"}
     redir -->|"yes"| sub["check_host with the redirect target. none becomes permerror"]
     redir -->|"no"| neutral["neutral"]
-    qual --> exp{"fail, with exp="}
+    qual --> exp{"fail that becomes the identity's result, with exp="}
     exp -->|"yes"| explain["Fetch and expand the explanation"]
     exp -->|"no"| done["Result"]
     explain --> done
@@ -56,7 +56,7 @@ flowchart TD
 | Parse | The whole record, before the first term runs. A syntax error anywhere gives `permerror` | REC-010 to REC-013 |
 | Evaluation | Mechanisms left to right. Modifiers act only after them | RFC 7208 §4.6.2, REC-011 |
 | Default | No match and no `redirect=` gives `neutral` | RFC 7208 §4.7 |
-| Explanation | Only for `fail`. Any problem leaves the result without one | REC-016 |
+| Explanation | Only for a `fail` that becomes the identity's result, from the `exp=` of the record whose mechanism gave it. After a `redirect`, that is the target's record, and the original's `exp=` doesn't apply. Under an `include`, a `fail` is no match, so an include target's `exp=` never applies. Any problem leaves the result without one | REC-016, RFC 7208 §6.2 |
 
 ## Terms
 
@@ -93,13 +93,13 @@ stateDiagram-v2
     Evaluate --> Lookup : include or redirect pushes a frame
     Evaluate --> FrameDone : match, default or error
     Parse --> FrameDone : no record or a syntax error
-    FrameDone --> Evaluate : pop the frame, map its result into the caller
-    FrameDone --> Explain : outermost frame gives fail with exp=
+    FrameDone --> Evaluate : pop the frame, map its result into the frame that pushed it
+    FrameDone --> Explain : outermost frame gives fail, and the record that gave it has exp=
     FrameDone --> [*] : outermost frame done
     Explain --> [*]
 ```
 
-Each frame holds its domain, its parsed record, the index of the next term, and the counters are shared by all frames. A frame that waits for an answer holds no other state, so answers can arrive in any order (CHK-003).
+Each frame holds its domain, its parsed record and the index of the next term, and all frames share the counters. A frame that takes its result from a `redirect` passes on the record that gave the result, so the explanation comes from the target's `exp=` (RFC 7208 §6.2). A frame that waits for an answer holds no other state, so answers can arrive in any order (CHK-003).
 
 ## Counters and limits
 
@@ -125,7 +125,7 @@ A question asked twice is answered once and counts once for each term that asks 
 | `h` | The HELO name | RFC 7208 §7.3 |
 | `c`, `r`, `t` | In explanations only: the client address in text form, the receiving host, the verification time | REC-013, REC-014, [ADR 0021](../../adr/0021-spf-reads-v-spf1-without-regard-to-case-and-allows-c-r-and-t-only-in-explanations.md) |
 
-Digits and `r` reverse and cut the parts, and an uppercase letter percent-encodes the expansion (REC-014). A target name is cut from the left to 253 characters (DNS-008).
+The `r` transformer reverses the parts, and a digit transformer then keeps that many parts from the right. An uppercase letter percent-encodes the expansion (REC-014). A target name is cut from the left to 253 characters (DNS-008).
 
 ## Results
 

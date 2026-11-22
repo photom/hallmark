@@ -1,9 +1,10 @@
 //! Email sender authentication: SPF, DKIM, DKIM2 and DMARC.
 //!
 //! hallmark verifies SPF, DKIM, DKIM2 and DMARC, signs messages with DKIM and
-//! DKIM2, and records a trace that explains every step of every check. The
-//! core does no I/O of its own: the caller supplies DNS answers, the time, and
-//! the message as a stream. The same code runs natively and in WebAssembly.
+//! DKIM2, and records a trace that explains every step of every check and
+//! signing. The core does no I/O of its own: its callers supply the message as
+//! a stream, the time, DNS answers and signatures. The same code runs natively
+//! and in WebAssembly.
 //!
 //! No item is implemented yet. Each item on these pages is a declaration that
 //! only rustdoc compiles
@@ -27,7 +28,9 @@
 //! caller takes the [`SigningResults`], which hold the header fields to add.
 //!
 //! [Lifecycle](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#a-check-from-start-to-end)
-//! draws the calls in order, and the
+//! draws the calls of a check in order, and
+//! [those of a signing](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#signing).
+//! The
 //! [domain model](https://github.com/photom/hallmark/blob/main/docs/reference/design/domain-model.md#what-the-core-and-the-caller-exchange)
 //! draws the values that pass between the core and the caller.
 //!

@@ -92,7 +92,7 @@ flowchart LR
 | Rule | Requirements |
 |---|---|
 | The verification time is the time the message was received, never a clock | TIM-001 |
-| Time checks are on by default, and the caller can turn them off | TIM-002 |
+| Time checks are on by default, and the verifying caller can turn them off | TIM-002 |
 | Checks that don't use the verification time still run | TIM-003 |
 | With time checks off, the trace records the skipped check and its outcome | TIM-004 |
 | A `t=` or `x=` of more than 12 digits is infinite | HDR-013 |
