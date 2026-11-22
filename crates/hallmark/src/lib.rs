@@ -6,8 +6,8 @@
 //! a stream, the time, DNS answers and signatures. The same code runs natively
 //! and in WebAssembly.
 //!
-//! No item is implemented yet. Each item on these pages is a declaration that
-//! only rustdoc compiles
+//! Most items aren't implemented yet. Each of them is a declaration that only
+//! rustdoc compiles
 //! ([ADR 0052](https://github.com/photom/hallmark/blob/main/docs/adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md)),
 //! and the names are a first draft until the first release (STB-001).
 //!
@@ -246,7 +246,9 @@ pub use driver::{
 pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
-pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
+pub use limits::{DocumentLimits, Limit, LimitsError};
+#[cfg(doc)]
+pub use limits::Limits;
 #[cfg(doc)]
 pub use parse::ParseError;
 #[cfg(doc)]
