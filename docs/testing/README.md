@@ -84,7 +84,7 @@ These requirements govern the repository, CI, the dependencies or how the code i
 | [WSM-001](../reference/requirements.md#webassembly) | The WebAssembly build job |
 | [WSM-002](../reference/requirements.md#webassembly) | Review of the manifest of `hallmark` |
 | [WSM-003](../reference/requirements.md#webassembly) | The WebAssembly build job |
-| [TIM-006](../reference/requirements.md#verification-time) | The WebAssembly build job, which builds the same `Options` that the native tests use |
+| [TIM-006](../reference/requirements.md#verification-time) | The WebAssembly build job, which builds the same `CheckOptions` and `SigningOptions` that the native tests use |
 | [IO-002](../reference/requirements.md#io-only-through-the-caller) | Review of the API reference |
 | [SEC-003](../reference/requirements.md#private-keys) | The cargo-deny jobs, which report advisories, and an ADR for each timing advisory |
 | [TRC-001](../reference/requirements.md#trace-and-reasoning) | Review of the code: the code that decides writes the step ([ADR 0031](../adr/0031-the-code-that-decides-writes-the-trace-as-events-with-tree-positions.md)) |
