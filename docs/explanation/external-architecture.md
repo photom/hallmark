@@ -66,15 +66,17 @@ sequenceDiagram
     Milter->>Check: answers, in any order
     MTA->>Milter: end of message
     Milter->>Check: end of message
-    Check-->>Milter: results, trace, header fields to add
-    Milter->>MTA: Authentication-Results and signatures
+    Check-->>Milter: results and trace
+    Milter->>MTA: Authentication-Results
 ```
 
 This shape has three effects:
 
-- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver, and for signing a signer, that the caller implements.
+- Any runtime can drive a check. The check holds no future and no socket, so Tokio, the browser's promises, and blocking code can all drive it. A driver in the library covers the common case of running a check to the end with a resolver that the verifying caller implements.
 - DNS lookups overlap the body. The DKIM selectors, the domains whose DKIM2 Domain Policy Records the From check may need, and the DMARC domain are all known once the header fields are complete, so a milter can resolve them while the body is still arriving. SPF needs only the envelope.
 - Every check can be replayed. A check depends on nothing but its inputs. Save the message, the DNS answers, and the time, and the check gives the same result and the same trace anywhere. The order in which answers arrive changes nothing, because each answer lands under the step that asked its question.
+
+A signing caller drives a signing in the same way, through a value of its own ([ADR 0062](../adr/0062-verification-and-signing-have-separate-entry-types.md)). It passes the header fields and the body, with no envelope, and the signing hands out signing requests for the signer and then gives back the header fields to add. A second driver runs a signing to the end with the signing caller's signer. A verifying caller never sees signing settings or signing requests, and a signing caller never sees verification settings or DNS questions.
 
 ## Streaming
 
@@ -140,4 +142,4 @@ Facts and hints stay apart: a fact says what the check found, and a hint is a la
 
 ## Where hallmark-milter fits
 
-hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks, feeds each piece to a hallmark check, resolves DNS with a native resolver, and adds the Authentication-Results field and the signatures at the end of the message. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).
+hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks and feeds each piece to a hallmark check, and also to a hallmark signing when it signs the mail. It resolves DNS with a native resolver and adds the Authentication-Results field and the signatures at the end of the message. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).
