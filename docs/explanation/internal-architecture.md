@@ -27,6 +27,17 @@ flowchart TB
     supporting --> kernel["Kernel: trace, limits, time, helpers"]
 ```
 
+In the terms of Clean Architecture, the three lower layers together form the domain layer. The table maps each layer, and the infrastructure that does I/O stays outside the crate.
+
+| Layer | Clean Architecture layer | Why |
+|---|---|---|
+| Kernel, shared parts, protocols | Domain | They hold the rules of the specifications: the parsers, the values, each protocol's evaluation and its trace codes. None of them does I/O |
+| Application | Application | It runs the protocols on one message for a check or a signing, and builds what a caller reads from the results: Authentication-Results fields, the canonical body and the English text of trace events |
+| Adapters | Interface adapters | They connect the core to the caller's code. The driver defines the traits for the resolver, the suffix source and the signer, and awaits them. The blocking adapters move a message and a trace through a reader and a writer. The snapshot resolver and the memory signer implement those traits for tests and the demo |
+| None in the crate | Infrastructure | The caller supplies the resolver, the signer and the streams, because the core does no I/O ([ADR 0017](../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)) |
+
+`Check` and `Signing` are the aggregate roots of the Check and Signing contexts ([Domain model](../reference/design/domain-model.md)), and they sit in the application layer, above the protocols. Each of them combines protocols for one message: a check can run SPF, DKIM, DKIM2 and DMARC, and a signing DKIM and DKIM2. No protocol context may use another, so the contexts that combine them sit above all of them.
+
 ## What a check fixes
 
 A check fixes most of what it holds. The options decide, when the verifying caller creates the check, which evaluations it runs, and that set never changes. Each input that the check keeps, such as the envelope or the header section, goes into a slot that takes one value and never gives it up. Only the evaluations' own states move. To follow a check, you read one state machine at a time: the check's own for the order of the input, and each protocol's for its steps. A signing fixes its signings and its header section in the same way ([ADR 0063](../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)).
