@@ -521,7 +521,7 @@ Process:
 - Each document with two or more sections opens with a contents list. ADRs keep the form they were accepted in.
 - Architecture decisions are ADRs in [docs/adr](../adr/README.md).
 - Test scenarios are Given/When/Then tables in [docs/testing](../testing/README.md), written before their tests, with IDs that link to the requirement IDs here.
-- Code follows Canon TDD, the procedural Rust style ([ADR 0003](../adr/0003-rust-code-is-written-in-a-procedural-style.md)), and the panic rule ([ADR 0004](../adr/0004-no-input-makes-hallmark-panic.md)).
+- Code follows Canon TDD, the procedural Rust style and its lints, types and size limits ([ADR 0064](../adr/0064-rust-code-is-procedural-and-lints-types-and-size-limits-keep-it-efficient-and-reviewable.md)), and the panic rule ([ADR 0004](../adr/0004-no-input-makes-hallmark-panic.md)).
 - Diagrams are Mermaid.
 
 ## Relationship to hallmark-milter
