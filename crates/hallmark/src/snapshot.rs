@@ -26,7 +26,7 @@ impl Snapshot {
     /// - `bytes`: one snapshot document in the form of
     ///   [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#snapshots).
     /// - `limits`: the size and depth limits of
-    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
     ///
     /// # Validation
     ///
@@ -53,7 +53,7 @@ impl Snapshot {
     /// - `trace`: the bytes of one whole trace at the full level, its events
     ///   sorted or not.
     /// - `limits`: the size and depth limits of
-    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
     ///
     /// # Validation
     ///
@@ -81,9 +81,9 @@ impl Snapshot {
 /// A resolver that answers from one snapshot, read only after creation
 /// (DNS-004).
 ///
-/// It answers through its own methods, for a caller's own loop, or through
-/// [`Resolver`] and [`SuffixSource`] for [`drive`]. Every question gets an
-/// answer, so its methods have no rule to check (RES-022, RES-041).
+/// It answers through its own methods, for a verifying caller's own loop, or
+/// through [`Resolver`] and [`SuffixSource`] for [`drive`]. Every question gets
+/// an answer, so its methods have no rule to check (RES-022, RES-041).
 ///
 /// | Rule | Requirements |
 /// |---|---|
@@ -162,7 +162,7 @@ impl PastedRecords {
     /// - `text`: records, one per line, in the presentation format of RFC 1035
     ///   §5.1.
     /// - `limits`: the size and depth limits of
-    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check).
+    ///   [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-outside-a-check-or-a-signing).
     ///
     /// # Validation
     ///
