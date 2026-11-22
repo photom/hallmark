@@ -5,8 +5,8 @@ Every limit in hallmark: the limits a caller can set for each call (SAF-002, PAR
 ## Contents
 
 - [What reaching a limit does](#what-reaching-a-limit-does)
-- [Limits of a check](#limits-of-a-check)
-- [Limits outside a check](#limits-outside-a-check)
+- [Limits of a check or a signing](#limits-of-a-check-or-a-signing)
+- [Limits outside a check or a signing](#limits-outside-a-check-or-a-signing)
 - [Rules between limits](#rules-between-limits)
 - [Limits the specifications fix](#limits-the-specifications-fix)
 
@@ -15,16 +15,16 @@ Every limit in hallmark: the limits a caller can set for each call (SAF-002, PAR
 ```mermaid
 flowchart TD
     hit["Input reaches a limit"] --> kind{"Which limit"}
-    kind -->|"on what the caller passes, such as RCPT TO paths"| err["Error to the caller. The check stays as it was"]
+    kind -->|"on what the caller passes, such as RCPT TO paths"| err["Error to the caller. The check or the signing stays as it was"]
     kind -->|"in a parser"| parse["Parse error that names the limit"]
-    parse --> rule["The check applies its rule for input that doesn't parse"]
-    kind -->|"on a check's work"| result["The protocol's error result, and a trace step that names the limit"]
+    parse --> rule["The check or the signing applies its rule for input that doesn't parse"]
+    kind -->|"on the work of a check or a signing"| result["The protocol's error result, or a stopped signing, and a trace step that names the limit"]
     kind -->|"on the trace"| cut["The trace is cut short. Results stay the same"]
 ```
 
 A limit never makes hallmark panic (SAF-001), and every trace step for a limit names the limit.
 
-## Limits of a check
+## Limits of a check or a signing
 
 The caller sets these in `Limits`, part of the options of each check and each signing (PAR-004).
 
@@ -36,13 +36,13 @@ The caller sets these in `Limits`, part of the options of each check and each si
 | `comment_depth` | 16 | 1 to 256 | Levels of nested comments | Header address parser, Authentication-Results parser | Parse error. A From field that doesn't parse gives DMARC no author domain (DMC-002) | RFC 5322 sets no depth | HDR-011 |
 | `mailboxes` | 64 | 1 to 10,000 | Mailboxes in one address list | Header address parser | Parse error | A From field usually holds one | SAF-002 |
 | `address_size` | 1,024 | 1 to 65,536 | Octets of one address or path | Both address parsers | Parse error. The check applies its rule for a malformed address | Four times the path size that RFC 5321 §4.5.3.1.3 sets as a minimum | ADS-007 |
-| `rcpt_to` | 1,000 | 1 to 100,000 | RCPT TO paths in the envelope | Envelope input | Error to the caller | RFC 5321 §4.5.3.1.8 requires a server to buffer at least 100 | SAF-004 |
+| `rcpt_to` | 1,000 | 1 to 100,000 | RCPT TO paths in the envelope | Envelope input | Error to the verifying caller | RFC 5321 §4.5.3.1.8 requires a server to buffer at least 100 | SAF-004 |
 | `rt_entries` | 1,000 | 1 to 100,000 | Entries in one DKIM2 `rt=` tag | DKIM2 | PERMERROR | As `rcpt_to` | SAF-002 |
 | `dkim_signatures` | 16 | 1 to 1,000 | DKIM-Signature fields verified, in header order | DKIM | Each signature after the limit gets PERMFAIL with a reason that names the limit | RFC 6376 §6.1 lets a verifier limit them | DKV-004 |
 | `key_records` | 8 | 1 to 100 | Key records at one DKIM selector | DKIM | PERMFAIL before hallmark tries any record | RFC 6376 §3.6.2.2 leaves several records at one selector undefined | REC-052 |
 | `rsa_key_bits` | 4,096 | 1,024 to 16,384 | Bits of an RSA modulus | Key decoding, signer statements | DKIM PERMFAIL, DKIM2 PERMERROR. A signer statement over the limit gives an error when the signing is created | RFC 8301 §3.2 requires verifiers to handle keys up to 4,096 bits | DKV-003 |
 | `rsa_exponent_bits` | 32 | 2 to 16,384 | Bits of an RSA public exponent in a DKIM key | Key decoding | PERMFAIL with a step that cites RFC 6376 §8.13 | Holds 65537 and any common exponent | REC-051, [ADR 0043](../../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
-| `author_domains` | 4 | 1 to 100 | Author domains evaluated when the caller asks for several | DMARC | DMARC isn't applied, and the result names the limit | Each domain costs up to nine questions | DMC-002 |
+| `author_domains` | 4 | 1 to 100 | Author domains evaluated when the verifying caller asks for several | DMARC | DMARC isn't applied, and the result names the limit | Each domain costs up to nine questions | DMC-002 |
 | `dns_questions` | 512 | 1 to 100,000 | Distinct questions in one check | Question table | The kind that needed the question gives its permanent error: SPF `permerror`, PERMFAIL for the DKIM signature, DKIM2 PERMERROR, DMARC `permerror` | Above the most that mail within every other limit needs: two SPF evaluations of about 120 questions each, 16 DKIM keys, the keys and policies of DKIM2, and four DMARC walks | SAF-002 |
 | `answer_size` | 65,535 | 512 to 16,777,216 | Octets of record data and description in one DNS answer, and of the description in one public suffix answer | Answer input | The check takes a DNS answer as a temporary failure that names the limit (GEN-005), and a public suffix answer as unavailable without its description, with a trace step that names the limit | The largest DNS message, whose length field has 16 bits (RFC 1035 §4.2.2) | SAF-004 |
 | `dkim2_signatures` | 32 | 1 to 1,000 | DKIM2-Signature fields | DKIM2 | PERMERROR | Each hop adds one | SAF-002 |
@@ -54,7 +54,7 @@ The caller sets these in `Limits`, part of the options of each check and each si
 | `trace_size` | 1,048,576 | 1,024 to 268,435,456 | Octets of trace events written, read or not | Recorder | The trace is cut short, and the root event says so. Results stay the same | Holds the header hash inputs of every signature within the other limits (HCN-009) | TRC-005 |
 | `trace_places` | 16 | 0 to 10,000 | Places listed for each kind of body change, and for bare CR and LF in the body and the header section | Body and header section steps | The count stays exact, the list stops and says it was cut short | Enough to find the first changes | TRC-010 |
 
-## Limits outside a check
+## Limits outside a check or a signing
 
 | Limit | Default | Range | Counts | Checked by | When input reaches it | Requirements |
 |---|---|---|---|---|---|---|
@@ -87,7 +87,7 @@ No caller can change these.
 | DMARC tree walk | 8 queries | RFC 9989 §4.10 | The walk takes the shortcut of §4.10 |
 | DKIM `t=` and `x=` | 12 digits | RFC 6376 §3.5 | A longer value counts as infinite (HDR-013) |
 | DKIM `l=` | 76 digits | RFC 6376 §3.5 | A value too large to hold is larger than the body (HDR-013) |
-| DKIM2 signature time | From 14 days before the message was accepted to 1 day after | Draft-09 §14.3 | FAIL, unless the caller turned time checks off (TIM-002) |
+| DKIM2 signature time | From 14 days before the message was accepted to 1 day after | Draft-09 §14.3 | FAIL, unless the verifying caller turned time checks off (TIM-002) |
 | RSA key size | At least 1,024 bits | RFC 8301 §3.2, draft-09 §3.2 | DKIM PERMFAIL, DKIM2 PERMERROR, and a signer statement refused (SGN-003) |
 | DKIM2 RSA public exponent | Exactly 65537 | Draft-09 §3.2 | PERMERROR "algorithm mismatch" (REC-053) |
 | Ed25519 and ML-DSA-44 public keys | 32 and 1,312 octets | RFC 8463 §4.2, dns-03 §4 | Malformed key (REC-051, DK2-011) |
