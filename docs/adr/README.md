@@ -62,6 +62,9 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0056](0056-authentication-results-map-each-typed-reason-to-one-result-value.md) | Authentication-Results map each typed reason to one result value | Accepted |
 | [0057](0057-the-conversion-to-a-labels-runs-the-contexto-rules.md) | The conversion to A-labels runs the CONTEXTO rules | Accepted |
 | [0058](0058-test-names-are-under-test.md) | Test names are under `.test` | Accepted |
+| [0059](0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md) | The modules of the hallmark crate are bounded contexts in five layers | Accepted |
+| [0060](0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md) | A check fixes its evaluations when created, and each input once it arrives | Accepted |
+| [0061](0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md) | Each context owns its trace codes, and the English renderer sits in the application layer | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

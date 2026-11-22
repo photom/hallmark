@@ -81,6 +81,8 @@ In every state from Envelope on, the check also accepts an answer to a question 
 | An answer to a question the check never handed out, or a second answer | An error to the caller. The check keeps the first answer | CHK-004 |
 | Taking the results before Finished | The check names what it still waits for, and gives no result | CHK-002 |
 
+How a check keeps its other parts, such as its inputs and which evaluations it runs, is internal, and [Modules](modules.md#inside-the-check) gives it.
+
 ## Requests
 
 Questions, public suffix questions and signing requests share one lifecycle.

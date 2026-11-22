@@ -22,11 +22,15 @@ flowchart LR
     check --> dkim["DKIM"]
     check --> dkim2["DKIM2"]
     check -->|"anti-corruption layer: authenticated identifiers"| dmarc["DMARC"]
-    check --> exchange["DNS, public suffix and signing exchange"]
+    check -->|"anti-corruption layer: question table"| exchange["DNS, public suffix and signing exchange"]
     spf --> addr["Addresses and domain names"]
     dkim --> msg["Message"]
+    dkim --> tags["Tag lists"]
+    dkim --> crypto["Cryptography"]
     dkim2 --> msg
     dkim2 --> addr
+    dkim2 --> tags
+    dkim2 --> crypto
     dmarc --> msg
     dmarc --> addr
     authres["Authentication-Results"] -->|"reads"| check
@@ -39,15 +43,19 @@ flowchart LR
 | Context | Language it owns | Modules | Relationship |
 |---|---|---|---|
 | Check | Check, kind of check, envelope, input, request, results | `check` | Open host service for callers ([ADR 0047](../../adr/0047-one-check-type-runs-any-set-of-checks-and-shares-their-dns-answers.md)) |
-| Message | Header section, header field, malformed line, field form, body chunk, canonical form | `header`, `canonical` | Supplier to DKIM, DKIM2 and DMARC |
-| Addresses and domain names | Mailbox, path, local part, domain, lookup form, address literal | `address`, `idna` | Supplier to SPF, DKIM, DKIM2 and DMARC |
-| Exchange | Question, answer, record, suffix question, suffix answer, signer statement, signing request, signature | `dns`, `suffix`, `signing` | Shared by the core and the caller |
+| Message | Header section, header field, malformed line, field form, body chunk, canonical form | `header`, `canonical`, `canonicalizer` | Supplier to DKIM, DKIM2 and DMARC |
+| Tag lists | Tag, tag value, tag list | `tags` | Supplier to DKIM and DKIM2 |
+| Addresses and domain names | Mailbox, path, local part, domain, lookup form, address literal | `address`, `idna`, `ip` | Supplier to SPF, DKIM, DKIM2 and DMARC |
+| Exchange | Question, answer, record, suffix question, suffix answer, signer statement, signing request, signature | `dns`, `suffix`, `signing` | Shared by the core and the caller. The question table of Check translates between it and the protocols ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) |
+| Cryptography | Hash, signature verification, key data | `crypto` | Supplier to DKIM, DKIM2 and the memory signer |
 | SPF | Identity, record, term, mechanism, modifier, macro | `spf` | Customer of Addresses |
 | DKIM | Signature, selector, key record, body hash, header hash | `dkim` | Customer of Message |
 | DKIM2 | Message-Instance, DKIM2-Signature, recipe, revision, chain of custody, Domain Policy Record | `dkim2` | Customer of Message and Addresses |
 | DMARC | Author domain, DMARC Policy Record, organizational domain, authenticated identifier, alignment, policy tag | `dmarc` | Gets authenticated identifiers only through Check (DMC-005) |
 | Authentication-Results | authserv-id, method, result, reason, property | `authres` | Reads results |
-| Trace | Step, event, position, slot, fact, caution, hint, code, data value | `trace` | Shared kernel that every context records into |
+| Trace | Step, event, position, slot, fact, caution, hint, code, data value | `trace`, `render` | Shared kernel that every context records into, each with its own codes ([ADR 0061](../../adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)) |
+
+[Modules](modules.md#layers) places each context in its layer ([ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
 
 ## The check
 
@@ -92,14 +100,42 @@ classDiagram
         +Option~Bytes~ mail_from
         +List~Bytes~ rcpt_to
     }
+    class Inputs {
+        -envelope
+        -parsed_envelope
+        -header_section
+    }
+    class ParsedEnvelope {
+        +Option~IpAddr~ client_ip
+        +Option~Host~ helo
+        +Option~Path~ mail_from
+        +List~Path~ rcpt_to
+    }
+    class Evaluations {
+        -spf_helo
+        -spf_mail_from
+        -dkim
+        -dkim2
+        -dmarc
+        +new(options)
+    }
+    class Signings {
+        -dkim
+        -dkim2
+        +new(options)
+    }
     class QuestionTable
     class Recorder
     class HeaderSection
     class BodyPipeline
     class Results
     Check "1" *-- "1" Options
-    Check "1" *-- "0..1" Envelope
-    Check "1" *-- "0..1" HeaderSection
+    Check "1" *-- "1" Inputs
+    Check "1" *-- "1" Evaluations
+    Check "1" *-- "1" Signings
+    Inputs "1" *-- "0..1" Envelope
+    Inputs "1" *-- "0..1" ParsedEnvelope
+    Inputs "1" *-- "0..1" HeaderSection
     Check "1" *-- "1" BodyPipeline
     Check "1" *-- "1" QuestionTable
     Check "1" *-- "0..*" SuffixQuestion
@@ -112,10 +148,14 @@ classDiagram
 | Part | Holds | Requirements |
 |---|---|---|
 | `Options` | Everything the caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014, SGN-006 |
-| `Envelope` | The SMTP envelope as the caller passed it, before parsing | GEN-002, ADS-020 to ADS-022 |
+| `Inputs` | A write-once slot for each input that the check keeps: the envelope, the parsed envelope and the header section. The check sets each slot when its input is complete, the header section at the end of the header fields, and nothing changes it after that | CHK-004, INV-017 |
+| `Envelope` | The SMTP envelope as the caller passed it, before parsing | GEN-002 |
+| `ParsedEnvelope` | The client IP address, the HELO name as a host, MAIL FROM as a path and each RCPT TO as a path | ADS-020 to ADS-022 |
 | `HeaderSection` | The raw header section and the lines found in it | HDR-001, STR-008 |
+| `Evaluations` | One field for each kind of check that verifies. `new` decides which fields hold an evaluation, and an empty field means the caller didn't ask for that kind | GEN-001, INV-016 |
+| `Signings` | One field for DKIM signing and one for DKIM2 signing, under the rules of `Evaluations` | DKS-001, DK2-014, INV-016 |
 | `BodyPipeline` | One canonicalizer and hash state for each distinct body hash that the signatures need, and one rebuild for each DKIM2 recipe | STR-001, DK2-006 |
-| `QuestionTable` | Each question with its state and its answer | DNS-007, CHK-004 |
+| `QuestionTable` | Each question with its state, and its answer in a write-once slot | DNS-007, CHK-004, INV-003 |
 | `Recorder` | The trace events not yet read, within the trace limit | TRC-004, TRC-005 |
 
 DMARC's identifiers come from one of three sources, which `SpfSource` names for SPF and `DkimSource` for DKIM:
@@ -388,6 +428,11 @@ classDiagram
 | Envelope | `Envelope` | Value | Check | GEN-002 |
 | Request | `Request` | Value: a question, a suffix question or a signing request | Check | CHK-001 |
 | Results | `Results` | Value | Check | GEN-004 |
+| Inputs | `Inputs` | Write-once slots inside a check | Check | CHK-004 |
+| Parsed envelope | `ParsedEnvelope` | Value | Check | ADS-020 to ADS-022 |
+| Evaluations | `Evaluations` | The evaluations a check runs, fixed when it is created | Check | GEN-001 |
+| Signings | `Signings` | The signings a check runs, fixed when it is created | Check | DKS-001, DK2-014 |
+| Write-once slot | `WriteOnce` | Holds one value or none, and keeps the first value it gets | Kernel | CHK-004 |
 | Verification time | `VerificationTime` | Value: seconds since 1970-01-01T00:00:00Z | Kernel | TIM-001 |
 | Limits | `Limits` | Value | Kernel | SAF-002 |
 | Header section | `HeaderSection` | Entity inside a check | Message | HDR-001 |
@@ -420,7 +465,7 @@ classDiagram
 |---|---|---|---|
 | INV-001 | A check holds each question type and lookup name once, and every step that needs the answer reads the same one | The question table, keyed by type and name | DNS-007 |
 | INV-002 | A question ID is unique within its check | The question table, which numbers questions in order | DNS-007 |
-| INV-003 | Each question takes one answer. A second answer, or an answer to an ID the check never handed out, gives an error and leaves the check as it was | The question table's states ([lifecycle.md](lifecycle.md#requests)) | CHK-004 |
+| INV-003 | Each question takes one answer. A second answer, or an answer to an ID the check never handed out, gives an error and leaves the check as it was | The question table's states ([lifecycle.md](lifecycle.md#requests)), and the write-once slot of each entry | CHK-004 |
 | INV-004 | The check keeps no reference to a body chunk after the call that passed it returns | Input methods borrow the chunk and keep only state | STR-007 |
 | INV-005 | Memory doesn't grow with the body | Canonicalizer states of fixed size, and hash states | STR-001, SAF-004 |
 | INV-006 | A domain name has a lookup form only if the conversion to A-labels succeeded and its labels fit RFC 1035 | The constructor of `Domain` | ADS-002, ADS-004 |
@@ -433,3 +478,5 @@ classDiagram
 | INV-013 | The result and the sorted trace don't depend on when answers arrive, how the caller groups them, or where body chunks are cut | INV-001, INV-008 and the canonicalizer | CHK-003 |
 | INV-014 | Signing writes a header field only after the signature has the size its algorithm gives and, if the caller asked, verifies | The signing states ([lifecycle.md](lifecycle.md#signing)) | SGN-004, SGN-006 |
 | INV-015 | Options don't change after the check is created | `Check` takes them by value and exposes no setter | SGN-006 |
+| INV-016 | The kinds of check that a check runs don't change after it is created | `Evaluations::new` and `Signings::new` alone fill their fields, and no method gives `&mut Option<T>` ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) | GEN-001 |
+| INV-017 | An input doesn't change once the check holds it | The write-once slots of `Inputs`, input values that hallmark builds with only `&self` methods, and evaluations that read inputs by shared reference ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) | CHK-003, CHK-004 |

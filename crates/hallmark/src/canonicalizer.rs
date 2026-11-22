@@ -1,5 +1,7 @@
-//! The public canonicalizer. Body and header canonicalization inside a check
-//! stay crate-private.
+//! The public canonicalizer, in the application layer. It joins the body
+//! canonicalization of the crate-private `canonical` module with the recipe
+//! reading of `dkim2`
+//! ([ADR 0059](https://github.com/photom/hallmark/blob/main/docs/adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
 
 use crate::*;
 
