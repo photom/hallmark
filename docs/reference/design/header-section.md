@@ -133,7 +133,7 @@ A bare CR or LF is an octet of the line that holds it ([ADR 0051](../../adr/0051
 
 | Limit | Counts | Effect of reaching it | Requirements |
 |---|---|---|---|
-| `header_fields` | Header fields and malformed lines | The splitter stops. DKIM gives `permerror` for the check, DKIM2 PERMERROR and DMARC `permerror`, and signing stops with `signing.header_limit`. SPF goes on, because it needs no header field | SAF-002 |
+| `header_fields` | Header fields and malformed lines | The splitter stops. DKIM gives `permerror` for the check, DKIM2 PERMERROR and DMARC `permerror`, and signing stops with `signature.header_limit`. SPF goes on, because it needs no header field | SAF-002 |
 | `header_field_size` | Octets of one field or malformed line, folds included | As `header_fields` | SAF-002 |
 | `header_section_size` | Octets of the whole header section | As `header_fields` | SAF-002 |
 
