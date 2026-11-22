@@ -125,23 +125,23 @@ None of them changes a result (TRC-003).
 
 ```mermaid
 sequenceDiagram
-    participant Check
-    participant Caller
-    Note over Check: options checked at Check::new (VAL-220 to VAL-228)
-    Check->>Check: header section ends: build h= from the list, with oversigning
-    Check->>Check: body streams through the body hash
-    Check->>Check: message ends: build the field with b= empty, and its header hash input
-    Check-->>Caller: SigningRequest with the SHA-256 hash
-    Caller->>Check: Signature
-    Check->>Check: size check, and verification if asked
-    Check-->>Caller: DKIM-Signature field in the results
+    participant Signing
+    participant Caller as Signing caller
+    Note over Signing: options checked at Signing::new (VAL-220 to VAL-228)
+    Signing->>Signing: header section ends: build h= from the list, with oversigning
+    Signing->>Signing: body streams through the body hash
+    Signing->>Signing: message ends: build the field with b= empty, and its header hash input
+    Signing-->>Caller: SigningRequest with the SHA-256 hash
+    Caller->>Signing: Signature
+    Signing->>Signing: size check, and verification if asked
+    Signing-->>Caller: DKIM-Signature field in the results
 ```
 
 | Rule | Requirements |
 |---|---|
 | `h=` names each listed field the message has, as often as it has it, plus one more with oversigning. From is always listed | DKS-003 |
 | `h=` names `dkim-signature` once for each such field at signing time, and never for the new one | DKS-006 |
-| `t=` comes from the verification time, `x=` from the expiration, and no `l=` is written | DKS-004 |
+| `t=` comes from the signing time of the signing options, `x=` from the expiration, and no `l=` is written | DKS-004 |
 | Each `DkimSigning` gives one field, so RSA and Ed25519 can sign together | DKS-002 |
 | Only the header fields to add come back | DKS-005 |
 
