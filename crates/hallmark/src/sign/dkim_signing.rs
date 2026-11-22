@@ -4,10 +4,10 @@ use crate::*;
 
 /// One DKIM-Signature field to add (DKS-002).
 ///
-/// The caller builds it with [`DkimSigning::new`] and sets the other public
-/// fields, and [`Options::dkim_signing`] holds it. [`Check::new`] checks it
-/// (VAL-220 to VAL-228). `t=` comes from [`Options::time`] (DKS-004), and
-/// hallmark never writes `l=`.
+/// The signing caller builds it with [`DkimSigning::new`] and sets the other
+/// public fields, and [`SigningOptions::dkim`] holds it. [`Signing::new`]
+/// checks it (VAL-220 to VAL-228). `t=` comes from [`SigningOptions::time`]
+/// (DKS-004), and hallmark never writes `l=`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DkimSigning {
@@ -49,7 +49,7 @@ impl DkimSigning {
     /// - `selector`: `s=`, as bytes.
     /// - `statement`: the signer's algorithm and public key.
     ///
-    /// Building the value checks nothing. [`Check::new`] checks it.
+    /// Building the value checks nothing. [`Signing::new`] checks it.
     ///
     /// Requirements: DKS-002.
     pub fn new(domain: String, selector: Vec<u8>, statement: SignerStatement) -> DkimSigning {
