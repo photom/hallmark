@@ -1,6 +1,6 @@
 # Detailed design
 
-The detailed design of hallmark: its modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, the flows of SPF, DKIM, DKIM2 and DMARC, and the Authentication-Results field. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, the [API reference](https://photom.github.io/hallmark/api/hallmark/) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
+The detailed design of hallmark: its crates and modules, its domain model, the lifecycle of each object, its concurrency model, its limits, its threat model, the flows that parse and canonicalize a message, the flows of SPF, DKIM, DKIM2 and DMARC, and the Authentication-Results field. [Requirements](../requirements.md) say what hallmark must do, [Architecture](../../explanation/architecture.md) explains why the parts fit together the way they do, in an external and an internal view, the [API reference](https://photom.github.io/hallmark/api/hallmark/) gives each method with its validation rules and error codes, and the [ADRs](../../adr/README.md) record each decision.
 
 ## Contents
 
@@ -11,7 +11,8 @@ The detailed design of hallmark: its modules, its domain model, the lifecycle of
 
 | Document | Content | Diagrams |
 |---|---|---|
-| [modules.md](modules.md) | Crates, layers and bounded contexts, modules, the inside of the check and of each protocol context, trace code owners, dependency rules, SOLID, features and outside crates | Flowcharts, sequence diagram |
+| [crates.md](crates.md) | The external side of the module design: the crates of the workspace, the public interface, the traits a caller implements, features and outside crates | Flowchart |
+| [modules.md](modules.md) | The internal side of the module design: layers and bounded contexts, modules, the inside of the check and of each protocol context, trace code owners, dependency rules, SOLID | Flowcharts, sequence diagram |
 | [domain-model.md](domain-model.md) | Bounded contexts, entities, value objects and invariants | Context map, class diagrams |
 | [lifecycle.md](lifecycle.md) | States and transitions of a check, its requests, its signing, the canonicalizer, the trace output and the driver, and how long each object lives | State diagrams |
 | [concurrency.md](concurrency.md) | Threads, `Send` and `Sync`, parallel checks, the driver's concurrency, cancellation and memory | Flowchart, sequence diagram |
