@@ -82,7 +82,6 @@ classDiagram
         +bool several_author_domains
         +List~DkimSigning~ dkim_signing
         +Option~Dkim2Signing~ dkim2_signing
-        +bool verify_signatures
     }
     class Kind {
         <<enumeration>>
@@ -147,7 +146,7 @@ classDiagram
 
 | Part | Holds | Requirements |
 |---|---|---|
-| `Options` | Everything the caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014, SGN-006 |
+| `Options` | Everything the caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014 |
 | `Inputs` | A write-once slot for each input that the check keeps: the envelope, the parsed envelope and the header section. The check sets each slot when its input is complete, the header section at the end of the header fields, and nothing changes it after that | CHK-004, INV-017 |
 | `Envelope` | The SMTP envelope as the caller passed it, before parsing | GEN-002 |
 | `ParsedEnvelope` | The client IP address, the HELO name as a host, MAIL FROM as a path and each RCPT TO as a path | ADS-020 to ADS-022 |
