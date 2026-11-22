@@ -5,7 +5,7 @@ What hallmark looks like from outside: the systems around it, what a caller hand
 ## Contents
 
 - [The parts](#the-parts)
-- [The caller drives each check](#the-caller-drives-each-check)
+- [The caller drives each check and signing](#the-caller-drives-each-check-and-signing)
 - [Streaming](#streaming)
 - [Header fields](#header-fields)
 - [Addresses](#addresses)
@@ -42,7 +42,7 @@ hallmark is a library, so it reports and its callers act. A DMARC result carries
 
 [Crates](../reference/design/crates.md) lists the crates of the workspace, the public interface of the `hallmark` crate, and the traits that a caller implements.
 
-## The caller drives each check
+## The caller drives each check and signing
 
 A check is a state machine. The caller feeds it input in the order mail arrives, and the check answers with the DNS questions it needs next. It never waits: when it needs an answer it doesn't have, it says so and returns. DMARC under RFC 7489 also asks for the public suffix of each domain it compares, and the caller answers from the list it keeps, so the caller chooses the list and updates it while it runs ([ADR 0038](../adr/0038-in-rfc-7489-mode-the-caller-answers-public-suffix-questions.md)).
 
@@ -118,7 +118,7 @@ A DKIM2 hop that changes a message records a recipe for undoing the change, and 
 
 ## The trace
 
-A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it. Each step goes out as one event, which carries the step's position in the tree: the path of child numbers from the root. Each kind of check, and the header section that the checks share, has a fixed slot under the root, so a DMARC alignment step can point at the SPF or DKIM result it used, even when that check ran in another call.
+A trace is a tree of steps. Each step holds what was checked, the inputs, the outcome, and the section of the RFC or draft that required it. Each step goes out as one event, which carries the step's position in the tree: the path of child numbers from the root. Each kind of check and of signing, and the header section that they share, has a fixed slot under the root, so a DMARC alignment step can point at the SPF or DKIM result it used, even when that check ran in another call.
 
 ```mermaid
 flowchart TD
@@ -136,10 +136,10 @@ flowchart TD
     align -.->|"uses the result of"| sig
 ```
 
-At the full level, each event goes out as soon as its step finishes. A milter can write the events to its log while the check runs, and a check that stalls on a DNS answer still leaves everything it recorded. DNS answers arrive in any order, so the events do too, but a step's position comes only from the inputs: sorted by position, the events give the same trace in the same bytes every time. At the summary level, hallmark holds the events back and sends only the path that decided each result, once the check finishes. Every event carries the ID that the caller gave the message, such as the MTA's queue ID, which joins the trace with the MTA's and the milter's logs. Each event is one I-JSON text in a JSON text sequence, as the [trace format](../reference/trace-format.md) describes, with a version of its own ([ADR 0033](../adr/0033-trace-events-are-i-json-texts-in-a-json-text-sequence.md)).
+At the full level, each event goes out as soon as its step finishes. A milter can write the events to its log while the check runs, and a check that stalls on a DNS answer still leaves everything it recorded. DNS answers arrive in any order, so the events do too, but a step's position comes only from the inputs: sorted by position, the events give the same trace in the same bytes every time. At the summary level, hallmark holds the events back and sends only the path that decided each result, once the check or the signing finishes. Every event carries the ID that the caller gave the message, such as the MTA's queue ID, which joins the trace with the MTA's and the milter's logs. Each event is one I-JSON text in a JSON text sequence, as the [trace format](../reference/trace-format.md) describes, with a version of its own ([ADR 0033](../adr/0033-trace-events-are-i-json-texts-in-a-json-text-sequence.md)).
 
 Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. A fact that a specification warns about, such as a signature that passed with a 1024-bit RSA key, carries a caution that cites the section. Each step holds codes and parameters, and the words a person reads come from them, so tests match codes and the demo can show the trace in another language. Values that a sender or a DNS publisher controls carry a mark, and whoever displays them escapes them for their output. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes, counts and places, never as content: a caller that wants to see what a check hashed passes the body through the library's canonicalizer ([ADR 0041](../adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)). Private keys never appear at all. [Internal architecture](internal-architecture.md#recording-the-trace) shows who records each step.
 
 ## Where hallmark-milter fits
 
-hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks and feeds each piece to a hallmark check, and also to a hallmark signing when it signs the mail. It resolves DNS with a native resolver and adds the Authentication-Results field and the signatures at the end of the message. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).
+hallmark-milter is a separate program that depends on the published hallmark crate. It receives mail from rust-milter's callbacks and feeds each piece to a hallmark check, and also to a hallmark signing when it signs the mail. It resolves DNS with a native resolver. When the message ends, it adds the Authentication-Results field and the signatures at the top of the header section, because RFC 8601 §5 requires Authentication-Results to be prepended and RFC 6376 §5.6 puts a new DKIM-Signature field above the older ones. Its own constraints, such as the leading space that MTAs strip from header values and the header size limits of the next hop, are listed in [requirements.md](../reference/requirements.md#relationship-to-hallmark-milter).
