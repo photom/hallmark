@@ -13,6 +13,7 @@ hallmark checks whether a message comes from the domain it claims, and explains 
 - [Reading DNS records](#reading-dns-records)
 - [DKIM2 chains in one pass](#dkim2-chains-in-one-pass)
 - [The trace](#the-trace)
+- [How the code is divided](#how-the-code-is-divided)
 - [Where hallmark-milter fits](#where-hallmark-milter-fits)
 
 ## The parts
@@ -185,6 +186,22 @@ flowchart TD
 At the full level, each event goes out as soon as its step finishes. A milter can write the events to its log while the check runs, and a check that stalls on a DNS answer still leaves everything it recorded. DNS answers arrive in any order, so the events do too, but a step's position comes only from the inputs: sorted by position, the events give the same trace in the same bytes every time. At the summary level, hallmark holds the events back and sends only the path that decided each result, once the check finishes. Every event carries the ID that the caller gave the message, such as the MTA's queue ID, which joins the trace with the MTA's and the milter's logs. Each event is one I-JSON text in a JSON text sequence, as the [trace format](../reference/trace-format.md) describes ([ADR 0033](../adr/0033-trace-events-are-i-json-texts-in-a-json-text-sequence.md)).
 
 Because the trace comes from the deciding code, it can't disagree with the result. Facts and hints stay apart: a fact says what the check found, and a hint is a labeled guess about the cause, such as a mailing list footer that changed the body. A fact that a specification warns about, such as a signature that passed with a 1024-bit RSA key, carries a caution that cites the section. Each step holds codes and parameters, and the words a person reads come from them, so tests match codes and the demo can show the trace in another language. Values that a sender or a DNS publisher controls carry a mark, and whoever displays them escapes them for their output. The caller chooses how much to record. At the off level, the trace costs nothing, which matters for a milter that checks mail all day. The body appears as hashes, counts and places, never as content: a caller that wants to see what a check hashed passes the body through the library's canonicalizer ([ADR 0041](../adr/0041-the-trace-records-places-in-the-body-and-a-separate-api-streams-the-canonical-body.md)). Private keys never appear at all.
+
+## How the code is divided
+
+The code follows the specifications. SPF, DKIM, DKIM2 and DMARC each have a module tree of their own, with the words of their specification, and no protocol uses another. A new DKIM2 draft or a DMARC erratum then changes one tree. What several protocols share, such as the header section, tag lists, addresses and cryptography, sits below the protocols, and the trace recorder, the limits and a few helpers sit below everything. The check sits above the protocols and drives them, and the driver, the blocking adapters, snapshots and the memory signer sit above the check. Dependencies point only downward ([ADR 0059](../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
+
+```mermaid
+flowchart TB
+    adapters["Adapters: driver, io, snapshot, keys"] --> application["Application: check, Authentication-Results, canonicalizer, renderer"]
+    application --> protocols["Protocols: SPF, DKIM, DKIM2, DMARC"]
+    protocols --> supporting["Shared parts: message, tag lists, addresses, exchange values, cryptography"]
+    supporting --> kernel["Kernel: trace, limits, time, helpers"]
+```
+
+A check fixes most of what it holds. The options decide, when the caller creates the check, which evaluations it runs, and that set never changes. Each input that the check keeps, such as the envelope or the header section, goes into a slot that takes one value and never gives it up. Only the evaluations' own states move. To follow a check, you read one state machine at a time: the check's own for the order of the input, and each protocol's for its steps ([ADR 0060](../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)).
+
+No protocol sees the values of another protocol, and none sees a question ID. DMARC gets authenticated identifiers from the check, which builds them from the SPF and DKIM results. A protocol asks for a DNS record by type and name, and the check's question table numbers the questions and hands the answers back. Each protocol also owns its trace codes, and the English renderer, which has to know all of them, sits with the check ([ADR 0061](../adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
 ## Where hallmark-milter fits
 
