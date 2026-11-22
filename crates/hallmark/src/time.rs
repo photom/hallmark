@@ -71,3 +71,19 @@ impl core::fmt::Display for TimeError {
 }
 
 impl std::error::Error for TimeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_201_time_takes_at_most_twelve_digits() {
+        let largest = VerificationTime::from_unix_seconds(999_999_999_999).unwrap();
+        assert_eq!(largest.unix_seconds(), 999_999_999_999);
+
+        let error = VerificationTime::from_unix_seconds(1_000_000_000_000).unwrap_err();
+        assert_eq!(error, TimeError::OutOfRange);
+        assert_eq!(error.code(), "time.out_of_range");
+        assert!(error.to_string().starts_with("time.out_of_range"));
+    }
+}

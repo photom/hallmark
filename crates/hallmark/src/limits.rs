@@ -468,3 +468,127 @@ impl core::fmt::Display for LimitsError {
 }
 
 impl std::error::Error for LimitsError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_202_comment_depth_takes_1_to_256() {
+        let mut limits = Limits::default();
+        let out_of_range = LimitsError::OutOfRange {
+            limit: Limit::CommentDepth,
+        };
+        assert_eq!(limits.set_comment_depth(0), Err(out_of_range.clone()));
+        assert_eq!(limits.set_comment_depth(257), Err(out_of_range.clone()));
+        assert_eq!(limits.comment_depth(), 16);
+        assert_eq!(limits.set_comment_depth(256), Ok(()));
+        assert_eq!(limits.comment_depth(), 256);
+
+        assert_eq!(out_of_range.code(), "limits.out_of_range");
+        let text = out_of_range.to_string();
+        assert!(text.starts_with("limits.out_of_range"));
+        assert!(text.contains("comment_depth"));
+    }
+
+    #[test]
+    fn api_203_header_field_size_stays_within_header_section_size() {
+        let mut limits = Limits::default();
+        assert_eq!(limits.header_section_size(), 1_048_576);
+        assert_eq!(limits.set_header_field_size(2_000_000), Err(LimitsError::Conflict));
+        assert_eq!(limits.header_field_size(), 65_536);
+        assert_eq!(limits.set_header_section_size(2_000_000), Ok(()));
+        assert_eq!(limits.set_header_field_size(2_000_000), Ok(()));
+        assert_eq!(limits.header_field_size(), 2_000_000);
+        assert_eq!(limits.set_header_section_size(1_999_999), Err(LimitsError::Conflict));
+        assert_eq!(LimitsError::Conflict.code(), "limits.conflict");
+        assert!(LimitsError::Conflict.to_string().starts_with("limits.conflict"));
+    }
+
+    #[test]
+    fn api_204_document_depth_takes_1_to_64() {
+        let mut limits = DocumentLimits::default();
+        assert_eq!(
+            limits.set_document_depth(65),
+            Err(LimitsError::OutOfRange {
+                limit: Limit::DocumentDepth,
+            })
+        );
+        assert_eq!(limits.document_depth(), 16);
+        assert_eq!(limits.set_document_depth(64), Ok(()));
+        assert_eq!(limits.document_depth(), 64);
+    }
+
+    #[test]
+    fn prs_006_limits_have_their_documented_defaults() {
+        let limits = Limits::default();
+        let documents = DocumentLimits::default();
+        let defaults = [
+            (limits.header_fields(), 1_000),
+            (limits.header_field_size(), 65_536),
+            (limits.header_section_size(), 1_048_576),
+            (limits.comment_depth(), 16),
+            (limits.mailboxes(), 64),
+            (limits.address_size(), 1_024),
+            (limits.rcpt_to(), 1_000),
+            (limits.rt_entries(), 1_000),
+            (limits.dkim_signatures(), 16),
+            (limits.key_records(), 8),
+            (limits.rsa_key_bits(), 4_096),
+            (limits.rsa_exponent_bits(), 32),
+            (limits.author_domains(), 4),
+            (limits.dns_questions(), 512),
+            (limits.answer_size(), 65_535),
+            (limits.dkim2_signatures(), 32),
+            (limits.message_instances(), 32),
+            (limits.recipe_steps(), 10_000),
+            (limits.recipe_size(), 65_536),
+            (limits.recipe_depth(), 8),
+            (limits.spf_void_lookups(), 2),
+            (limits.trace_size(), 1_048_576),
+            (limits.trace_places(), 16),
+            (documents.pasted_records_size(), 1_048_576),
+            (documents.document_size(), 33_554_432),
+            (documents.document_depth(), 16),
+        ];
+        for (value, default) in defaults {
+            assert_eq!(value, default);
+        }
+    }
+
+    #[test]
+    fn prs_006_limits_have_their_documented_names() {
+        let names = [
+            (Limit::HeaderFields, "header_fields"),
+            (Limit::HeaderFieldSize, "header_field_size"),
+            (Limit::HeaderSectionSize, "header_section_size"),
+            (Limit::CommentDepth, "comment_depth"),
+            (Limit::Mailboxes, "mailboxes"),
+            (Limit::AddressSize, "address_size"),
+            (Limit::RcptTo, "rcpt_to"),
+            (Limit::RtEntries, "rt_entries"),
+            (Limit::DkimSignatures, "dkim_signatures"),
+            (Limit::KeyRecords, "key_records"),
+            (Limit::RsaKeyBits, "rsa_key_bits"),
+            (Limit::RsaExponentBits, "rsa_exponent_bits"),
+            (Limit::AuthorDomains, "author_domains"),
+            (Limit::DnsQuestions, "dns_questions"),
+            (Limit::AnswerSize, "answer_size"),
+            (Limit::Dkim2Signatures, "dkim2_signatures"),
+            (Limit::MessageInstances, "message_instances"),
+            (Limit::RecipeSteps, "recipe_steps"),
+            (Limit::RecipeSize, "recipe_size"),
+            (Limit::RecipeDepth, "recipe_depth"),
+            (Limit::SpfVoidLookups, "spf_void_lookups"),
+            (Limit::TraceSize, "trace_size"),
+            (Limit::TracePlaces, "trace_places"),
+            (Limit::PastedRecordsSize, "pasted_records_size"),
+            (Limit::DocumentSize, "document_size"),
+            (Limit::DocumentDepth, "document_depth"),
+            (Limit::DriverInFlight, "driver_in_flight"),
+        ];
+        for (limit, name) in names {
+            assert_eq!(limit.name(), name);
+        }
+    }
+}
