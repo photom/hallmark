@@ -43,7 +43,7 @@ Repeat this cycle for each test on the list.
 ### Coverage
 
 - Write unit tests for every public function, and run them after each task.
-- Run a linter continuously.
+- Run only `cargo test` in Red and Green. Clippy lints don't run there, so a `todo!()` stub in Red or a quick `unwrap_or` in Green doesn't stop the test run. Run Clippy after Green and fix its findings in Refactor. After Refactor, every check of the procedural-rust skill passes. Never delete or change a Red stub just to please Clippy.
 - End-to-end tests must cover more than the happy path. Include malformed messages and DNS records, temporary DNS failures, and boundary values such as the SPF lookup limits and the trace size limits. Add unsupported algorithms and versions, internationalized addresses and header fields, and the encodings hallmark decodes, such as base64 and dkim-quoted-printable.
 
 ### CI/CD
