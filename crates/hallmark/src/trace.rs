@@ -2,8 +2,11 @@
 //! crate-private, and the English renderer is in the application layer
 //! ([ADR 0061](https://github.com/photom/hallmark/blob/main/docs/adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
-use crate::*;
 use std::net::IpAddr;
+
+// The doc comments link to items of other modules.
+#[cfg(doc)]
+use crate::*;
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -49,6 +52,7 @@ pub enum Level {
 /// | VAL-506 | The events | No two hold the same position | [`trace.position_repeated`](TraceError::PositionRepeated) | TRC-012 | API-506 |
 ///
 /// Requirements: TRC-012.
+#[cfg(doc)]
 pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, TraceError> {
     unimplemented!()
 }
@@ -65,6 +69,7 @@ pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, Trac
 /// body content (TRC-006, TRC-010). Values that a sender or a DNS publisher
 /// controls come out unescaped, and the reader escapes them for its output
 /// (TRC-013).
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Event {
@@ -88,6 +93,7 @@ pub struct Event {
     pub cite: Vec<String>,
 }
 
+#[cfg(doc)]
 impl Event {
     /// Reads one event from one record of a trace.
     ///
@@ -204,6 +210,18 @@ pub struct Data {
     pub from: Parties,
 }
 
+impl Data {
+    /// Appends the value to `out` in the fixed form of
+    /// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#values):
+    /// `text` when the bytes are text that I-JSON can hold, `base64url`
+    /// otherwise, then `from` (TRC-007, TRC-013).
+    #[cfg_attr(not(test), expect(dead_code, reason = "the trace recorder comes later"))]
+    pub(crate) fn write_json(&self, out: &mut Vec<u8>) {
+        let _ = (self, out);
+        unimplemented!()
+    }
+}
+
 /// The parties that control a value (TRC-013). At least one is true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -243,6 +261,7 @@ pub struct Place {
 /// | `trace.too_deep` | [`TooDeep`](Self::TooDeep) | [`sort_trace`], [`Event::parse`] | VAL-503, VAL-511 | PAR-005 |
 /// | `trace.version_unknown` | [`VersionUnknown`](Self::VersionUnknown) | [`sort_trace`], [`Event::parse`] | VAL-504, VAL-511 | TRC-007 |
 /// | `trace.position_repeated` | [`PositionRepeated`](Self::PositionRepeated) | [`sort_trace`] | VAL-506 | TRC-012 |
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceError {
@@ -275,6 +294,7 @@ pub enum TraceError {
     },
 }
 
+#[cfg(doc)]
 impl TraceError {
     /// The error's code, such as `trace.too_large` (STB-001).
     pub fn code(&self) -> &'static str {
@@ -282,10 +302,51 @@ impl TraceError {
     }
 }
 
+#[cfg(doc)]
 impl core::fmt::Display for TraceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         unimplemented!()
     }
 }
 
+#[cfg(doc)]
 impl std::error::Error for TraceError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Writes `bytes` from the sender as a data value.
+    fn written(bytes: &[u8]) -> String {
+        let from = Parties {
+            caller: false,
+            dns: false,
+            sender: true,
+        };
+        let data = Data {
+            bytes: bytes.to_vec(),
+            from,
+        };
+        let mut out = Vec::new();
+        data.write_json(&mut out);
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn step_051_text_is_escaped_as_rfc_8785_says() {
+        let expected = r#"{"text":"a\"b\\c\u001f\té/","from":["sender"]}"#;
+        assert_eq!(written(b"a\"b\\c\x1f\t\xc3\xa9/"), expected);
+    }
+
+    #[test]
+    fn step_052_bytes_that_are_not_utf_8_are_base64url() {
+        let expected = r#"{"base64url":"-_8","from":["sender"]}"#;
+        assert_eq!(written(b"\xfb\xff"), expected);
+    }
+
+    #[test]
+    fn step_053_a_noncharacter_makes_the_value_base64url() {
+        let expected = r#"{"base64url":"77-_","from":["sender"]}"#;
+        assert_eq!(written(b"\xef\xbf\xbf"), expected);
+    }
+}
