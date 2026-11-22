@@ -13,20 +13,37 @@ unsafe_code = "forbid"
 missing_docs = "warn"
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
+# The Clippy lints are denied, so cargo clippy fails on any of them without
+# -D warnings. Clippy lints don't run in cargo build or cargo test (ADR 0064).
+all = { level = "deny", priority = -1 }
 # No message, DNS answer, or record may make hallmark panic. clippy.toml
 # allows these in tests.
-expect_used = "warn"
-indexing_slicing = "warn"
-panic = "warn"
-string_slice = "warn"
-todo = "warn"
-unimplemented = "warn"
-unreachable = "warn"
-unwrap_used = "warn"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+string_slice = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+unwrap_used = "deny"
+# Allocations that the code doesn't need (ADR 0064). needless_collect and
+# redundant_clone are in the nursery group, the other two in the pedantic
+# group, so none of them comes with all.
+implicit_clone = "deny"
+needless_collect = "deny"
+needless_pass_by_value = "deny"
+redundant_clone = "deny"
+# An absent value with more than one meaning is an enum (ADR 0064).
+option_option = "deny"
+# An exception is #[expect(lint, reason = "...")] (ADR 0064).
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+# clippy.toml sets the limits of these two (ADR 0064). excessive_nesting
+# comes with all, and too_many_lines is in the pedantic group.
+too_many_lines = "deny"
 # These lints suggest a method that takes a closure, such as map, filter,
 # find, retain, or entry().or_insert_with(). hallmark writes the match or
-# the loop instead.
+# the loop instead (ADR 0064).
 manual_filter = "allow"
 manual_filter_map = "allow"
 manual_find = "allow"
