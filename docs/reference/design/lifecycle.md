@@ -81,6 +81,14 @@ In every state from Envelope on, the check also accepts an answer to a question 
 | An answer to a question the check never handed out, or a second answer | An error to the caller. The check keeps the first answer | CHK-004 |
 | Taking the results before Finished | The check names what it still waits for, and gives no result | CHK-002 |
 
+The states above cover only the order of the input. The rest of a check has lifecycles of its own, each kept in one place ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)):
+
+| Part | Lifecycle | Kept in |
+|---|---|---|
+| Which evaluations and signings the check runs | None. `Check::new` fixes them from the options (INV-016) | `Evaluations`, `Signings` |
+| Each input that the check keeps: the envelope, the parsed envelope and the header section | Empty until the input is complete, then set once and never changed (INV-017). The header section is complete at the end of the header fields | `Inputs` |
+| Each evaluation and signing | Its own states, from its first state on, even before its input arrives | Its protocol context: [SPF](spf.md#evaluation-without-recursion), [DKIM](dkim.md#one-signature), [DKIM2](dkim2.md#verification), [DMARC](dmarc.md#flow) and [Signing](#signing) |
+
 ## Requests
 
 Questions, public suffix questions and signing requests share one lifecycle.

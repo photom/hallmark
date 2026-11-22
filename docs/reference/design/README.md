@@ -11,7 +11,7 @@ The detailed design of hallmark: its modules, its domain model, the lifecycle of
 
 | Document | Content | Diagrams |
 |---|---|---|
-| [modules.md](modules.md) | Crates, modules, layers, dependency direction, features and outside crates | Flowcharts |
+| [modules.md](modules.md) | Crates, layers and bounded contexts, modules, the inside of the check and of each protocol context, trace code owners, dependency rules, SOLID, features and outside crates | Flowcharts, sequence diagram |
 | [domain-model.md](domain-model.md) | Bounded contexts, entities, value objects and invariants | Context map, class diagrams |
 | [lifecycle.md](lifecycle.md) | States and transitions of a check, its requests, its signing, the canonicalizer, the trace output and the driver, and how long each object lives | State diagrams |
 | [concurrency.md](concurrency.md) | Threads, `Send` and `Sync`, parallel checks, the driver's concurrency, cancellation and memory | Flowchart, sequence diagram |
