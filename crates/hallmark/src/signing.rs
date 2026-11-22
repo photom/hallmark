@@ -1,4 +1,4 @@
-//! The values that signing passes between a check and the caller's signer.
+//! The values that pass between a signing and the signing caller's signer.
 
 use crate::*;
 
@@ -22,9 +22,9 @@ pub enum Algorithm {
 /// What a signer states before it signs: its algorithm and public key
 /// (SGN-003).
 ///
-/// The caller gets it from its signer, or from [`MemorySigner`], and puts it
-/// in [`DkimSigning`] or a DKIM2 signer. [`Check::new`] checks it (VAL-222 to
-/// VAL-225, VAL-234 to VAL-236).
+/// The signing caller gets it from its signer, or from [`MemorySigner`], and
+/// puts it in [`DkimSigning`] or a DKIM2 signer. [`Signing::new`] checks it
+/// (VAL-222 to VAL-225, VAL-234 to VAL-236).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SignerStatement {
@@ -36,7 +36,7 @@ pub struct SignerStatement {
 }
 
 impl SignerStatement {
-    /// Makes the statement of a signer that the caller supplies.
+    /// Makes the statement of a signer that the signing caller supplies.
     ///
     /// # Parameters
     ///
@@ -45,7 +45,7 @@ impl SignerStatement {
     ///   SubjectPublicKeyInfo that holds one, in DER. For Ed25519, 32 octets.
     ///   For ML-DSA-44, 1,312 octets.
     ///
-    /// Building a statement checks nothing. [`Check::new`] checks it.
+    /// Building a statement checks nothing. [`Signing::new`] checks it.
     ///
     /// Requirements: SGN-003.
     pub fn new(algorithm: Algorithm, public_key: Vec<u8>) -> SignerStatement {
@@ -67,13 +67,14 @@ pub enum SigningKind {
     Dkim2,
 }
 
-/// A signature that a check needs from the caller's signer (SGN-002).
+/// A signature that a signing needs from the signing caller's signer
+/// (SGN-002).
 ///
-/// [`Check::take_requests`] gives it inside [`Request::Signing`], and the
-/// caller hands the signer's answer to [`Check::answer_signing`].
+/// [`Signing::take_requests`] gives it, and the signing caller hands the
+/// signer's answer to [`Signing::answer`].
 /// [Lifecycle](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#signing)
-/// gives the states of one signature. The check builds the request, and the
-/// caller reads its fields.
+/// gives the states of one signature. The signing builds the request, and the
+/// signing caller reads its fields.
 ///
 /// The data to sign, and the size of the signature that comes back, depend on
 /// the algorithm:
@@ -86,7 +87,7 @@ pub enum SigningKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SigningRequest {
-    /// Names the request in [`Check::answer_signing`] (CHK-004).
+    /// Names the request in [`Signing::answer`] (CHK-004).
     pub id: RequestId,
     /// The kind of signature (SGN-002).
     pub kind: SigningKind,
@@ -100,15 +101,15 @@ pub struct SigningRequest {
     pub data: Vec<u8>,
 }
 
-/// The ID of a signing request, unique within its check (CHK-004).
+/// The ID of a signing request, unique within its signing (CHK-004).
 ///
-/// The caller gets IDs only from requests: the type has no public field or
-/// constructor.
+/// The signing caller gets IDs only from requests: the type has no public
+/// field or constructor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RequestId(u64);
 
-/// A signature that a signer made, for [`Check::answer_signing`], which
-/// checks it (VAL-140 to VAL-143, SGN-004).
+/// A signature that a signer made, for [`Signing::answer`], which checks it
+/// (VAL-140 to VAL-143, SGN-004).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Signature {
@@ -117,7 +118,7 @@ pub struct Signature {
 }
 
 impl Signature {
-    /// Makes a signature to hand to [`Check::answer_signing`].
+    /// Makes a signature to hand to [`Signing::answer`].
     ///
     /// # Parameters
     ///
@@ -131,8 +132,8 @@ impl Signature {
 
 /// Why a signer couldn't sign (SGN-004).
 ///
-/// The caller hands it to [`Check::answer_signing`], and signing stops with
-/// [`SigningError::SignerFailed`] in the results. The check keeps the
+/// The signing caller hands it to [`Signing::answer`], and signing stops with
+/// [`SignatureError::SignerFailed`] in the results. The signing keeps the
 /// description only in that error, and the trace says that the signer failed,
 /// without the description (SEC-002). [`MemorySigner`] gives one for a broken
 /// rule, whose description names the code: `signer.key_unknown`,
@@ -145,12 +146,12 @@ pub struct SignerFailure {
 }
 
 impl SignerFailure {
-    /// Makes a failure to hand to [`Check::answer_signing`].
+    /// Makes a failure to hand to [`Signing::answer`].
     ///
     /// # Parameters
     ///
-    /// - `description`: text for the caller's logs. The check keeps it out of
-    ///   the trace.
+    /// - `description`: text for the signing caller's logs. The signing keeps
+    ///   it out of the trace.
     ///
     /// Requirements: SGN-004.
     pub fn new(description: String) -> SignerFailure {
