@@ -95,11 +95,7 @@ impl HeaderFieldOut {
     /// | VAL-302 | `offset` | At most the length of the value | [`header_field.offset_out_of_range`](HeaderFieldError::OffsetOutOfRange) | STR-002 | API-302 |
     ///
     /// Requirements: STR-002.
-    pub fn read_value(
-        &self,
-        offset: usize,
-        buffer: &mut [u8],
-    ) -> Result<usize, HeaderFieldError> {
+    pub fn read_value(&self, offset: usize, buffer: &mut [u8]) -> Result<usize, HeaderFieldError> {
         unimplemented!()
     }
 }

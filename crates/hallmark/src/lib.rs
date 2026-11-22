@@ -231,7 +231,9 @@ pub use dmarc::{
 #[cfg(doc)]
 pub use dns::{Answer, Question, QuestionId, QuestionType, Record};
 #[cfg(doc)]
-pub use driver::{DriveError, NoSuffixSource, Resolver, Signer, SuffixSource, drive, drive_signing};
+pub use driver::{
+    DriveError, NoSuffixSource, Resolver, Signer, SuffixSource, drive, drive_signing,
+};
 #[cfg(doc)]
 pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
 #[cfg(doc)]
