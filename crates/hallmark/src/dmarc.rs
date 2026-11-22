@@ -7,7 +7,7 @@ use crate::*;
 ///
 /// [`CheckResults::dmarc`] holds one, or one for each author domain when
 /// [`CheckOptions::several_author_domains`] is on. hallmark computes no policy
-/// from these values: the caller decides what to do with the message
+/// from these values: the verifying caller decides what to do with the message
 /// ([ADR 0020](https://github.com/photom/hallmark/blob/main/docs/adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -78,12 +78,12 @@ pub enum DmarcReason {
         /// The resolver's description.
         description: Option<Vec<u8>>,
     },
-    /// The caller has no public suffix for `domain`, and the result depends
-    /// on its organizational domain, for `Temperror` (DMC-011).
+    /// The verifying caller has no public suffix for `domain`, and the result
+    /// depends on its organizational domain, for `Temperror` (DMC-011).
     SuffixUnavailable {
         /// The domain whose public suffix is unavailable.
         domain: Domain,
-        /// The caller's description.
+        /// The verifying caller's description.
         description: Option<Vec<u8>>,
     },
     /// The check reached a limit, such as `dns_questions`, for `Permerror`
