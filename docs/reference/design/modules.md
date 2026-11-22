@@ -80,7 +80,7 @@ flowchart TB
 | Kernel | Shared helpers, limits, the verification time, the write-once slot, and the trace recorder and event model | The kernel |
 | Supporting contexts | The message, tag lists, addresses and domain names, what the core and the caller exchange, and cryptography | The kernel, and the modules of its own context |
 | Protocol contexts | SPF, DKIM, DKIM2 and DMARC | The kernel and the supporting contexts. Never another protocol context |
-| Application | The `Check` and `Signing` aggregates, Authentication-Results, the public canonicalizer and the English renderer | Every layer below |
+| Application | The `Check` and `Signing` aggregate roots, Authentication-Results, the public canonicalizer and the English renderer | Every layer below |
 | Adapters | The driver and its traits, blocking adapters, snapshots and the signer for keys in memory | Every layer below |
 
 ## Modules of the hallmark crate
