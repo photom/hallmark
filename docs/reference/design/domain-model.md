@@ -6,6 +6,7 @@ The bounded contexts of hallmark, the entities and value objects of each, and th
 
 - [Context map](#context-map)
 - [The check](#the-check)
+- [The signing](#the-signing)
 - [Message and addresses](#message-and-addresses)
 - [What the core and the caller exchange](#what-the-core-and-the-caller-exchange)
 - [Results](#results)
@@ -17,12 +18,16 @@ The bounded contexts of hallmark, the entities and value objects of each, and th
 
 ```mermaid
 flowchart LR
-    caller["Caller"] -->|"open host service"| check["Check"]
+    caller["Verifying caller"] -->|"open host service"| check["Check"]
+    signingCaller["Signing caller"] -->|"open host service"| signing["Signing"]
     check --> spf["SPF"]
     check --> dkim["DKIM"]
     check --> dkim2["DKIM2"]
     check -->|"anti-corruption layer: authenticated identifiers"| dmarc["DMARC"]
     check -->|"anti-corruption layer: question table"| exchange["DNS, public suffix and signing exchange"]
+    signing --> dkim
+    signing --> dkim2
+    signing -->|"signing requests"| exchange
     spf --> addr["Addresses and domain names"]
     dkim --> msg["Message"]
     dkim --> tags["Tag lists"]
@@ -42,11 +47,12 @@ flowchart LR
 
 | Context | Language it owns | Modules | Relationship |
 |---|---|---|---|
-| Check | Check, kind of check, envelope, input, request, results | `check` | Open host service for callers ([ADR 0047](../../adr/0047-one-check-type-runs-any-set-of-checks-and-shares-their-dns-answers.md)) |
+| Check | Check, kind of check, envelope, input, request, results | `check` | Open host service for verifying callers ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)) |
+| Signing | Signing, signing options, signing request, signing outcome | `sign` | Open host service for signing callers ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)) |
 | Message | Header section, header field, malformed line, field form, body chunk, canonical form | `header`, `canonical`, `canonicalizer` | Supplier to DKIM, DKIM2 and DMARC |
 | Tag lists | Tag, tag value, tag list | `tags` | Supplier to DKIM and DKIM2 |
 | Addresses and domain names | Mailbox, path, local part, domain, lookup form, address literal | `address`, `idna`, `ip` | Supplier to SPF, DKIM, DKIM2 and DMARC |
-| Exchange | Question, answer, record, suffix question, suffix answer, signer statement, signing request, signature | `dns`, `suffix`, `signing` | Shared by the core and the caller. The question table of Check translates between it and the protocols ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) |
+| Exchange | Question, answer, record, suffix question, suffix answer, signer statement, signing request, signature | `dns`, `suffix`, `signing` | Shared by the core and the caller. The request tables of Check and Signing translate between it and the protocols ([ADR 0063](../../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)) |
 | Cryptography | Hash, signature verification, key data | `crypto` | Supplier to DKIM, DKIM2 and the memory signer |
 | SPF | Identity, record, term, mechanism, modifier, macro | `spf` | Customer of Addresses |
 | DKIM | Signature, selector, key record, body hash, header hash | `dkim` | Customer of Message |
@@ -59,15 +65,15 @@ flowchart LR
 
 ## The check
 
-`Check` is the aggregate root that a caller creates and feeds. Everything else in the core lives inside it or passes through it.
+`Check` is the aggregate root that a verifying caller creates and feeds. Everything that verification needs lives inside it or passes through it.
 
 ```mermaid
 classDiagram
     class Check {
-        +Options options
+        +CheckOptions options
         +InputState state
     }
-    class Options {
+    class CheckOptions {
         +List~Kind~ kinds
         +DmarcMode dmarc_mode
         +VerificationTime time
@@ -80,8 +86,6 @@ classDiagram
         +SpfSource dmarc_spf
         +DkimSource dmarc_dkim
         +bool several_author_domains
-        +List~DkimSigning~ dkim_signing
-        +Option~Dkim2Signing~ dkim2_signing
     }
     class Kind {
         <<enumeration>>
@@ -90,8 +94,6 @@ classDiagram
         Dkim
         Dkim2
         Dmarc
-        DkimSign
-        Dkim2Sign
     }
     class Envelope {
         +Option~IpAddr~ client_ip
@@ -118,42 +120,34 @@ classDiagram
         -dmarc
         +new(options)
     }
-    class Signings {
-        -dkim
-        -dkim2
-        +new(options)
-    }
     class QuestionTable
     class Recorder
     class HeaderSection
     class BodyPipeline
-    class Results
-    Check "1" *-- "1" Options
+    class CheckResults
+    Check "1" *-- "1" CheckOptions
     Check "1" *-- "1" Inputs
     Check "1" *-- "1" Evaluations
-    Check "1" *-- "1" Signings
     Inputs "1" *-- "0..1" Envelope
     Inputs "1" *-- "0..1" ParsedEnvelope
     Inputs "1" *-- "0..1" HeaderSection
     Check "1" *-- "1" BodyPipeline
     Check "1" *-- "1" QuestionTable
     Check "1" *-- "0..*" SuffixQuestion
-    Check "1" *-- "0..*" SigningRequest
     Check "1" *-- "1" Recorder
-    Options "1" *-- "1..*" Kind
-    Check ..> Results : gives when finished
+    CheckOptions "1" *-- "1..*" Kind
+    Check ..> CheckResults : gives when finished
 ```
 
 | Part | Holds | Requirements |
 |---|---|---|
-| `Options` | Everything the caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014 |
+| `CheckOptions` | Everything the verifying caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014 |
 | `Inputs` | A write-once slot for each input that the check keeps: the envelope, the parsed envelope and the header section. The check sets each slot when its input is complete, the header section at the end of the header fields, and nothing changes it after that | CHK-004, INV-017 |
 | `Envelope` | The SMTP envelope as the caller passed it, before parsing | GEN-002 |
 | `ParsedEnvelope` | The client IP address, the HELO name as a host, MAIL FROM as a path and each RCPT TO as a path | ADS-020 to ADS-022 |
 | `HeaderSection` | The raw header section and the lines found in it | HDR-001, STR-008 |
-| `Evaluations` | One field for each kind of check that verifies. `new` decides which fields hold an evaluation, and an empty field means the caller didn't ask for that kind | GEN-001, INV-016 |
-| `Signings` | One field for DKIM signing and one for DKIM2 signing, under the rules of `Evaluations` | DKS-001, DK2-014, INV-016 |
-| `BodyPipeline` | One canonicalizer and hash state for each distinct body hash that the signatures need, and one rebuild for each DKIM2 recipe | STR-001, DK2-006 |
+| `Evaluations` | One field for each kind of check that verifies. `new` decides which fields hold an evaluation, and an empty field means the verifying caller didn't ask for that kind | GEN-001, INV-016 |
+| `BodyPipeline` | One canonicalizer for each distinct body form that the signatures need, and one rebuild for each DKIM2 recipe. The protocols hash what it gives them | STR-001, DK2-006 |
 | `QuestionTable` | Each question with its state, and its answer in a write-once slot | DNS-007, CHK-004, INV-003 |
 | `Recorder` | The trace events not yet read, within the trace limit | TRC-004, TRC-005 |
 
@@ -164,6 +158,63 @@ DMARC's identifiers come from one of three sources, which `SpfSource` names for 
 | Same check | The SPF or DKIM kind runs in this check | GEN-001 |
 | Earlier results | The caller passes results from another check, each with its position in that check's trace | DMC-005 |
 | None | The caller has no such result, so DMARC has no identifier of that type | RFC 9989 §5.3.3 |
+
+## The signing
+
+`Signing` is the aggregate root that a signing caller creates and feeds ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)). It takes no envelope and asks no DNS question.
+
+```mermaid
+classDiagram
+    class Signing {
+        +SigningOptions options
+        +InputState state
+    }
+    class SigningOptions {
+        +VerificationTime time
+        +Level trace_level
+        +Option~Text~ message_id
+        +Limits limits
+        +FieldForm field_form
+        +List~DkimSigning~ dkim
+        +Option~Dkim2Signing~ dkim2
+    }
+    class SigningInputs {
+        -header_section
+    }
+    class Signings {
+        -dkim
+        -dkim2
+        +new(options)
+    }
+    class SigningResults {
+        +Option~SigningOutcome~ dkim
+        +Option~SigningOutcome~ dkim2
+    }
+    class SigningOutcome {
+        <<enumeration>>
+        Written
+        Stopped
+    }
+    class BodyPipeline
+    class Recorder
+    Signing "1" *-- "1" SigningOptions
+    Signing "1" *-- "1" SigningInputs
+    Signing "1" *-- "1" Signings
+    Signing "1" *-- "1" BodyPipeline
+    Signing "1" *-- "0..*" SigningRequest
+    Signing "1" *-- "1" Recorder
+    Signing ..> SigningResults : gives when finished
+    SigningResults "1" *-- "0..2" SigningOutcome
+```
+
+| Part | Holds | Requirements |
+|---|---|---|
+| `SigningOptions` | Everything the signing caller fixes when it creates the signing: its own copy of the time, the trace level, the message ID, the limits and the field form, and the signatures to add. Nothing changes them later | CHK-006, DKS-002, DK2-003 |
+| `SigningInputs` | A write-once slot for the header section, set at the end of the header fields | CHK-004, INV-017 |
+| `Signings` | One field for DKIM signing and one for DKIM2 signing. `new` decides which fields hold a signing, and an empty field means the signing caller didn't ask for that kind | DKS-001, DK2-014, INV-016 |
+| `BodyPipeline` | One canonicalizer for each body form that the signatures need, and one rebuild for a DKIM2 revision. DKIM and DKIM2 signing hash what it gives them | STR-001, DK2-014 |
+| `SigningRequest` | Each signing request with its state, and its signature in a write-once slot | SGN-002, CHK-004, INV-003 |
+| `SigningOutcome` | The header fields written, or stopped with the `SignatureError` that stopped it | DKS-005, SGN-004 |
 
 ## Message and addresses
 
@@ -289,14 +340,12 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class Results {
+    class CheckResults {
         +Option~SpfResult~ spf_helo
         +Option~SpfResult~ spf_mail_from
         +Option~DkimResults~ dkim
         +Option~Dkim2Result~ dkim2
         +List~DmarcResult~ dmarc
-        +Option~Signing~ dkim_signing
-        +Option~Signing~ dkim2_signing
         +bool time_checks
     }
     class SpfResult {
@@ -349,19 +398,13 @@ classDiagram
         +AlignmentMode mode
         +bool aligned
     }
-    class Signing {
-        <<enumeration>>
-        Written
-        Stopped
-    }
-    Results "1" *-- "0..2" SpfResult
-    Results "1" *-- "0..1" DkimResults
+    CheckResults "1" *-- "0..2" SpfResult
+    CheckResults "1" *-- "0..1" DkimResults
     DkimResults "1" *-- "0..*" DkimResult
     DkimResult "1" *-- "0..*" DkimKeyRecord
-    Results "1" *-- "0..1" Dkim2Result
-    Results "1" *-- "0..*" DmarcResult
+    CheckResults "1" *-- "0..1" Dkim2Result
+    CheckResults "1" *-- "0..*" DmarcResult
     DmarcResult "1" *-- "0..*" Alignment
-    Results "1" *-- "0..2" Signing
 ```
 
 | Result | Values | Requirements |
@@ -371,7 +414,6 @@ classDiagram
 | `Dkim2State` | `NONE`, `PASS`, `FAIL`, `PERMERROR`, `TEMPERROR`, with the text of draft-09 §14 | DK2-013 |
 | `DmarcOutcome` | `pass`, `fail`, `none`, `temperror`, `permerror`, or not applied with the reason | DMC-002, DMC-006 |
 | `PolicyTag` | `p`, `sp` or `np` with its published value, undetermined, or no policy | DMC-006, REC-032 |
-| `Signing` | The header fields written, or stopped with the error that stopped it | DKS-005, SGN-004 |
 
 Each result carries a typed reason (GEN-004) and its position in the trace, so another check can point at it (DMC-005).
 
@@ -423,14 +465,18 @@ classDiagram
 |---|---|---|---|---|
 | Check | `Check` | Aggregate root | Check | CHK-001 |
 | Kind of check | `Kind` | Value | Check | GEN-001 |
-| Options | `Options` | Value | Check | PAR-004, TRC-004 |
+| Check options | `CheckOptions` | Value | Check | PAR-004, TRC-004 |
 | Envelope | `Envelope` | Value | Check | GEN-002 |
-| Request | `Request` | Value: a question, a suffix question or a signing request | Check | CHK-001 |
-| Results | `Results` | Value | Check | GEN-004 |
-| Inputs | `Inputs` | Write-once slots inside a check | Check | CHK-004 |
+| Request | `Request` | Value: a question or a suffix question | Check | CHK-001 |
+| Check results | `CheckResults` | Value | Check | GEN-004 |
+| Signing | `Signing` | Aggregate root | Signing | CHK-006 |
+| Signing options | `SigningOptions` | Value | Signing | CHK-006 |
+| Signing results | `SigningResults` | Value | Signing | DKS-005 |
+| Signing outcome | `SigningOutcome` | Value: the header fields written, or the error that stopped signing | Signing | DKS-005, SGN-004 |
+| Inputs | `Inputs`, `SigningInputs` | Write-once slots inside a check or a signing | Check, Signing | CHK-004 |
 | Parsed envelope | `ParsedEnvelope` | Value | Check | ADS-020 to ADS-022 |
 | Evaluations | `Evaluations` | The evaluations a check runs, fixed when it is created | Check | GEN-001 |
-| Signings | `Signings` | The signings a check runs, fixed when it is created | Check | DKS-001, DK2-014 |
+| Signings | `Signings` | The signings a signing runs, fixed when it is created | Signing | DKS-001, DK2-014 |
 | Write-once slot | `WriteOnce` | Holds one value or none, and keeps the first value it gets | Kernel | CHK-004 |
 | Verification time | `VerificationTime` | Value: seconds since 1970-01-01T00:00:00Z | Kernel | TIM-001 |
 | Limits | `Limits` | Value | Kernel | SAF-002 |
@@ -448,7 +494,7 @@ classDiagram
 | Answer | `Answer` | Value | Exchange | DNS-002 |
 | Suffix question and answer | `SuffixQuestion`, `SuffixAnswer` | Entity and value | Exchange | DMC-010 |
 | Signer statement | `SignerStatement` | Value | Exchange | SGN-003 |
-| Signing request | `SigningRequest` | Entity inside a check | Exchange | SGN-002 |
+| Signing request | `SigningRequest` | Entity inside a signing | Exchange | SGN-002 |
 | Signature | `Signature` | Value | Exchange | SGN-004 |
 | Memory signer | `MemorySigner` | Entity that holds keys | Exchange | SGN-005 |
 | Authenticated identifier | `AuthenticatedIdentifier` | Value: a domain and the position of the SPF or DKIM result it came from | DMARC | DMC-005 |
@@ -472,10 +518,10 @@ classDiagram
 | INV-008 | A step's position depends only on the inputs | Positions come from the order the specifications fix and the order of the input | TRC-012 |
 | INV-009 | Results don't depend on the trace level or the trace limits | The recorder never feeds back into a decision | TRC-004, TRC-005 |
 | INV-010 | A caller error, a signer error or a stream error never becomes a protocol result | Errors and results are separate types | CHK-004, SGN-004, STR-006 |
-| INV-011 | A check holds no private key | Signing goes through signing requests | SGN-001 |
+| INV-011 | A check or a signing holds no private key | Signing goes through signing requests | SGN-001 |
 | INV-012 | Bytes that a sender or a DNS publisher controls enter the trace only as data values that name those parties | `Data` is the only trace value that holds such bytes | TRC-013 |
 | INV-013 | The result and the sorted trace don't depend on when answers arrive, how the caller groups them, or where body chunks are cut | INV-001, INV-008 and the canonicalizer | CHK-003 |
-| INV-014 | Signing writes a header field only after the signature has the size its algorithm gives and, if the caller asked, verifies | The signing states ([lifecycle.md](lifecycle.md#signing)) | SGN-004, SGN-006 |
-| INV-015 | Options don't change after the check is created | `Check` takes them by value and exposes no setter | SGN-006 |
-| INV-016 | The kinds of check that a check runs don't change after it is created | `Evaluations::new` and `Signings::new` alone fill their fields, and no method gives `&mut Option<T>` ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) | GEN-001 |
-| INV-017 | An input doesn't change once the check holds it | The write-once slots of `Inputs`, input values that hallmark builds with only `&self` methods, and evaluations that read inputs by shared reference ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)) | CHK-003, CHK-004 |
+| INV-014 | Signing writes a header field only after the signature has the size its algorithm gives and, if `verify` is on, verifies | The signing states ([lifecycle.md](lifecycle.md#signing)) | SGN-004, SGN-006 |
+| INV-015 | Options don't change after the check or the signing is created | `Check` and `Signing` take them by value and expose no setter | SGN-006 |
+| INV-016 | The kinds that a check or a signing runs don't change after it is created | `Evaluations::new` and `Signings::new` alone fill their fields, and no method gives `&mut Option<T>` ([ADR 0063](../../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)) | GEN-001, CHK-006 |
+| INV-017 | An input doesn't change once the check or the signing holds it | The write-once slots of `Inputs` and `SigningInputs`, input values that hallmark builds with only `&self` methods, and evaluations that read inputs by shared reference ([ADR 0063](../../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)) | CHK-003, CHK-004 |
