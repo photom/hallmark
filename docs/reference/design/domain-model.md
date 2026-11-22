@@ -143,7 +143,7 @@ classDiagram
 |---|---|---|
 | `CheckOptions` | Everything the verifying caller fixes when it creates the check. Nothing changes them later | GEN-001, TIM-002, TRC-004, TRC-014 |
 | `Inputs` | A write-once slot for each input that the check keeps: the envelope, the parsed envelope and the header section. The check sets each slot when its input is complete, the header section at the end of the header fields, and nothing changes it after that | CHK-004, INV-017 |
-| `Envelope` | The SMTP envelope as the caller passed it, before parsing | GEN-002 |
+| `Envelope` | The SMTP envelope as the verifying caller passed it, before parsing | GEN-002 |
 | `ParsedEnvelope` | The client IP address, the HELO name as a host, MAIL FROM as a path and each RCPT TO as a path | ADS-020 to ADS-022 |
 | `HeaderSection` | The raw header section and the lines found in it | HDR-001, STR-008 |
 | `Evaluations` | One field for each kind of check that verifies. `new` decides which fields hold an evaluation, and an empty field means the verifying caller didn't ask for that kind | GEN-001, INV-016 |
@@ -156,8 +156,8 @@ DMARC's identifiers come from one of three sources, which `SpfSource` names for 
 | Source | Meaning | Requirement |
 |---|---|---|
 | Same check | The SPF or DKIM kind runs in this check | GEN-001 |
-| Earlier results | The caller passes results from another check, each with its position in that check's trace | DMC-005 |
-| None | The caller has no such result, so DMARC has no identifier of that type | RFC 9989 §5.3.3 |
+| Earlier results | The verifying caller passes results from another check, each with its position in that check's trace | DMC-005 |
+| None | The verifying caller has no such result, so DMARC has no identifier of that type | RFC 9989 §5.3.3 |
 
 ## The signing
 
@@ -478,9 +478,9 @@ classDiagram
 | Evaluations | `Evaluations` | The evaluations a check runs, fixed when it is created | Check | GEN-001 |
 | Signings | `Signings` | The signings a signing runs, fixed when it is created | Signing | DKS-001, DK2-014 |
 | Write-once slot | `WriteOnce` | Holds one value or none, and keeps the first value it gets | Kernel | CHK-004 |
-| Verification time | `VerificationTime` | Value: seconds since 1970-01-01T00:00:00Z | Kernel | TIM-001 |
+| Verification time | `VerificationTime` | Value: seconds since 1970-01-01T00:00:00Z, which a signing takes as its signing time | Kernel | TIM-001, DKS-004 |
 | Limits | `Limits` | Value | Kernel | SAF-002 |
-| Header section | `HeaderSection` | Entity inside a check | Message | HDR-001 |
+| Header section | `HeaderSection` | Entity inside a check or a signing | Message | HDR-001 |
 | Header field | `HeaderField` | Value | Message | HDR-001 |
 | Malformed line | `MalformedLine` | Value | Message | HDR-004 |
 | Field form | `FieldForm` | Value: LF or CRLF between folded lines, and whether a leading space was removed | Message | STR-008, STR-009 |
@@ -511,7 +511,7 @@ classDiagram
 | INV-001 | A check holds each question type and lookup name once, and every step that needs the answer reads the same one | The question table, keyed by type and name | DNS-007 |
 | INV-002 | A question ID is unique within its check | The question table, which numbers questions in order | DNS-007 |
 | INV-003 | Each question takes one answer. A second answer, or an answer to an ID the check never handed out, gives an error and leaves the check as it was | The question table's states ([lifecycle.md](lifecycle.md#requests)), and the write-once slot of each entry | CHK-004 |
-| INV-004 | The check keeps no reference to a body chunk after the call that passed it returns | Input methods borrow the chunk and keep only state | STR-007 |
+| INV-004 | A check or a signing keeps no reference to a body chunk after the call that passed it returns | Input methods borrow the chunk and keep only state | STR-007 |
 | INV-005 | Memory doesn't grow with the body | Canonicalizer states of fixed size, and hash states | STR-001, SAF-004 |
 | INV-006 | A domain name has a lookup form only if the conversion to A-labels succeeded and its labels fit RFC 1035 | The constructor of `Domain` | ADS-002, ADS-004 |
 | INV-007 | No question names an address literal | `Host` keeps literals apart from domains | ADS-005 |
