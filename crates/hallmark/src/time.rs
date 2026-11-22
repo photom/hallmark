@@ -1,6 +1,7 @@
 //! The verification time, which a signing also takes as its signing time.
 
-use crate::*;
+/// The largest `t=` of twelve digits (RFC 6376 §3.5, HDR-013).
+const LARGEST_SECONDS: u64 = 999_999_999_999;
 
 /// A time in seconds since 1970-01-01T00:00:00Z: for a check, the time the
 /// message was received, and for a signing, the signing time.
@@ -34,14 +35,17 @@ impl VerificationTime {
     ///
     /// Requirements: TIM-001.
     pub fn from_unix_seconds(seconds: u64) -> Result<VerificationTime, TimeError> {
-        unimplemented!()
+        if seconds > LARGEST_SECONDS {
+            return Err(TimeError::OutOfRange);
+        }
+        Ok(VerificationTime { seconds })
     }
 
     /// The seconds the time was made from.
     ///
     /// Requirements: TIM-001.
     pub fn unix_seconds(self) -> u64 {
-        unimplemented!()
+        self.seconds
     }
 }
 
@@ -60,14 +64,37 @@ pub enum TimeError {
 impl TimeError {
     /// The error's code, such as `time.out_of_range` (STB-001).
     pub fn code(&self) -> &'static str {
-        unimplemented!()
+        match self {
+            TimeError::OutOfRange => "time.out_of_range",
+        }
     }
 }
 
 impl core::fmt::Display for TimeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        unimplemented!()
+        match self {
+            TimeError::OutOfRange => {
+                let text = "time.out_of_range: the time is over 999,999,999,999 seconds";
+                f.write_str(text)
+            }
+        }
     }
 }
 
 impl std::error::Error for TimeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_201_time_takes_at_most_twelve_digits() {
+        let largest = VerificationTime::from_unix_seconds(999_999_999_999).unwrap();
+        assert_eq!(largest.unix_seconds(), 999_999_999_999);
+
+        let error = VerificationTime::from_unix_seconds(1_000_000_000_000).unwrap_err();
+        assert_eq!(error, TimeError::OutOfRange);
+        assert_eq!(error.code(), "time.out_of_range");
+        assert!(error.to_string().starts_with("time.out_of_range"));
+    }
+}

@@ -6,8 +6,8 @@
 //! a stream, the time, DNS answers and signatures. The same code runs natively
 //! and in WebAssembly.
 //!
-//! No item is implemented yet. Each item on these pages is a declaration that
-//! only rustdoc compiles
+//! Most items aren't implemented yet. Each of them is a declaration that only
+//! rustdoc compiles
 //! ([ADR 0052](https://github.com/photom/hallmark/blob/main/docs/adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md)),
 //! and the names are a first draft until the first release (STB-001).
 //!
@@ -195,7 +195,6 @@ mod header;
 pub mod io;
 #[cfg(doc)]
 mod keys;
-#[cfg(doc)]
 mod limits;
 #[cfg(doc)]
 mod parse;
@@ -211,7 +210,6 @@ mod snapshot;
 mod spf;
 #[cfg(doc)]
 mod suffix;
-#[cfg(doc)]
 mod time;
 #[cfg(doc)]
 mod trace;
@@ -249,7 +247,8 @@ pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, Line
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
 #[cfg(doc)]
-pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
+pub use limits::Limits;
+pub use limits::{DocumentLimits, Limit, LimitsError};
 #[cfg(doc)]
 pub use parse::ParseError;
 #[cfg(doc)]
@@ -267,7 +266,6 @@ pub use snapshot::{DocumentError, PastedRecords, Snapshot, SnapshotResolver};
 pub use spf::{SpfIdentity, SpfOutcome, SpfReason, SpfResult};
 #[cfg(doc)]
 pub use suffix::{SuffixAnswer, SuffixQuestion};
-#[cfg(doc)]
 pub use time::{TimeError, VerificationTime};
 #[cfg(doc)]
 pub use trace::{
