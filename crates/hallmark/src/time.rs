@@ -28,10 +28,10 @@ impl VerificationTime {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
-    /// | VAL-201 | `seconds` | At most 999,999,999,999, the largest `t=` of twelve digits | [`options.time_out_of_range`](OptionsError::TimeOutOfRange) | TIM-001, DKS-004, RFC 6376 §3.5 | API-201 |
+    /// | VAL-201 | `seconds` | At most 999,999,999,999, the largest `t=` of twelve digits | [`time.out_of_range`](TimeError::OutOfRange) | TIM-001, DKS-004, RFC 6376 §3.5 | API-201 |
     ///
     /// Requirements: TIM-001.
-    pub fn from_unix_seconds(seconds: u64) -> Result<VerificationTime, OptionsError> {
+    pub fn from_unix_seconds(seconds: u64) -> Result<VerificationTime, TimeError> {
         unimplemented!()
     }
 
@@ -42,3 +42,30 @@ impl VerificationTime {
         unimplemented!()
     }
 }
+
+/// The error of [`VerificationTime::from_unix_seconds`] (TIM-001).
+///
+/// | Code | Variant | Given by | Rules | Requirements |
+/// |---|---|---|---|---|
+/// | `time.out_of_range` | [`OutOfRange`](Self::OutOfRange) | [`VerificationTime::from_unix_seconds`] | VAL-201 | TIM-001 |
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TimeError {
+    /// `time.out_of_range`: a time over 999,999,999,999 seconds.
+    OutOfRange,
+}
+
+impl TimeError {
+    /// The error's code, such as `time.out_of_range` (STB-001).
+    pub fn code(&self) -> &'static str {
+        unimplemented!()
+    }
+}
+
+impl core::fmt::Display for TimeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        unimplemented!()
+    }
+}
+
+impl std::error::Error for TimeError {}

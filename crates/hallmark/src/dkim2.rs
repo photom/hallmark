@@ -7,8 +7,8 @@ use crate::*;
 /// The result of DKIM2 verification (DK2-013). Available with the
 /// `unstable-dkim2` feature.
 ///
-/// [`Results::dkim2`] holds it. hallmark builds it, and the caller reads its
-/// fields.
+/// [`CheckResults::dkim2`] holds it. hallmark builds it, and the verifying
+/// caller reads its fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Dkim2Result {

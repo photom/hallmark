@@ -50,7 +50,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0044](0044-a-dkim-signature-that-breaks-the-s-flag-of-its-key-gets-permfail-domain-mismatch.md) | A DKIM signature that breaks the `s` flag of its key gets PERMFAIL (domain mismatch) | Accepted |
 | [0045](0045-the-hallmark-package-is-licensed-mit-and-unicode-3-0-and-its-source-data-stays-outside-it.md) | The hallmark package is licensed MIT AND Unicode-3.0, and its source data stays outside it | Accepted |
 | [0046](0046-dmarc-asks-whether-the-author-domain-exists-only-when-np-can-change-the-policy.md) | DMARC asks whether the author domain exists only when `np` can change the policy | Superseded by ADR 0050 |
-| [0047](0047-one-check-type-runs-any-set-of-checks-and-shares-their-dns-answers.md) | One check type runs any set of checks and shares their DNS answers | Accepted |
+| [0047](0047-one-check-type-runs-any-set-of-checks-and-shares-their-dns-answers.md) | One check type runs any set of checks and shares their DNS answers | Superseded by ADR 0062 |
 | [0048](0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md) | The resolver, the suffix source and the signer return futures that are `Send` | Accepted |
 | [0049](0049-hallmark-depends-on-cryptography-crates-zeroize-and-thiserror-and-writes-everything-else-itself.md) | hallmark depends on cryptography crates, `zeroize` and `thiserror`, and writes everything else itself | Accepted |
 | [0050](0050-dmarc-asks-whether-the-author-domain-exists-when-np-can-change-the-policy-and-needs-the-answer-only-for-a-message-that-fails.md) | DMARC asks whether the author domain exists when `np` can change the policy, and needs the answer only for a message that fails | Accepted |
@@ -63,8 +63,10 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0057](0057-the-conversion-to-a-labels-runs-the-contexto-rules.md) | The conversion to A-labels runs the CONTEXTO rules | Accepted |
 | [0058](0058-test-names-are-under-test.md) | Test names are under `.test` | Accepted |
 | [0059](0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md) | The modules of the hallmark crate are bounded contexts in five layers | Accepted |
-| [0060](0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md) | A check fixes its evaluations when created, and each input once it arrives | Accepted |
+| [0060](0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md) | A check fixes its evaluations when created, and each input once it arrives | Superseded by ADR 0063 |
 | [0061](0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md) | Each context owns its trace codes, and the English renderer sits in the application layer | Accepted |
+| [0062](0062-verification-and-signing-have-separate-entry-types.md) | Verification and signing have separate entry types | Accepted |
+| [0063](0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md) | Checks and signings fix their evaluations when created, and each input once it arrives | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.

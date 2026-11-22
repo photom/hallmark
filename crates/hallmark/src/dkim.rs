@@ -5,8 +5,8 @@ use crate::*;
 
 /// The results of DKIM verification (DKV-001).
 ///
-/// [`Results::dkim`] holds them. hallmark builds them, and the caller reads
-/// their fields.
+/// [`CheckResults::dkim`] holds them. hallmark builds them, and the verifying
+/// caller reads their fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DkimResults {

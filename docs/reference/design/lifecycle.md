@@ -1,6 +1,6 @@
 # Lifecycle
 
-The states of each object that lives longer than one call: a check, its requests, its signing, the canonicalizer, the trace output and the driver, and how long each object stays in memory. [Concurrency](concurrency.md) covers threads and cancellation.
+The states of each object that lives longer than one call: a check, a signing, their requests, each signature, the canonicalizer, the trace output and the driver, and how long each object stays in memory. [Concurrency](concurrency.md) covers threads and cancellation.
 
 ## Contents
 
@@ -20,7 +20,6 @@ sequenceDiagram
     participant Caller
     participant Check
     participant Resolver as Caller's resolver
-    participant Signer as Caller's signer
     Caller->>Check: create with options
     Caller->>Check: envelope
     Check-->>Caller: SPF questions
@@ -35,10 +34,6 @@ sequenceDiagram
     Caller->>Check: answers, in any order
     Check-->>Caller: follow-up questions, such as an SPF include
     Caller->>Check: end of message
-    Check-->>Caller: signing requests
-    Caller->>Signer: sign
-    Signer-->>Caller: signatures
-    Caller->>Check: signatures
     Caller->>Check: read trace bytes, at any time
     Caller->>Check: take the results once finished
 ```
@@ -59,7 +54,7 @@ stateDiagram-v2
     Body --> Body : body chunk
     Body --> Ended : end of message
     Ended --> Finished : no request waiting or taken
-    Finished --> [*] : caller takes the results
+    Finished --> [*] : verifying caller takes the results
 ```
 
 A check whose kinds are all SPF needs only the envelope, so it moves from Created to Ended when the envelope arrives (CHK-001, DNS-005).
@@ -70,10 +65,10 @@ A check whose kinds are all SPF needs only the envelope, so it moves from Create
 | Envelope | One header field (STR-008), the raw header section, the end of header fields, or the whole message | Headers, Body or Ended | As for Body, once the header section is complete |
 | Headers | One header field, or the end of header fields | Headers or Body | None |
 | Body | A body chunk, or the end of the message | Body or Ended | DKIM and DKIM2 key questions, DKIM2 Domain Policy Record questions, DMARC policy questions, and in RFC 7489 mode public suffix questions for the author domain and each DKIM `d=` domain (DNS-005) |
-| Ended | None of the message input | Finished | Signing requests, and questions that follow from answers, such as SPF follow-ups, the DMARC tree walk and the author domain question of REC-032 |
+| Ended | None of the message input | Finished | Questions that follow from answers, such as SPF follow-ups, the DMARC tree walk and the author domain question of REC-032 |
 | Finished | None | | None |
 
-In every state from Envelope on, the check also accepts an answer to a question it handed out, a public suffix answer and a signature, and these can make new requests appear. Reading trace bytes is allowed in every state.
+In every state from Envelope on, the check also accepts an answer to a question it handed out and a public suffix answer, and these can make new requests appear. Reading trace bytes is allowed in every state.
 
 | Input that breaks the order | What happens | Requirement |
 |---|---|---|
@@ -92,9 +87,9 @@ stateDiagram-v2
     [*] --> Waiting : a step needs it
     Waiting --> Taken : caller takes it
     Taken --> Answered : caller answers it
-    Answered --> [*] : check finishes or is dropped
-    Waiting --> [*] : check is dropped
-    Taken --> [*] : check is dropped
+    Answered --> [*] : check or signing finishes or is dropped
+    Waiting --> [*] : check or signing is dropped
+    Taken --> [*] : check or signing is dropped
 ```
 
 | Event | Rule | Requirement |
@@ -107,6 +102,50 @@ stateDiagram-v2
 
 ## Signing
 
+A signing takes no envelope and asks no DNS question, so its states start at the header fields ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)).
+
+```mermaid
+sequenceDiagram
+    participant Caller as Signing caller
+    participant Signing
+    participant Signer as Signing caller's signer
+    Caller->>Signing: create with signing options
+    Caller->>Signing: header fields, then their end
+    loop each body chunk
+        Caller->>Signing: body chunk
+    end
+    Caller->>Signing: end of message
+    Signing-->>Caller: signing requests
+    Caller->>Signer: sign
+    Signer-->>Caller: signatures
+    Caller->>Signing: signatures
+    Caller->>Signing: take the results once finished
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created : create with valid signing options
+    Created --> Headers : header field
+    Headers --> Headers : header field
+    Created --> Body : header section, or end of header fields
+    Headers --> Body : end of header fields
+    Created --> Ended : whole message
+    Body --> Body : body chunk
+    Body --> Ended : end of message
+    Ended --> Finished : no signing request waiting or taken
+    Finished --> [*] : signing caller takes the results
+```
+
+| State | Input it accepts | Next state | Requests that can appear |
+|---|---|---|---|
+| Created | One header field (STR-008), the raw header section, the end of header fields, or the whole message | Headers, Body or Ended | None |
+| Headers | One header field, or the end of header fields | Headers or Body | None |
+| Body | A body chunk, or the end of the message | Body or Ended | None |
+| Ended | None of the message input | Finished | Signing requests |
+| Finished | None | | None |
+
+In every state, the signing also accepts a signature for a request it handed out, and reading trace bytes is allowed. Input that breaks the order gives an error, as it does for a check (CHK-004, CHK-006).
+
 Each signature that the options ask for follows these states. DKIM2 signing with several algorithms has one signing request for each.
 
 ```mermaid
@@ -116,7 +155,7 @@ stateDiagram-v2
     Hashing --> Requested : end of message, data to sign ready
     Requested --> Checking : signature handed back
     Requested --> Stopped : signer failure handed back
-    Checking --> Written : right size, and verified if the caller asked
+    Checking --> Written : right size, and verified if verify is on
     Checking --> Stopped : wrong size, or verification failed
     Written --> [*]
     Stopped --> [*]
@@ -124,12 +163,12 @@ stateDiagram-v2
 
 | State | Meaning | Requirements |
 |---|---|---|
-| Ready | The options gave the signer statement, and the check accepted its algorithm and key | SGN-003 |
+| Ready | The options gave the signer statement, and the signing accepted its algorithm and key | SGN-003 |
 | Hashing | The body streams through the body hashes the signature needs | STR-001 |
 | Requested | The signing request is waiting or taken | SGN-002 |
-| Checking | The size check, then verification if the caller turned it on for this call | SGN-004, SGN-006 |
+| Checking | The size check, then verification if `verify` is on in the signing options | SGN-004, SGN-006 |
 | Written | The header field is ready, and the results carry it | DKS-005, STR-009 |
-| Stopped | Signing for that kind of check stops with an error that names the signer. No header field of that kind comes out, and the other kinds still finish | SGN-004, SGN-006 |
+| Stopped | That kind of signing stops with an error that names the signer. No header field of that kind comes out, and the other kind still finishes | SGN-004, SGN-006 |
 
 ## Trace output
 
@@ -139,7 +178,7 @@ flowchart LR
     level -->|"off"| nothing["Nothing is kept"]
     level -->|"full"| out["Event bytes go to the output at once"]
     level -->|"summary"| held["Event is held"]
-    held --> fin["Check finishes"]
+    held --> fin["Check or signing finishes"]
     fin --> pick["The deciding paths and the cautions go to the output, in position order"]
     out --> read["Caller reads bytes in chunks"]
     pick --> read
@@ -147,7 +186,7 @@ flowchart LR
 
 | Rule | Requirements |
 |---|---|
-| At the full level, the root event goes out last, when the check finishes. At the summary level, it goes out first | [Trace format](../trace-format.md#levels-and-order) |
+| At the full level, the root event goes out last, when the check or the signing finishes. At the summary level, it goes out first | [Trace format](../trace-format.md#levels-and-order) |
 | Every byte the recorder writes counts toward `trace_size`, whether the caller has read it or not | TRC-005 |
 | When the limit is reached, the recorder writes nothing more, and the root event says the trace was cut short. Results don't change | TRC-005, INV-009 |
 | At the off level, the recorder allocates nothing | TRC-004 |
@@ -169,16 +208,16 @@ A body chunk after the end of the body gives an error. The output doesn't depend
 
 ## Driver
 
-The driver runs a check until no request is open (CHK-005).
+`drive` runs a check, and `drive_signing` a signing, until no request is open (CHK-005).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Collecting : drive the check
+    [*] --> Collecting : drive the check or the signing
     Collecting --> Awaiting : requests taken and futures started
     Awaiting --> Delivering : a future completes
-    Delivering --> Collecting : answer handed to the check
+    Delivering --> Collecting : answer handed over
     Collecting --> Done : no request open
-    Delivering --> Failed : the check refuses an answer
+    Delivering --> Failed : the check refuses an answer, which a signing never does
     Done --> [*]
     Failed --> [*]
     Awaiting --> [*] : caller drops the driver's future
@@ -186,19 +225,19 @@ stateDiagram-v2
 
 | Rule | Requirements |
 |---|---|
-| The driver hands each answer to the check in the order its future completes. The result and the sorted trace stay the same | CHK-003, CHK-005 |
-| A signer failure is an answer like any other: the check stops that signing and the driver goes on | SGN-004 |
+| A driver hands each answer over in the order its future completes. The result and the sorted trace stay the same | CHK-003, CHK-005 |
+| A signer failure is an answer like any other: the signing stops that kind of signing, and `drive_signing` goes on | SGN-004 |
 | The driver reads no clock. The caller's resolver applies its own time limits | DNS-009 |
 
 ## How long objects live
 
 | Object | Created by | Owned by | Freed | Bound on its size |
 |---|---|---|---|---|
-| `Check` | The caller | The caller | When the caller drops it | [Limits](limits.md) |
-| Body chunk | The caller | The caller | When the call that passed it returns | None. The check copies no chunk (STR-007) |
-| Header section | The check, from the input | The check | With the check | `header_section_size` |
+| `Check`, `Signing` | The caller | The caller | When the caller drops it | [Limits](limits.md) |
+| Body chunk | The caller | The caller | When the call that passed it returns | None. No chunk is copied (STR-007) |
+| Header section | The check or the signing, from the input | The check or the signing | With it | `header_section_size` |
 | Question and its answer | A step that needs it, and the caller's answer | The check. The caller gets a copy of the question | With the check | `dns_questions`, `answer_size` |
-| Signing request data | The check, at the end of the message | The check. The caller gets a copy | With the check | `header_section_size` (SGN-002) |
-| Trace bytes not yet read | The recorder | The check | When the caller reads them | `trace_size` |
-| `Results` | The check, when it finishes | The caller | When the caller drops them | The limits of the check that made them |
+| Signing request data | The signing, at the end of the message | The signing. The signing caller gets a copy | With the signing | `header_section_size` (SGN-002) |
+| Trace bytes not yet read | The recorder | The check or the signing | When the caller reads them | `trace_size` |
+| `CheckResults`, `SigningResults` | The check or the signing, when it finishes | The caller | When the caller drops them | The limits of the value that made them |
 | Private key | The caller, inside a `MemorySigner` or its own signer | The signer | When the signer is dropped, zeroed (SEC-001) | |

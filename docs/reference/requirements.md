@@ -101,7 +101,7 @@ Out of scope:
 
 | ID | Requirement |
 |---|---|
-| GEN-001 | A caller can run each check (SPF, DKIM, DKIM2, DMARC) on its own, or run all of them in one call that feeds the SPF and DKIM results into DMARC. |
+| GEN-001 | A verifying caller can run each check (SPF, DKIM, DKIM2, DMARC) on its own, or run all of them in one call that feeds the SPF and DKIM results into DMARC. |
 | GEN-002 | Checks take the message as bytes in RFC 5322 form, plus envelope data: the client IP address, the HELO name, the MAIL FROM address and the RCPT TO addresses. DKIM2's chain-of-custody check uses MAIL FROM and RCPT TO (draft-09 §14.4). SPF can also take the name of the receiving host for its `%{r}` macro (REC-014). |
 | GEN-003 | DKIM and DKIM2 accept a message as a stream (STR-001). A caller with the whole message can pass it in one piece. |
 | GEN-004 | Every result is a typed value that carries a machine-readable reason: which mechanism matched, why a signature failed, which domain aligned. |
@@ -110,15 +110,16 @@ Out of scope:
 
 ### Running a check
 
-A check is a value the caller drives, so the same core runs under any async runtime, in blocking code and in the browser ([ADR 0017](../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)).
+A check and a signing (CHK-006) are values that their callers drive, so the same core runs under any async runtime, in blocking code and in the browser ([ADR 0017](../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md)).
 
 | ID | Requirement |
 |---|---|
-| CHK-001 | The caller passes a check the envelope, then the header fields, then the body in chunks, then the end of the message. The body may come in no chunks at all, as for a message with an empty or missing body, which still has a body hash (RFC 6376 §3.4.3 and §3.4.4, draft-09 §6.1). Only the end of the message tells the check that the body is complete. After each input, the check lists the DNS questions, public suffix questions (DMC-010) and signing requests (SGN-001) it now has, and the caller answers them whenever it has the answers. SPF needs only the envelope (DNS-005). |
+| CHK-001 | The verifying caller passes a check the envelope, then the header fields, then the body in chunks, then the end of the message. The body may come in no chunks at all, as for a message with an empty or missing body, which still has a body hash (RFC 6376 §3.4.3 and §3.4.4, draft-09 §6.1). Only the end of the message tells the check that the body is complete. After each input, the check lists the DNS questions and public suffix questions (DMC-010) it now has, and the caller answers them whenever it has the answers. SPF needs only the envelope (DNS-005). |
 | CHK-002 | A check finishes when its input is complete and every answer it needs has arrived, and it then returns its result and its trace. A caller that stops waiting for an answer reports a temporary failure for that question (DNS-009). |
 | CHK-003 | A check's result and its sorted trace depend only on its inputs: not on when answers arrive, how the caller groups them, or where body chunks are cut (TRC-012, STR-005). |
 | CHK-004 | Input that the check can't accept, such as a body chunk before the header fields end, an answer to a question it never asked, or a second answer to the same question, gives an error to the caller. It never turns into a protocol result. |
-| CHK-005 | The driver of DNS-003 runs a check to the end with a resolver, in RFC 7489 mode a source of public suffixes (DMC-010), and for signing a signer, each of which the caller implements. It may resolve several questions at once, and the result and trace stay the same (CHK-003). |
+| CHK-005 | The driver of DNS-003 runs a check to the end with a resolver and, in RFC 7489 mode, a source of public suffixes (DMC-010), each of which the verifying caller implements. A second driver runs a signing to the end with a signer that the signing caller implements (SGN-001). Each driver may handle several requests at once, and the result and trace stay the same (CHK-003). |
+| CHK-006 | Signing runs in a value of its own, apart from any check ([ADR 0062](../adr/0062-verification-and-signing-have-separate-entry-types.md)). The signing caller passes it the header fields, then the body in chunks, then the end of the message, and no envelope. After each input, it lists the signing requests (SGN-001) it now has. Its options hold only what signing needs: the signatures to add, the signing time, the trace level, the message ID, the limits and the form of header field values. CHK-002 to CHK-004 apply to it as they do to a check. |
 
 ### SPF (RFC 7208)
 
@@ -156,9 +157,9 @@ A check is a value the caller drives, so the same core runs under any async runt
 | ID | Requirement |
 |---|---|
 | DKS-001 | The library signs with `rsa-sha256` and `ed25519-sha256`, through a signer (SGN-001). It refuses RSA keys under 1024 bits. |
-| DKS-002 | A caller can add more than one signature to a message, for example RSA and Ed25519 together, as RFC 8463 suggests. |
-| DKS-003 | The caller chooses the canonicalizations and the header fields to sign. The library has a default header list, always signs From (RFC 6376 §5.4), and can oversign: sign one more instance of a field than the message has, so that a later added instance breaks the signature. DKIM-Signature is the exception (DKS-006). |
-| DKS-004 | The library sets `t=` from the verification time parameter. `x=` is optional. It never sets `l=`. |
+| DKS-002 | A signing caller can add more than one signature to a message, for example RSA and Ed25519 together, as RFC 8463 suggests. |
+| DKS-003 | The signing caller chooses the canonicalizations and the header fields to sign. The library has a default header list, always signs From (RFC 6376 §5.4), and can oversign: sign one more instance of a field than the message has, so that a later added instance breaks the signature. DKIM-Signature is the exception (DKS-006). |
+| DKS-004 | The library sets `t=` from the signing time in the signing options (CHK-006). `x=` is optional. It never sets `l=`. |
 | DKS-005 | Signing returns only the header fields to add, and the caller puts them in the message. The library never returns the whole signed message, because it can compute a signature only after the body has streamed past (STR-001). |
 | DKS-006 | A signature that hallmark makes never includes its own DKIM-Signature field in `h=` (RFC 6376 §3.5 and §3.7). If the caller asks to sign DKIM-Signature fields, `h=` names `dkim-signature` once for each DKIM-Signature field in the message at signing time, and oversigning (DKS-003) adds no extra name for it, because §5.4 allows the name only to sign preexisting signatures. An extra name would select the new field at verification and break the signature (HCN-004, [ADR 0028](../adr/0028-dkim-h-selection-counts-the-signatures-own-dkim-signature-field.md)). |
 
@@ -168,12 +169,12 @@ Signing hands the data to sign to a signer and takes the signature back, as DNS 
 
 | ID | Requirement |
 |---|---|
-| SGN-001 | The caller supplies the signer. A signer can keep its key in memory, in a hardware security module or in a remote key service, and it can answer at once or later. The core never holds a key that an outside signer keeps. |
+| SGN-001 | The signing caller supplies the signer. A signer can keep its key in memory, in a hardware security module or in a remote key service, and it can answer at once or later. The core never holds a key that an outside signer keeps. |
 | SGN-002 | The signer gets the data its algorithm signs: the SHA-256 hash for `rsa-sha256`, signed with RSASSA-PKCS1-v1_5 (RFC 6376 §3.3.2, draft-09 §3.2, RFC 8017 §8.2); the SHA-256 hash for `ed25519-sha256`, which Ed25519 takes as its message (RFC 8463 §3, draft-09 §3.3); and the whole signing input, unhashed, with the context string `DKIM2`, for `mldsa44` (draft-09 §3.4). The header field limits of SAF-002 bound the size of that input. |
 | SGN-003 | Before signing, a signer states its algorithm and public key. The core refuses an RSA key under 1024 bits (RFC 8301 §3.2, draft-09 §3.2), and for DKIM2 an RSA key whose public exponent isn't 65537 (draft-09 §3.2). |
 | SGN-004 | The core checks that each signature it gets back has the size that its algorithm and key give. A signer error or a signature of the wrong size stops signing with an error that names the signer, never a protocol result. |
 | SGN-005 | The library ships a signer for keys held in memory, which tests and the demo use (DEM-006). Its key types follow SEC-001 to SEC-003. It signs ML-DSA-44 with the hedged variant that draft-09 §3.4 recommends, taking a random value from the caller for each signature. |
-| SGN-006 | The caller can turn on, for each call, verification of the signatures that the signer returns. The core then verifies each signature with the public key that the signer stated (SGN-003) before it writes the header field, and a signature that doesn't verify stops signing with an error that names the signer, as in SGN-004. Verification is off by default. hallmark keeps no state from one call to the next, so a caller that runs for a long time can turn verification on or off for the next message without a restart ([ADR 0042](../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)). |
+| SGN-006 | The signing caller can turn on, for each signing, verification of the signatures that the signer returns. The core then verifies each signature with the public key that the signer stated (SGN-003) before it writes the header field, and a signature that doesn't verify stops signing with an error that names the signer, as in SGN-004. Verification is off by default. hallmark keeps no state from one signing to the next, so a signing caller that runs for a long time can turn verification on or off for the next message without a restart ([ADR 0042](../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)). |
 
 ### DKIM2
 
@@ -240,7 +241,7 @@ The trace is the main feature. It records every step a check takes, with the rul
 | TRC-011 | Each step carries a kind, a code and, when the code has them, an outcome and parameters, such as a domain name, a tag value or a count. [Trace codes](trace-codes.md) lists every code ([ADR 0034](../adr/0034-trace-step-codes-are-strings-listed-in-a-reference-page.md)). The text a person reads is rendered from the codes and parameters. The library renders English, and a caller can render another language, as the demo may. The human-readable strings of draft-09 §14 (DK2-013) keep a parameter of their own, in the words the draft gives them. |
 | TRC-012 | A step's position depends only on the inputs: the order that the specifications fix and the order of items in the input, never the order in which DNS answers arrive or where the body chunks are cut. An answer sits under the step whose question it answers, SPF terms follow their record, DKIM signatures follow the header section, and a step that finishes when the body ends, such as the assumption of DK2-008, stays under the step it belongs to. At the full level, events go out as their steps finish, so their order can differ between runs. Sorted by position, with each parent before its children, the same inputs give the same events in the same bytes, and the sorted events are the trace. The library offers the sort. |
 | TRC-013 | The trace marks each value that a sender or a DNS publisher controls: header field values, addresses, DNS record contents, the SPF explanation string (RFC 7208 §6.2), macro expansions and recipe content. The mark sits in the value itself, so a reader finds it even under a code it doesn't know. The library escapes nothing, because the right escaping depends on where a value is shown. [Trace format](trace-format.md#values) tells readers, the demo included, to escape marked values for their output, and to show an SPF explanation as coming from a third party, as RFC 7208 §6.2 asks. |
-| TRC-014 | The caller can give a check an ID for the message, such as the MTA's queue ID, and every event of its trace carries it, so an operator can join hallmark's events with the MTA's and the milter's logs. The ID isn't the Message-ID header field, and hallmark never makes one up (IO-001). |
+| TRC-014 | The caller can give a check or a signing an ID for the message, such as the MTA's queue ID, and every event of its trace carries it, so an operator can join hallmark's events with the MTA's and the milter's logs. The ID isn't the Message-ID header field, and hallmark never makes one up (IO-001). |
 
 What the trace shows for each protocol:
 

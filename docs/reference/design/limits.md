@@ -26,7 +26,7 @@ A limit never makes hallmark panic (SAF-001), and every trace step for a limit n
 
 ## Limits of a check
 
-The caller sets these in `Limits`, part of the options of each check (PAR-004).
+The caller sets these in `Limits`, part of the options of each check and each signing (PAR-004).
 
 | Limit | Default | Range | Counts | Checked by | When input reaches it | Why this default | Requirements |
 |---|---|---|---|---|---|---|---|
@@ -40,7 +40,7 @@ The caller sets these in `Limits`, part of the options of each check (PAR-004).
 | `rt_entries` | 1,000 | 1 to 100,000 | Entries in one DKIM2 `rt=` tag | DKIM2 | PERMERROR | As `rcpt_to` | SAF-002 |
 | `dkim_signatures` | 16 | 1 to 1,000 | DKIM-Signature fields verified, in header order | DKIM | Each signature after the limit gets PERMFAIL with a reason that names the limit | RFC 6376 §6.1 lets a verifier limit them | DKV-004 |
 | `key_records` | 8 | 1 to 100 | Key records at one DKIM selector | DKIM | PERMFAIL before hallmark tries any record | RFC 6376 §3.6.2.2 leaves several records at one selector undefined | REC-052 |
-| `rsa_key_bits` | 4,096 | 1,024 to 16,384 | Bits of an RSA modulus | Key decoding, signer statements | DKIM PERMFAIL, DKIM2 PERMERROR. A signer statement over the limit gives an error when the check is created | RFC 8301 §3.2 requires verifiers to handle keys up to 4,096 bits | DKV-003 |
+| `rsa_key_bits` | 4,096 | 1,024 to 16,384 | Bits of an RSA modulus | Key decoding, signer statements | DKIM PERMFAIL, DKIM2 PERMERROR. A signer statement over the limit gives an error when the signing is created | RFC 8301 §3.2 requires verifiers to handle keys up to 4,096 bits | DKV-003 |
 | `rsa_exponent_bits` | 32 | 2 to 16,384 | Bits of an RSA public exponent in a DKIM key | Key decoding | PERMFAIL with a step that cites RFC 6376 §8.13 | Holds 65537 and any common exponent | REC-051, [ADR 0043](../../adr/0043-rsa-public-exponents-have-a-size-limit-in-dkim-and-must-be-65537-in-dkim2.md) |
 | `author_domains` | 4 | 1 to 100 | Author domains evaluated when the caller asks for several | DMARC | DMARC isn't applied, and the result names the limit | Each domain costs up to nine questions | DMC-002 |
 | `dns_questions` | 512 | 1 to 100,000 | Distinct questions in one check | Question table | The kind that needed the question gives its permanent error: SPF `permerror`, PERMFAIL for the DKIM signature, DKIM2 PERMERROR, DMARC `permerror` | Above the most that mail within every other limit needs: two SPF evaluations of about 120 questions each, 16 DKIM keys, the keys and policies of DKIM2, and four DMARC walks | SAF-002 |
@@ -69,8 +69,8 @@ A snapshot of a check within every default limit fits in `document_size`: 512 an
 
 | Rule | When broken |
 |---|---|
-| `header_field_size` is at most `header_section_size` | Error when the check is created |
-| Every value lies in its range | Error when the check, the reader or the driver is created |
+| `header_field_size` is at most `header_section_size` | Error when the check or the signing is created |
+| Every value lies in its range | Error when the check, the signing, the reader or the driver is created |
 
 ## Limits the specifications fix
 

@@ -5,8 +5,8 @@ use crate::*;
 
 /// The result of DMARC for one author domain (DMC-002, DMC-006).
 ///
-/// [`Results::dmarc`] holds one, or one for each author domain when
-/// [`Options::several_author_domains`] is on. hallmark computes no policy
+/// [`CheckResults::dmarc`] holds one, or one for each author domain when
+/// [`CheckOptions::several_author_domains`] is on. hallmark computes no policy
 /// from these values: the caller decides what to do with the message
 /// ([ADR 0020](https://github.com/photom/hallmark/blob/main/docs/adr/0020-test-modes-are-reported-and-the-caller-decides-what-they-mean.md)).
 #[derive(Debug, Clone, PartialEq, Eq)]

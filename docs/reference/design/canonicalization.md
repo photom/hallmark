@@ -39,7 +39,7 @@ flowchart LR
 | The pipeline has one canonicalizer for each distinct mode and `l=` that the signatures need, and one hash state for each hash algorithm on its output | STR-001, INV-005 |
 | Every chunk passes through every canonicalizer once, so no check reads the body twice | STR-010 |
 | DKIM2 rebuilds each earlier version that a recipe describes in the same pass | DK2-006 |
-| Signing and verification share the pipeline | STR-001 |
+| A check and a signing each hold a pipeline of the same code, which the `canonical` module provides, so signing hashes a body exactly as verification does | STR-001, [ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md) |
 
 ## Body rules
 
