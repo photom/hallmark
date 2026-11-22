@@ -1,14 +1,15 @@
-//! The limits of a check and of the APIs outside a check.
+//! The limits of a check or a signing, and of the APIs outside them.
 
 use crate::*;
 
-/// The limits of one check (SAF-002, PAR-004).
+/// The limits of one check or one signing (SAF-002, PAR-004).
 ///
-/// [`Options::limits`] holds one, and [`Canonicalizer::new`] and
-/// [`AuthenticationResults::parse`] read the limits that apply to them. Each
-/// limit has a getter, named after it, and a setter, named `set_` and the
-/// limit. A setter takes the new value and checks it, so a `Limits` value is
-/// always valid, and an API that takes one checks nothing more about it.
+/// [`CheckOptions::limits`] and [`SigningOptions::limits`] hold one, and
+/// [`Canonicalizer::new`] and [`AuthenticationResults::parse`] read the limits
+/// that apply to them. Each limit has a getter, named after it, and a setter,
+/// named `set_` and the limit. A setter takes the new value and checks it, so
+/// a `Limits` value is always valid, and an API that takes one checks nothing
+/// more about it.
 /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check) gives each limit's default,
 /// range and effect. Every value fits in `u32`.
 ///
@@ -29,7 +30,7 @@ pub struct Limits {
 }
 
 impl Default for Limits {
-    /// Every limit of a check at the default that
+    /// Every limit of a check or a signing at the default that
     /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check) gives (PAR-004).
     fn default() -> Limits {
         unimplemented!()
