@@ -152,7 +152,7 @@ mod address;
 #[cfg(doc)]
 mod authres;
 #[cfg(doc)]
-mod canonical;
+mod canonicalizer;
 #[cfg(doc)]
 mod check;
 #[cfg(doc)]
@@ -176,6 +176,8 @@ mod limits;
 #[cfg(doc)]
 mod parse;
 #[cfg(doc)]
+mod render;
+#[cfg(doc)]
 mod signing;
 #[cfg(doc)]
 mod snapshot;
@@ -193,7 +195,7 @@ pub use address::Domain;
 #[cfg(doc)]
 pub use authres::{AuthResError, AuthenticationResults, AuthservId, MethodResult, Property};
 #[cfg(doc)]
-pub use canonical::{
+pub use canonicalizer::{
     Canonicalizer, CanonicalizerError, CanonicalizerMode, Finish, Progress, Rebuild,
 };
 #[cfg(doc)]
