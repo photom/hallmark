@@ -135,7 +135,7 @@ impl std::error::Error for ResultsError {}
 /// |---|---|---|---|---|---|
 /// | `signing.signer_failed` | [`SignerFailed`](Self::SignerFailed) | [`Check::answer_signing`] | | SGN-004 | SIGN-008 |
 /// | `signing.wrong_size` | [`WrongSize`](Self::WrongSize) | [`Check::answer_signing`] | VAL-142 | SGN-004 | SIGN-007 |
-/// | `signing.not_verified` | [`NotVerified`](Self::NotVerified) | [`Check::answer_signing`], with `verify_signatures` on | VAL-143 | SGN-006 | SIGN-016 |
+/// | `signing.not_verified` | [`NotVerified`](Self::NotVerified) | [`Check::answer_signing`], with `verify` on in the signing options | VAL-143 | SGN-006 | SIGN-016 |
 /// | `signing.header_limit` | [`HeaderLimit`](Self::HeaderLimit) | The end of the header section | | SAF-002 | SIGN-027 |
 /// | `signing.exploded_first_signature` | [`ExplodedFirstSignature`](Self::ExplodedFirstSignature) | The end of the header section | | draft-09 §12.5 | SIGN-026 |
 /// | `signing.revision_mismatch` | [`RevisionMismatch`](Self::RevisionMismatch) | The end of the message | | DK2-014 | SIGN-022, SIGN-023 |

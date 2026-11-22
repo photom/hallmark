@@ -353,7 +353,7 @@ impl Check {
     /// | VAL-140 | `id` | Names a signing request that [`Check::take_requests`] gave | [`check.unknown_request`](CheckError::UnknownRequest) | CHK-004 | API-140 |
     /// | VAL-141 | `id` | The request has no answer yet | [`check.already_answered`](CheckError::AlreadyAnswered) | CHK-004 | API-141 |
     /// | VAL-142 | `answer` | An `Ok` signature has the size that its algorithm and the stated key give | Not an error: signing stops with [`signing.wrong_size`](SigningError::WrongSize) in the results | SGN-004 | SIGN-007 |
-    /// | VAL-143 | `answer` | An `Ok` signature verifies with the stated public key, when `verify_signatures` is on | Not an error: signing stops with [`signing.not_verified`](SigningError::NotVerified) in the results | SGN-006 | SIGN-016 |
+    /// | VAL-143 | `answer` | An `Ok` signature verifies with the stated public key, when `verify` is on in its [`DkimSigning`] or `Dkim2Signing` | Not an error: signing stops with [`signing.not_verified`](SigningError::NotVerified) in the results | SGN-006 | SIGN-016 |
     ///
     /// Requirements: SGN-004.
     pub fn answer_signing(
