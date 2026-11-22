@@ -10,11 +10,11 @@ mod dkim_signing;
 mod options;
 mod results;
 
+pub use dkim_signing::{CanonAlgorithm, DkimCanonicalization, DkimSigning};
 #[cfg(feature = "unstable-dkim2")]
 pub use dkim2_signing::{
     BodyRevision, Dkim2Flags, Dkim2Signer, Dkim2Signing, EarlierLines, FieldRevision, Revision,
 };
-pub use dkim_signing::{CanonAlgorithm, DkimCanonicalization, DkimSigning};
 pub use options::{DkimSource, DmarcMode, Kind, Options, OptionsError, SpfSource};
 pub use results::{HeaderFieldOut, Results, ResultsError, Signing, SigningError};
 
