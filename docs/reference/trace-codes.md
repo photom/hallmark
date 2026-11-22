@@ -119,7 +119,7 @@ Each code has an entry with these fields:
 
 ## Slots under the root
 
-Each kind of check has a fixed slot under the root, which it keeps whether or not the other checks run in the same call, and the header section has one too. So a position names the same step in every call (GEN-001, DMC-005).
+Each kind of check and of signing has a fixed slot under the root, which it keeps whether or not the others run in the same call, and the header section has one too. So a position names the same step in every call (GEN-001, DMC-005). A check's trace uses the slots `[1]` to `[5]` and `[8]`, and a signing's trace the slots `[6]` to `[8]` ([ADR 0062](../adr/0062-verification-and-signing-have-separate-entry-types.md)).
 
 | Position | Code | Step |
 |---|---|---|
@@ -131,7 +131,7 @@ Each kind of check has a fixed slot under the root, which it keeps whether or no
 | `[5]` | `dmarc` | DMARC evaluation |
 | `[6]` | `dkim.sign` | DKIM signing, with each signature it makes as a child |
 | `[7]` | `dkim2.sign` | DKIM2 signing |
-| `[8]` | `header.section` | The header section, when a check in the call reads it |
+| `[8]` | `header.section` | The header section, when a check or a signing in the call reads it |
 
 The entries for these checks and for the steps below them come with each check's scenarios. [SPF](#spf) has the first two, [DKIM verification](#dkim-verification) the third, [DMARC](#dmarc) the fifth, [DKIM signing](#dkim-signing) the sixth, and [Header section](#header-section) the eighth.
 
@@ -849,7 +849,7 @@ The steps of DKIM signing (RFC 6376 §5), as [DKIM](design/dkim.md#signing) desc
 |---|---|
 | Kind | `fact` |
 | Position | `[6]` |
-| Parameters | `signatures`: count, the `DkimSigning` entries; `error`: keyword, when the outcome is `stopped`, the code of the `SigningError` that stopped signing, such as `signing.signer_failed` |
+| Parameters | `signatures`: count, the `DkimSigning` entries; `error`: keyword, when the outcome is `stopped`, the code of the `SignatureError` that stopped signing, such as `signature.signer_failed` |
 | Outcomes | `written`, `stopped` |
 | Cites | `RFC 6376 §5` |
 | English | "DKIM signing with {signatures} signatures: {outcome}." |
@@ -903,7 +903,7 @@ The steps of DKIM signing (RFC 6376 §5), as [DKIM](design/dkim.md#signing) desc
 | English | "The signer got the hash {hash}: {outcome}." |
 | Requirement | SGN-001, SGN-002, SGN-004 |
 
-The trace leaves out the signer's description of a failure, which only the `SigningError` holds (SEC-002).
+The trace leaves out the signer's description of a failure, which only the `SignatureError` holds (SEC-002).
 
 ### `dkim.sign.check`
 
@@ -911,7 +911,7 @@ The trace leaves out the signer's description of a failure, which only the `Sign
 |---|---|
 | Kind | `fact` |
 | Position | Child 5 of `dkim.sign.signature`, when the signer answered with a signature |
-| Parameters | `size`: count, the octets of the signature; `expected`: count, the octets its algorithm and key give; `verified`: boolean, present when the caller turned verification on |
+| Parameters | `size`: count, the octets of the signature; `expected`: count, the octets its algorithm and key give; `verified`: boolean, present when `verify` is on in the signing options |
 | Outcomes | `passed`, `wrong_size`, `not_verified` |
 | Cites | none |
 | English | "The signature has {size} octets, as {expected} are expected: {outcome}." |
