@@ -15,7 +15,7 @@ hallmark is at the design stage and has no release yet.
 
 | Path | Contents |
 |---|---|
-| `crates/hallmark` | The core library. It does no I/O of its own: the caller supplies DNS answers, the time, signatures, and the message as a stream. |
+| `crates/hallmark` | The core library. It does no I/O of its own: its callers supply the message as a stream, the time, DNS answers and signatures. |
 | `crates/hallmark-wasm` | WebAssembly bindings and a DNS-over-HTTPS resolver for the browser demo. Not published at first. |
 
 ## Documentation
