@@ -1,6 +1,6 @@
 # ADR 0003: Rust code is written in a procedural style
 
-- Status: Accepted
+- Status: Superseded by ADR 0064
 - Date: 2026-11-12
 - Affects: all Rust code in the repository, the workspace lints, `clippy.toml`, and CI
 
