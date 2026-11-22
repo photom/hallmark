@@ -195,7 +195,6 @@ mod header;
 pub mod io;
 #[cfg(doc)]
 mod keys;
-#[cfg(doc)]
 mod limits;
 #[cfg(doc)]
 mod parse;
@@ -211,7 +210,6 @@ mod snapshot;
 mod spf;
 #[cfg(doc)]
 mod suffix;
-#[cfg(doc)]
 mod time;
 #[cfg(doc)]
 mod trace;
@@ -248,7 +246,6 @@ pub use driver::{
 pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
-#[cfg(doc)]
 pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
 #[cfg(doc)]
 pub use parse::ParseError;
@@ -267,7 +264,6 @@ pub use snapshot::{DocumentError, PastedRecords, Snapshot, SnapshotResolver};
 pub use spf::{SpfIdentity, SpfOutcome, SpfReason, SpfResult};
 #[cfg(doc)]
 pub use suffix::{SuffixAnswer, SuffixQuestion};
-#[cfg(doc)]
 pub use time::{TimeError, VerificationTime};
 #[cfg(doc)]
 pub use trace::{
