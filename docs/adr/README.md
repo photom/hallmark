@@ -6,7 +6,7 @@ Decisions that shape hallmark's design and specification, with their context and
 |-----|-------|--------|
 | [0001](0001-the-core-does-no-io-and-the-caller-drives-it.md) | The core does no I/O, and the caller drives it | Superseded by ADR 0017 |
 | [0002](0002-the-code-that-decides-writes-the-trace.md) | The code that decides writes the trace | Superseded by ADR 0031 |
-| [0003](0003-rust-code-is-written-in-a-procedural-style.md) | Rust code is written in a procedural style | Accepted |
+| [0003](0003-rust-code-is-written-in-a-procedural-style.md) | Rust code is written in a procedural style | Superseded by ADR 0064 |
 | [0004](0004-no-input-makes-hallmark-panic.md) | No input makes hallmark panic | Accepted |
 | [0005](0005-the-demo-lives-in-the-library-workspace.md) | The demo lives in the library's workspace | Accepted |
 | [0006](0006-dkim2-targets-draft-09-behind-an-unstable-feature.md) | DKIM2 targets draft-09 behind an unstable feature | Accepted |
@@ -67,6 +67,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0061](0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md) | Each context owns its trace codes, and the English renderer sits in the application layer | Accepted |
 | [0062](0062-verification-and-signing-have-separate-entry-types.md) | Verification and signing have separate entry types | Accepted |
 | [0063](0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md) | Checks and signings fix their evaluations when created, and each input once it arrives | Accepted |
+| [0064](0064-rust-code-is-procedural-and-lints-types-and-size-limits-keep-it-efficient-and-reviewable.md) | Rust code is procedural, and lints, types and size limits keep it efficient and reviewable | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
