@@ -1,10 +1,9 @@
 # Modules
 
-The crates of the workspace, the layers and bounded contexts of the `hallmark` crate, the inside of the check and of each protocol context, the owners of the trace codes, the rules for dependencies, and the outside crates. The names are a first draft of the public API.
+The internal side of the module design: the layers and bounded contexts of the `hallmark` crate, the inside of the check and of each protocol context, the owners of the trace codes, and the rules for dependencies. Nothing here is a promise to callers, and any of it can change in a release as long as [Crates](crates.md) and the [external architecture](../../explanation/external-architecture.md) still hold. The names are a first draft.
 
 ## Contents
 
-- [Crates](#crates)
 - [Layers](#layers)
 - [Modules of the hallmark crate](#modules-of-the-hallmark-crate)
 - [Inside the check](#inside-the-check)
@@ -12,28 +11,8 @@ The crates of the workspace, the layers and bounded contexts of the `hallmark` c
 - [Trace codes](#trace-codes)
 - [Dependency rules](#dependency-rules)
 - [SOLID](#solid)
-- [Features](#features)
-- [Outside crates](#outside-crates)
-
-## Crates
-
-```mermaid
-flowchart LR
-    milter["hallmark-milter, another repository"] -->|"crates.io"| core["hallmark"]
-    wasm["hallmark-wasm"] --> core
-    conformance["hallmark-conformance"] -->|"tests only"| core
-    tables["hallmark-tables"] -->|"writes the IDNA tables into"| core
-    demo["demo/"] -->|"WebAssembly"| wasm
-```
-
-| Crate | Role | Depends on | Published | Requirements |
-|---|---|---|---|---|
-| `hallmark` | The core, the driver, the snapshot resolver, the signer for keys in memory and the blocking adapters | The crates of [Outside crates](#outside-crates) | crates.io | REP-001, STB-001 |
-| `hallmark-wasm` | `wasm-bindgen` bindings, a DNS-over-HTTPS resolver, the Public Suffix List parser of the demo, and its own loop over a check's requests ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)) | `hallmark` | Not at first | WSM-002, DEM-009 |
-| `hallmark-conformance` | Tests that run published conformance data, with the data and its license files | `hallmark` | Never | TST-002 |
-| `hallmark-tables` | The generator of the IDNA tables and the Unicode data files it reads | Nothing | Never | ADS-002, STB-002 |
-
-Fuzz targets (SAF-003) live in `fuzz/`, outside the workspace members, as `cargo fuzz` expects.
+- [Features in the modules](#features-in-the-modules)
+- [Outside crates in the modules](#outside-crates-in-the-modules)
 
 ## Layers
 
@@ -136,7 +115,7 @@ flowchart TB
 | `snapshot` | Adapters | Exchange | Yes | `Snapshot`, `SnapshotResolver`, `PastedRecords`, `DocumentError`, extraction from a trace, demo cases | DNS-004, DNS-010, DEM-004 |
 | `keys` | Adapters | Exchange | Yes | `MemorySigner`, `RandomSource`, `RandomFailure` and `KeyError`. The private key types inside the signer are crate-private | SGN-005, SEC-001 to SEC-003 |
 
-"Results" means that only the module's result and reason types are public. "Partly" means that the listed types are public and the parsers are crate-private. `lib.rs` re-exports every public type at the crate root, so the module that holds a type never shows in its path.
+"Results" means that only the module's result and reason types are public. "Partly" means that the listed types are public and the parsers are crate-private. `lib.rs` re-exports every public type at the crate root, except those of the public module `io`, so no other module shows in a public path.
 
 ## Inside the check
 
@@ -165,6 +144,14 @@ flowchart TB
 | `check::requests` | The question table, the table of public suffix questions and the table of signing requests | Each entry keeps its answer in a write-once slot, so a second answer is `check.already_answered` and the first stays. The tables number requests and turn each answer back into the needs of the evaluations that asked | DNS-007, CHK-004, INV-001 to INV-003 |
 | `check::identifiers` | The translation of SPF and DKIM results, from this check or from earlier results, into DMARC's authenticated identifiers | The only place where DMARC meets SPF and DKIM results | DMC-005 |
 | `check::pipeline` | `BodyPipeline`: one canonicalizer and hash state for each body hash that the evaluations and signings ask for, and one rebuild for each DKIM2 recipe | Every chunk passes once through every canonicalizer | STR-001, STR-010, DK2-006 |
+
+The states of [Lifecycle](lifecycle.md#check) cover only the order of the input. The rest of a check has lifecycles of its own, each kept in one place:
+
+| Part | Lifecycle | Kept in |
+|---|---|---|
+| Which evaluations and signings the check runs | None. `Check::new` fixes them from the options (INV-016) | `Evaluations`, `Signings` |
+| Each input that the check keeps: the envelope, the parsed envelope and the header section | Empty until the input is complete, then set once and never changed (INV-017). The header section is complete at the end of the header fields | `Inputs` |
+| Each evaluation and signing | Its own states, from its first state on, even before its input arrives | Its protocol context: [SPF](spf.md#evaluation-without-recursion), [DKIM](dkim.md#one-signature), [DKIM2](dkim2.md#verification), [DMARC](dmarc.md#flow) and [Signing](lifecycle.md#signing) |
 
 An answer from the caller reaches the evaluations through the question table, which is the anti-corruption layer between the language of the exchange and the language of the protocols:
 
@@ -259,22 +246,18 @@ Review checks each `use crate::` path against these rules, and once the modules 
 | Principle | Where hallmark applies it |
 |---|---|
 | Single responsibility | Each protocol context follows one specification, and each of its submodules one part of it, such as the record grammar or the results. `canonical` makes the canonical forms, and the protocol whose specification picks the header fields builds the hash input |
-| Open/closed | The specifications fix the kinds of check, so the check names each one in a field instead of loading them as plug-ins ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)). The caller extends the core through traits that it implements, `Resolver`, `SuffixSource`, `Signer` and `RandomSource`, without changing the core |
+| Open/closed | The specifications fix the kinds of check, so the check names each one in a field instead of loading them as plug-ins ([ADR 0060](../../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)). The caller extends the core through traits that it implements, `Resolver`, `SuffixSource`, `Signer` and `RandomSource`, without changing the core ([Crates](crates.md#traits-the-caller-implements)) |
 | Liskov substitution | Any implementation of the caller's traits can stand in for another, because the core checks what it gets back instead of trusting it: the shape of an answer (VAL-120 to VAL-125), a public suffix answer (VAL-130 to VAL-134), and the size of a signature and, when the caller asks, its verification (VAL-142, VAL-143) |
 | Interface segregation | Each trait covers one capability, and `NoSuffixSource` and `NoSigner` serve a caller that needs neither. Inside the crate, each protocol takes only the input it reads, so SPF never gets the body, and a context sees the recorder only through the `Code` trait |
 | Dependency inversion | The core defines the exchange values and the caller's traits, and the caller's resolver and signer depend on them ([ADR 0017](../../adr/0017-the-core-does-no-io-and-the-caller-drives-it.md), [ADR 0042](../../adr/0042-signing-goes-through-a-signer-the-caller-supplies-and-the-caller-can-have-each-signature-verified.md)). In the kernel, the recorder depends on the `Code` trait, which each code owner implements. `crypto` calls the cryptography crates directly, because they do no I/O and hallmark has no second implementation ([ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)) |
 
-## Features
+## Features in the modules
 
-| Feature | Default | Turns on | Requirements |
-|---|---|---|---|
-| `unstable-dkim2` | Off | The `dkim2` module, the DKIM2 fields of `Evaluations` and `Signings`, the `ml-dsa` crate, SHA-512, the DKIM2 kinds of check, the DKIM2 modes of the canonicalizer, and the `dkim2` method of Authentication-Results | DK2-001, DK2-005 |
+`unstable-dkim2` turns on the `dkim2` module and the DKIM2 fields of `Evaluations` and `Signings`. [Crates](crates.md#features) gives what the feature offers a caller.
 
-hallmark has no other feature. It needs `std`, which `wasm32-unknown-unknown` provides.
+## Outside crates in the modules
 
-## Outside crates
-
-[ADR 0049](../../adr/0049-hallmark-depends-on-cryptography-crates-zeroize-and-thiserror-and-writes-everything-else-itself.md) lists them and why. This table shows where each one is used.
+[Crates](crates.md#outside-crates) lists the outside crates and what each is needed for. This table shows the modules that use each one.
 
 | Crate | Used in |
 |---|---|
