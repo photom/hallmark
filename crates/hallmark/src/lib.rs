@@ -246,9 +246,7 @@ pub use driver::{
 pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
-#[cfg(doc)]
-pub use limits::Limits;
-pub use limits::{DocumentLimits, Limit, LimitsError};
+pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
 #[cfg(doc)]
 pub use parse::ParseError;
 #[cfg(doc)]
