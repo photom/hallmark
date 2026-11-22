@@ -12,11 +12,20 @@
 //!
 //! # Overview
 //!
-//! A caller builds [`Options`], creates a [`Check`], and passes it an
-//! [`Envelope`] and the message. The check hands out [`Request`]s: DNS
-//! questions, public suffix questions and signing requests. The caller
-//! answers each one, and when the check finishes, takes the [`Results`] and
-//! reads the trace.
+//! Verification and signing have separate entry types
+//! ([ADR 0062](https://github.com/photom/hallmark/blob/main/docs/adr/0062-verification-and-signing-have-separate-entry-types.md)).
+//!
+//! A verifying caller builds [`CheckOptions`], creates a [`Check`], and passes
+//! it an [`Envelope`] and the message. The check hands out [`Request`]s: DNS
+//! questions and public suffix questions. The verifying caller answers each
+//! one, and when the check finishes, takes the [`CheckResults`] and reads the
+//! trace.
+//!
+//! A signing caller builds [`SigningOptions`], creates a [`Signing`], and
+//! passes it the message. The signing hands out [`SigningRequest`]s, which the
+//! signing caller's signer answers, and when the signing finishes, the signing
+//! caller takes the [`SigningResults`], which hold the header fields to add.
+//!
 //! [Lifecycle](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#a-check-from-start-to-end)
 //! draws the calls in order, and the
 //! [domain model](https://github.com/photom/hallmark/blob/main/docs/reference/design/domain-model.md#what-the-core-and-the-caller-exchange)
@@ -24,10 +33,12 @@
 //!
 //! | Tool | Works on |
 //! |---|---|
-//! | [`drive`], with a [`Resolver`], a [`SuffixSource`] and a [`Signer`] | A check, with the caller's resolver, suffix source and signer |
+//! | [`drive`], with a [`Resolver`] and a [`SuffixSource`] | A check, with the verifying caller's resolver and suffix source |
+//! | [`drive_signing`], with a [`Signer`] | A signing, with the signing caller's signer |
 //! | [`io::read_message`], [`io::write_trace`] | A check, with a standard blocking reader and writer |
+//! | [`io::read_message_to_sign`], [`io::write_signing_trace`] | A signing, with a standard blocking reader and writer |
 //! | [`AuthenticationResults`] | Authentication-Results header fields, written from results or read from upstream |
-//! | [`Canonicalizer`] | A body, outside any check |
+//! | [`Canonicalizer`] | A body, outside any check or signing |
 //! | [`sort_trace`], [`Event`] | Trace bytes |
 //! | [`Snapshot`], [`SnapshotResolver`], [`PastedRecords`] | DNS answers kept for replay |
 //! | [`MemorySigner`] | Keys held in memory |
@@ -94,9 +105,9 @@
 //! | Where a failure comes from | What happens |
 //! |---|---|
 //! | The caller breaks a rule of an API | The call returns an error, and the value called stays as it was |
-//! | The signer fails, or its signature is wrong | That signing stops, with a [`SigningError`] in the results |
+//! | The signer fails, or its signature is wrong | That signing stops, with a [`SignatureError`] in the results |
 //! | The message, the envelope or a DNS record | The protocol's result, and a trace step |
-//! | A limit on a check's work | The protocol's error result, and a trace step that names the limit |
+//! | A limit on the work of a check or a signing | The protocol's error result, or a stopped signing, and a trace step that names the limit |
 //! | The trace limit | The trace is cut short, and the results stay the same |
 //! | The caller's reader or writer | An [`io::StreamError`] that names the stream |
 //!
@@ -120,16 +131,19 @@
 //! | Type | Returned by | Code prefix |
 //! |---|---|---|
 //! | [`CheckError`] | Every method of [`Check`] except [`Check::new`] | `check.` |
-//! | [`OptionsError`] | [`Check::new`], [`VerificationTime::from_unix_seconds`] | `options.` |
+//! | [`CheckOptionsError`] | [`Check::new`] | `check_options.` |
+//! | [`SigningError`] | Every method of [`Signing`] except [`Signing::new`] | `signing.` |
+//! | [`SigningOptionsError`] | [`Signing::new`] | `signing_options.` |
+//! | [`SignatureError`] | Held in [`SigningOutcome::Stopped`] in the results | `signature.` |
+//! | [`TimeError`] | [`VerificationTime::from_unix_seconds`] | `time.` |
 //! | [`LimitsError`] | The setters of [`Limits`] and [`DocumentLimits`] | `limits.` |
-//! | [`ResultsError`] | [`HeaderFieldOut::read_value`] | `results.` |
-//! | [`SigningError`] | Held in [`Signing::Stopped`] in the results | `signing.` |
+//! | [`HeaderFieldError`] | [`HeaderFieldOut::read_value`] | `header_field.` |
 //! | [`KeyError`] | The methods of [`MemorySigner`] that add a key | `key.` |
 //! | [`TraceError`] | [`sort_trace`], [`Event::parse`] | `trace.` |
 //! | [`CanonicalizerError`] | Every method of [`Canonicalizer`] | `canonicalizer.` |
 //! | [`AuthResError`] | [`AuthservId::new`], [`AuthenticationResults::parse`], [`AuthenticationResults::carries_authserv_id`] | `authres.` |
-//! | [`DriveError`] | [`drive`] | `driver.` |
-//! | [`io::StreamError`] | [`io::read_message`], [`io::write_trace`] | `stream.` |
+//! | [`DriveError`] | [`drive`], [`drive_signing`] | `driver.` |
+//! | [`io::StreamError`] | [`io::read_message`], [`io::read_message_to_sign`], [`io::write_trace`], [`io::write_signing_trace`] | `stream.` |
 //! | [`DocumentError`] | [`Snapshot::parse`], [`Snapshot::from_trace`], [`PastedRecords::parse`] | `document.` |
 //!
 //! [`SignerFailure`] is a struct. [`MemorySigner`] puts the code of a broken
@@ -178,6 +192,8 @@ mod parse;
 #[cfg(doc)]
 mod render;
 #[cfg(doc)]
+mod sign;
+#[cfg(doc)]
 mod signing;
 #[cfg(doc)]
 mod snapshot;
@@ -200,9 +216,8 @@ pub use canonicalizer::{
 };
 #[cfg(doc)]
 pub use check::{
-    CanonAlgorithm, Check, CheckError, DkimCanonicalization, DkimSigning, DkimSource, DmarcMode,
-    Envelope, EnvelopeField, ExpectedInput, HeaderFieldOut, Kind, Options, OptionsError, Request,
-    Results, ResultsError, Signing, SigningError, SpfSource, TraceRead, Waiting,
+    Check, CheckError, CheckOptions, CheckOptionsError, CheckResults, DkimSource, DmarcMode,
+    Envelope, EnvelopeField, ExpectedInput, Kind, Request, SpfSource, TraceRead, Waiting,
 };
 #[cfg(doc)]
 pub use dkim::{
@@ -216,15 +231,22 @@ pub use dmarc::{
 #[cfg(doc)]
 pub use dns::{Answer, Question, QuestionId, QuestionType, Record};
 #[cfg(doc)]
-pub use driver::{DriveError, NoSigner, NoSuffixSource, Resolver, Signer, SuffixSource, drive};
+pub use driver::{
+    DriveError, NoSuffixSource, Resolver, Signer, SuffixSource, drive, drive_signing,
+};
 #[cfg(doc)]
-pub use header::{FieldForm, LeadingSpace, LineBreak};
+pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
 #[cfg(doc)]
 pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
 #[cfg(doc)]
 pub use parse::ParseError;
+#[cfg(doc)]
+pub use sign::{
+    CanonAlgorithm, DkimCanonicalization, DkimSigning, SignatureError, Signing, SigningError,
+    SigningOptions, SigningOptionsError, SigningOutcome, SigningResults, SigningWaiting,
+};
 #[cfg(doc)]
 pub use signing::{
     Algorithm, RequestId, Signature, SignerFailure, SignerStatement, SigningKind, SigningRequest,
@@ -236,7 +258,7 @@ pub use spf::{SpfIdentity, SpfOutcome, SpfReason, SpfResult};
 #[cfg(doc)]
 pub use suffix::{SuffixAnswer, SuffixQuestion};
 #[cfg(doc)]
-pub use time::VerificationTime;
+pub use time::{TimeError, VerificationTime};
 #[cfg(doc)]
 pub use trace::{
     Data, Event, EventKind, Level, Param, Parties, Place, Position, TraceError, Value, Version,
@@ -244,7 +266,7 @@ pub use trace::{
 };
 
 #[cfg(all(doc, feature = "unstable-dkim2"))]
-pub use check::{
+pub use sign::{
     BodyRevision, Dkim2Flags, Dkim2Signer, Dkim2Signing, EarlierLines, FieldRevision, Revision,
 };
 

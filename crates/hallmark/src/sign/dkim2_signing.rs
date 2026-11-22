@@ -7,8 +7,9 @@ use crate::*;
 /// Reviser needs (DK2-003, DK2-014). Available with the `unstable-dkim2`
 /// feature.
 ///
-/// The caller builds it with [`Dkim2Signing::new`] and sets the other public
-/// fields. [`Check::new`] checks it (VAL-230 to VAL-242).
+/// The signing caller builds it with [`Dkim2Signing::new`] and sets the other
+/// public fields, and [`SigningOptions::dkim2`] holds it. [`Signing::new`]
+/// checks it (VAL-230 to VAL-242).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Dkim2Signing {
@@ -32,6 +33,10 @@ pub struct Dkim2Signing {
     /// The changes a Reviser made. Default `None`, so the message is unchanged
     /// (DK2-014).
     pub revision: Option<Revision>,
+    /// Whether hallmark verifies each signature from the signers with the
+    /// public key of its [`Dkim2Signer`] before it writes the field. Default
+    /// `false`, so hallmark checks only each signature's size (SGN-006).
+    pub verify: bool,
 }
 
 impl Dkim2Signing {
@@ -44,7 +49,7 @@ impl Dkim2Signing {
     /// - `groups`: `s=`: each group a list of signers. A group passes when all
     ///   its signers pass, and the field passes when any group does.
     ///
-    /// Building the value checks nothing. [`Check::new`] checks it.
+    /// Building the value checks nothing. [`Signing::new`] checks it.
     ///
     /// Requirements: DK2-003.
     pub fn new(domain: String, groups: Vec<Vec<Dkim2Signer>>) -> Dkim2Signing {

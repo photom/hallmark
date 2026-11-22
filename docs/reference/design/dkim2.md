@@ -90,17 +90,17 @@ A state other than `PASS` carries the human-readable string of draft-09 §14 wit
 
 ```mermaid
 sequenceDiagram
-    participant Check
-    participant Caller
-    Note over Check: options checked at Check::new (VAL-230 to VAL-242)
-    Check->>Check: header section ends: check the exploded flag against the earlier signatures
-    Check->>Check: body streams: body hash, and the rebuild from the revision
-    Check->>Check: message ends: compare the rebuild with the highest Message-Instance
-    Check->>Check: write the Message-Instance, then the DKIM2-Signature with empty signature values
-    Check-->>Caller: one SigningRequest for each signer
-    Caller->>Check: Signatures
-    Check->>Check: size check, and verification if asked
-    Check-->>Caller: Message-Instance and DKIM2-Signature fields in the results
+    participant Signing
+    participant Caller as Signing caller
+    Note over Signing: options checked at Signing::new (VAL-230 to VAL-242)
+    Signing->>Signing: header section ends: check the exploded flag against the earlier signatures
+    Signing->>Signing: body streams: body hash, and the rebuild from the revision
+    Signing->>Signing: message ends: compare the rebuild with the highest Message-Instance
+    Signing->>Signing: write the Message-Instance, then the DKIM2-Signature with empty signature values
+    Signing-->>Caller: one SigningRequest for each signer
+    Caller->>Signing: Signatures
+    Signing->>Signing: size check, and verification if asked
+    Signing-->>Caller: Message-Instance and DKIM2-Signature fields in the results
 ```
 
 | Rule | Requirements |

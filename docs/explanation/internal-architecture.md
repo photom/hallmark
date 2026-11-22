@@ -17,11 +17,11 @@ How hallmark meets the rules of its [external architecture](external-architectur
 
 ## How the code is divided
 
-The code follows the specifications. SPF, DKIM, DKIM2 and DMARC each have a module tree of their own, with the words of their specification, and no protocol uses another. A new DKIM2 draft or a DMARC erratum then changes one tree. What several protocols share, such as the header section, tag lists, addresses and cryptography, sits below the protocols, and the trace recorder, the limits and a few helpers sit below everything. The check sits above the protocols and drives them, and the driver, the blocking adapters, snapshots and the memory signer sit above the check. Dependencies point only downward ([ADR 0059](../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
+The code follows the specifications. SPF, DKIM, DKIM2 and DMARC each have a module tree of their own, with the words of their specification, and no protocol uses another. A new DKIM2 draft or a DMARC erratum then changes one tree. What several protocols share, such as the header section, tag lists, addresses and cryptography, sits below the protocols, and the trace recorder, the limits and a few helpers sit below everything. The check and the signing sit above the protocols and drive them, and the drivers, the blocking adapters, snapshots and the memory signer sit above them. Dependencies point only downward ([ADR 0059](../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
 
 ```mermaid
 flowchart TB
-    adapters["Adapters: driver, io, snapshot, keys"] --> application["Application: check, Authentication-Results, canonicalizer, renderer"]
+    adapters["Adapters: driver, io, snapshot, keys"] --> application["Application: check, signing, Authentication-Results, canonicalizer, renderer"]
     application --> protocols["Protocols: SPF, DKIM, DKIM2, DMARC"]
     protocols --> supporting["Shared parts: message, tag lists, addresses, exchange values, cryptography"]
     supporting --> kernel["Kernel: trace, limits, time, helpers"]
@@ -29,7 +29,7 @@ flowchart TB
 
 ## What a check fixes
 
-A check fixes most of what it holds. The options decide, when the caller creates the check, which evaluations it runs, and that set never changes. Each input that the check keeps, such as the envelope or the header section, goes into a slot that takes one value and never gives it up. Only the evaluations' own states move. To follow a check, you read one state machine at a time: the check's own for the order of the input, and each protocol's for its steps ([ADR 0060](../adr/0060-a-check-fixes-its-evaluations-when-created-and-each-input-once-it-arrives.md)).
+A check fixes most of what it holds. The options decide, when the verifying caller creates the check, which evaluations it runs, and that set never changes. Each input that the check keeps, such as the envelope or the header section, goes into a slot that takes one value and never gives it up. Only the evaluations' own states move. To follow a check, you read one state machine at a time: the check's own for the order of the input, and each protocol's for its steps. A signing fixes its signings and its header section in the same way ([ADR 0063](../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)).
 
 ## How the protocols meet
 
@@ -48,7 +48,7 @@ The canonicalizer carries a small state from one chunk to the next instead of th
 | Empty lines | A count of line endings not yet hashed | Text follows: they are all hashed. The body ends: they are dropped. |
 | A line with bytes hashed and no line ending yet | One flag | A line ending follows: the flag clears. The body ends: a CRLF is hashed, because RFC 6376 §3.4.3 and §3.4.4 and draft-09 §6.1 add one to a body without a trailing CRLF. `simple` and the DKIM2 body hash also hash one for a body that has nothing else to hash. |
 
-The state stays the same size however large the message is. One body pipeline holds a canonicalizer and a hash state for each distinct body hash that the signatures need, so every chunk passes through each of them once. Tests feed each message split at every chunk size, from 1 byte to the whole message, and require the same hash every time (STR-005).
+The state stays the same size however large the message is. One body pipeline holds a canonicalizer for each distinct body form that the signatures need, so every chunk passes through each of them once, and the protocols hash what comes out. Tests feed each message split at every chunk size, from 1 byte to the whole message, and require the same hash every time (STR-005).
 
 Header fields arrive whole, so they need no carry-over. The core keeps all header fields of a message, because DKIM picks signed fields from the bottom up and DKIM2 header recipes rebuild earlier header sets. [External architecture](external-architecture.md#streaming) gives the streaming rules that a caller relies on.
 

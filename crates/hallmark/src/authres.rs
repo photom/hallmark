@@ -82,7 +82,7 @@ impl AuthenticationResults {
     /// - `form`: the form of the value.
     ///
     /// Requirements: AR-001, AR-002, AR-004, AR-006, TIM-005, STR-009.
-    pub fn generate(results: &Results, id: &AuthservId, form: FieldForm) -> HeaderFieldOut {
+    pub fn generate(results: &CheckResults, id: &AuthservId, form: FieldForm) -> HeaderFieldOut {
         unimplemented!()
     }
 

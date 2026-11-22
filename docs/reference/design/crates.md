@@ -23,8 +23,8 @@ flowchart LR
 
 | Crate | Role | Depends on | Published | Requirements |
 |---|---|---|---|---|
-| `hallmark` | The core, the driver, the snapshot resolver, the signer for keys in memory and the blocking adapters | The crates of [Outside crates](#outside-crates) | crates.io | REP-001, STB-001 |
-| `hallmark-wasm` | `wasm-bindgen` bindings, a DNS-over-HTTPS resolver, the Public Suffix List parser of the demo, and its own loop over a check's requests ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)) | `hallmark` | Not at first | WSM-002, DEM-009 |
+| `hallmark` | The core, the drivers, the snapshot resolver, the signer for keys in memory and the blocking adapters | The crates of [Outside crates](#outside-crates) | crates.io | REP-001, STB-001 |
+| `hallmark-wasm` | `wasm-bindgen` bindings, a DNS-over-HTTPS resolver, the Public Suffix List parser of the demo, and its own loop over the requests of a check or a signing ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)) | `hallmark` | Not at first | WSM-002, DEM-009 |
 | `hallmark-conformance` | Tests that run published conformance data, with the data and its license files | `hallmark` | Never | TST-002 |
 | `hallmark-tables` | The generator of the IDNA tables and the Unicode data files it reads | Nothing | Never | ADS-002, STB-002 |
 
@@ -34,6 +34,7 @@ Fuzz targets (SAF-003) live in `fuzz/`, outside the workspace members, as `cargo
 
 | Part | Where a caller finds it | Rule | Requirement or ADR |
 |---|---|---|---|
+| Entry types | `Check` with `CheckOptions` and `CheckResults` for a verifying caller, and `Signing` with `SigningOptions` and `SigningResults` for a signing caller | Each type takes only its own settings and input, hands out only its own requests, and has its own errors | CHK-006, [ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md) |
 | Public types and functions | At the crate root, except the blocking adapters in `io`, the only public module. No other module shows in a path | The conventions of ADR 0054: how a caller builds and reads values, which enums are `#[non_exhaustive]`, and what a doc comment holds | [ADR 0054](../../adr/0054-the-public-api-follows-one-set-of-conventions.md), [ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md) |
 | The API reference | The rustdoc on GitHub Pages, with the validation rules and error codes of each method | Every link from the documents to it is checked against the rustdoc that CI builds | REP-004, [ADR 0052](../../adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md) |
 | Error codes | The error table of the crate's front page, with one prefix for each error type | A code keeps its meaning within a major version, and a minor version can add codes | STB-001 |
@@ -49,10 +50,10 @@ The caller extends the core through these traits without changing it. The core c
 |---|---|---|---|
 | `Resolver` | `drive` | `Send` and `Sync`, and a future that is `Send` ([ADR 0048](../../adr/0048-the-resolver-the-suffix-source-and-the-signer-return-futures-that-are-send.md)) | The shape of each answer, by the rules of `Check::answer` (VAL-804, VAL-120 to VAL-125) |
 | `SuffixSource` | `drive`, in RFC 7489 mode | The same as `Resolver` | The range of each public suffix answer (VAL-130 to VAL-134) |
-| `Signer` | `drive`, for signing | The same as `Resolver` | The size of each signature and, when the caller asks, its verification (VAL-142, VAL-143) |
+| `Signer` | `drive_signing` | The same as `Resolver` | The size of each signature and, when `verify` is on in the signing options, its verification (VAL-142, VAL-143) |
 | `RandomSource` | `MemorySigner`, for ML-DSA-44 | `Send` and `Sync` | A failure stops that signature (VAL-412) |
 
-`NoSuffixSource` and `NoSigner` stand for a caller that needs no suffix source or no signer. `SnapshotResolver` implements `Resolver` and `SuffixSource`, and `MemorySigner` implements `Signer`.
+`NoSuffixSource` stands for a verifying caller that needs no suffix source. A verifying caller never names a signer, and a signing caller never names a resolver ([ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md)). `SnapshotResolver` implements `Resolver` and `SuffixSource`, and `MemorySigner` implements `Signer`.
 
 ## Features
 

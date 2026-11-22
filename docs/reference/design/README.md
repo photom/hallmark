@@ -12,9 +12,9 @@ The detailed design of hallmark: its crates and modules, its domain model, the l
 | Document | Content | Diagrams |
 |---|---|---|
 | [crates.md](crates.md) | The external side of the module design: the crates of the workspace, the public interface, the traits a caller implements, features and outside crates | Flowchart |
-| [modules.md](modules.md) | The internal side of the module design: layers and bounded contexts, modules, the inside of the check and of each protocol context, trace code owners, dependency rules, SOLID | Flowcharts, sequence diagram |
+| [modules.md](modules.md) | The internal side of the module design: layers and bounded contexts, modules, the inside of the check, of the signing and of each protocol context, trace code owners, dependency rules, SOLID | Flowcharts, sequence diagram |
 | [domain-model.md](domain-model.md) | Bounded contexts, entities, value objects and invariants | Context map, class diagrams |
-| [lifecycle.md](lifecycle.md) | States and transitions of a check, its requests, its signing, the canonicalizer, the trace output and the driver, and how long each object lives | State diagrams |
+| [lifecycle.md](lifecycle.md) | States and transitions of a check, a signing, their requests, each signature, the canonicalizer, the trace output and the driver, and how long each object lives | Sequence diagrams, state diagrams, flowchart |
 | [concurrency.md](concurrency.md) | Threads, `Send` and `Sync`, parallel checks, the driver's concurrency, cancellation and memory | Flowchart, sequence diagram |
 | [limits.md](limits.md) | Every limit: its default, its range, where hallmark checks it and what happens when input reaches it | Flowchart |
 | [threat-model.md](threat-model.md) | Assets, actors, trust boundaries, threats and their mitigations | Data flow diagram |

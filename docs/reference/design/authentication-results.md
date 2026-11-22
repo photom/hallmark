@@ -17,9 +17,7 @@ How hallmark writes an Authentication-Results header field from the results of a
 
 ```mermaid
 flowchart TD
-    results["Results of a check"] --> any{"Any verification kind ran"}
-    any -->|"no"| none["authserv-id, then none"]
-    any -->|"yes"| id["authserv-id, and the time-checks comment if they were off"]
+    results["Results of a check"] --> id["authserv-id, and the time-checks comment if they were off"]
     id --> spf["spf for HELO, then spf for MAIL FROM"]
     spf --> dkim["dkim, one result per signature in header order"]
     dkim --> dkim2["dkim2, one result"]
@@ -29,7 +27,6 @@ flowchart TD
 | Rule | Requirements |
 |---|---|
 | hallmark writes one field with every result of the check, in the order of the diagram. A kind that didn't run has no result | AR-001, RFC 8601 §4 |
-| A check that ran no verification kind, such as one that only signs, gives `none` after the authserv-id | RFC 8601 §2.2, §4 |
 | The field holds no version after the authserv-id, which means version 1 | RFC 8601 §2.2 |
 | Each result has a `reason`, a fixed phrase that the typed reason selects, and never a value from the message, the envelope or DNS | AR-002 |
 | hallmark never writes the `policy` result or the `policy` ptype, because it applies no local policy | GEN-006, RFC 8601 §2.4 |

@@ -1,6 +1,6 @@
 # ADR 0060: A check fixes its evaluations when created, and each input once it arrives
 
-- Status: Accepted
+- Status: Superseded by ADR 0063
 - Date: 2026-11-22
 - Affects: the `check` module, a new kernel module `write_once`, INV-003, INV-016 and INV-017, the [domain model](../reference/design/domain-model.md#the-check), [Lifecycle](../reference/design/lifecycle.md) and [Modules](../reference/design/modules.md)
 

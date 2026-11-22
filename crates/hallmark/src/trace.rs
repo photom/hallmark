@@ -5,16 +5,16 @@
 use crate::*;
 use std::net::IpAddr;
 
-/// How much of the trace a check records (TRC-004).
+/// How much of the trace a check or a signing records (TRC-004).
 ///
-/// [`Options::trace_level`] holds it, and its default there is
-/// [`Level::Summary`].
+/// [`CheckOptions::trace_level`] and [`SigningOptions::trace_level`] hold it,
+/// and its default there is [`Level::Summary`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Level {
     /// No trace, and nothing allocated for one.
     Off,
     /// The paths that decided each result, and every caution, once the check
-    /// finishes.
+    /// or the signing finishes.
     Summary,
     /// Every event, as each step finishes.
     Full,
@@ -53,11 +53,13 @@ pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, Trac
     unimplemented!()
 }
 
-/// One trace event: one step of a check, as one record of the trace (TRC-002).
+/// One trace event: one step of a check or a signing, as one record of the
+/// trace (TRC-002).
 ///
-/// A caller that stores the bytes of [`Check::read_trace`] can sort them with
-/// [`sort_trace`], split them at each RS, and read each record with
-/// [`Event::parse`], which leaves out the members it doesn't know (TRC-007).
+/// A caller that stores the bytes of [`Check::read_trace`] or
+/// [`Signing::read_trace`] can sort them with [`sort_trace`], split them at
+/// each RS, and read each record with [`Event::parse`], which leaves out the
+/// members it doesn't know (TRC-007).
 ///
 /// A trace holds addresses and header contents, and never a private key or
 /// body content (TRC-006, TRC-010). Values that a sender or a DNS publisher

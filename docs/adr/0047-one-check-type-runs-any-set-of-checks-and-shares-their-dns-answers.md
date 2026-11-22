@@ -1,6 +1,6 @@
 # ADR 0047: One check type runs any set of checks and shares their DNS answers
 
-- Status: Accepted
+- Status: Superseded by ADR 0062
 - Date: 2026-11-17
 - Affects: the public API of `crates/hallmark`, the driver, `crates/hallmark-wasm`, and every caller
 

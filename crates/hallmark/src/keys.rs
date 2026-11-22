@@ -110,12 +110,12 @@ impl MemorySigner {
     ///
     /// [`Signer::sign`] does the same through the trait, and takes the random
     /// value from the signer's [`RandomSource`]. A broken rule gives a
-    /// [`SignerFailure`] whose description names the code, so the caller can
-    /// hand it to the check as it is (SGN-004).
+    /// [`SignerFailure`] whose description names the code, so the signing
+    /// caller can hand it to the signing as it is (SGN-004).
     ///
     /// # Parameters
     ///
-    /// - `request`: a signing request from a check.
+    /// - `request`: a signing request from a signing.
     /// - `random`: for `Mldsa44`, the random value of the hedged variant
     ///   (draft-09 §3.4). `None` for the other algorithms.
     ///
