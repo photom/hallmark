@@ -28,13 +28,11 @@ use crate::*;
 /// |---|---|---|---|---|---|
 /// | VAL-202 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-202 |
 /// | VAL-203 | `value` of [`set_header_field_size`](Self::set_header_field_size) or [`set_header_section_size`](Self::set_header_section_size) | `header_field_size` at most `header_section_size`, after the change | [`limits.conflict`](LimitsError::Conflict) | PAR-004 | API-203 |
-#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Limits {
     values: [u32; 23],
 }
 
-#[cfg(doc)]
 impl Default for Limits {
     /// Every limit of a check or a signing at the default that
     /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives (PAR-004).
@@ -43,7 +41,6 @@ impl Default for Limits {
     }
 }
 
-#[cfg(doc)]
 impl Limits {
     /// `header_fields`: the most header fields and malformed lines in the header section (SAF-002).
     pub fn header_fields(&self) -> u32 {
@@ -580,6 +577,75 @@ impl std::error::Error for LimitsError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_202_comment_depth_takes_1_to_256() {
+        let mut limits = Limits::default();
+        let out_of_range = LimitsError::OutOfRange {
+            limit: Limit::CommentDepth,
+        };
+        assert_eq!(limits.set_comment_depth(0), Err(out_of_range.clone()));
+        assert_eq!(limits.set_comment_depth(257), Err(out_of_range.clone()));
+        assert_eq!(limits.comment_depth(), 16);
+        assert_eq!(limits.set_comment_depth(256), Ok(()));
+        assert_eq!(limits.comment_depth(), 256);
+        assert!(out_of_range.to_string().contains("comment_depth"));
+    }
+
+    #[test]
+    fn api_203_header_field_size_stays_within_header_section_size() {
+        let mut limits = Limits::default();
+        assert_eq!(limits.header_section_size(), 1_048_576);
+        assert_eq!(
+            limits.set_header_field_size(2_000_000),
+            Err(LimitsError::Conflict)
+        );
+        assert_eq!(limits.header_field_size(), 65_536);
+        assert_eq!(limits.set_header_section_size(2_000_000), Ok(()));
+        assert_eq!(limits.set_header_field_size(2_000_000), Ok(()));
+        assert_eq!(limits.header_field_size(), 2_000_000);
+        assert_eq!(
+            limits.set_header_section_size(1_999_999),
+            Err(LimitsError::Conflict)
+        );
+        assert_eq!(limits.header_section_size(), 2_000_000);
+        assert_eq!(LimitsError::Conflict.code(), "limits.conflict");
+        let text = LimitsError::Conflict.to_string();
+        assert!(text.starts_with("limits.conflict"));
+    }
+
+    #[test]
+    fn prs_006_limits_have_their_documented_defaults() {
+        let limits = Limits::default();
+        let defaults = [
+            (limits.header_fields(), 1_000),
+            (limits.header_field_size(), 65_536),
+            (limits.header_section_size(), 1_048_576),
+            (limits.comment_depth(), 16),
+            (limits.mailboxes(), 64),
+            (limits.address_size(), 1_024),
+            (limits.rcpt_to(), 1_000),
+            (limits.rt_entries(), 1_000),
+            (limits.dkim_signatures(), 16),
+            (limits.key_records(), 8),
+            (limits.rsa_key_bits(), 4_096),
+            (limits.rsa_exponent_bits(), 32),
+            (limits.author_domains(), 4),
+            (limits.dns_questions(), 512),
+            (limits.answer_size(), 65_535),
+            (limits.dkim2_signatures(), 32),
+            (limits.message_instances(), 32),
+            (limits.recipe_steps(), 10_000),
+            (limits.recipe_size(), 65_536),
+            (limits.recipe_depth(), 8),
+            (limits.spf_void_lookups(), 2),
+            (limits.trace_size(), 1_048_576),
+            (limits.trace_places(), 16),
+        ];
+        for (value, default) in defaults {
+            assert_eq!(value, default);
+        }
+    }
 
     #[test]
     fn api_204_document_depth_takes_1_to_64() {
