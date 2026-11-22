@@ -4,29 +4,22 @@
 use crate::*;
 use std::net::IpAddr;
 
-#[cfg(feature = "unstable-dkim2")]
-mod dkim2_signing;
-mod dkim_signing;
 mod options;
 mod results;
 
-pub use dkim_signing::{CanonAlgorithm, DkimCanonicalization, DkimSigning};
-#[cfg(feature = "unstable-dkim2")]
-pub use dkim2_signing::{
-    BodyRevision, Dkim2Flags, Dkim2Signer, Dkim2Signing, EarlierLines, FieldRevision, Revision,
-};
-pub use options::{DkimSource, DmarcMode, Kind, Options, OptionsError, SpfSource};
-pub use results::{HeaderFieldOut, Results, ResultsError, Signing, SigningError};
+pub use options::{CheckOptions, CheckOptionsError, DkimSource, DmarcMode, Kind, SpfSource};
+pub use results::CheckResults;
 
-/// One run of any set of checks on one message: the one type that a caller
-/// creates and feeds
-/// ([ADR 0047](https://github.com/photom/hallmark/blob/main/docs/adr/0047-one-check-type-runs-any-set-of-checks-and-shares-their-dns-answers.md)).
+/// One run of any set of checks on one message: the type that a verifying
+/// caller creates and feeds
+/// ([ADR 0062](https://github.com/photom/hallmark/blob/main/docs/adr/0062-verification-and-signing-have-separate-entry-types.md)).
+/// Signing has a type of its own, [`Signing`].
 ///
-/// The caller creates a check with [`Check::new`], passes it the envelope,
-/// the header fields, the body and the end of the message, and answers the
-/// requests that [`Check::take_requests`] hands out. When the input is
-/// complete and every request has its answer, the check is Finished, and
-/// [`Check::take_results`] gives the results.
+/// The verifying caller creates a check with [`Check::new`], passes it the
+/// envelope, the header fields, the body and the end of the message, and
+/// answers the requests that [`Check::take_requests`] hands out. When the
+/// input is complete and every request has its answer, the check is Finished,
+/// and [`Check::take_results`] gives the results.
 /// [Lifecycle](https://github.com/photom/hallmark/blob/main/docs/reference/design/lifecycle.md#check)
 /// draws the states: Created, Envelope, Headers, Body, Ended and Finished.
 ///
@@ -46,8 +39,8 @@ pub use results::{HeaderFieldOut, Results, ResultsError, Signing, SigningError};
 ///
 /// | Rule | Requirements |
 /// |---|---|
-/// | A method that returns an error changes nothing in the check, and the caller can go on | CHK-004, INV-003 |
-/// | A caller error never becomes a protocol result, and a protocol result never comes back as an error | INV-010 |
+/// | A method that returns an error changes nothing in the check, and the verifying caller can go on | CHK-004, INV-003 |
+/// | An error of the verifying caller never becomes a protocol result, and a protocol result never comes back as an error | INV-010 |
 /// | A rule whose error code reads "Not an error" never stops the call. The check takes the input and applies the rule named | CHK-004 |
 /// | Syntax inside the message, the envelope and DNS records is no caller error. The parsers read it, and the check applies the rule of the requirement that covers it | PAR-001, ADS-020 to ADS-023 |
 #[derive(Debug)]
@@ -60,10 +53,7 @@ impl Check {
     ///
     /// `Check::new` checks every rule of the options at once, in the order of
     /// the table below, and gives the code of the first one broken. Rules for
-    /// a DMARC source apply only when the kinds hold DMARC. Signing rules that
-    /// depend on the message, such as an `exploded` flag on the first
-    /// DKIM2-Signature (draft-09 §12.5) or a revision that misses a body
-    /// change (SIGN-022), stop signing with a [`SigningError`] in the results.
+    /// a DMARC source apply only when the kinds hold DMARC.
     ///
     /// # Parameters
     ///
@@ -73,39 +63,15 @@ impl Check {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
-    /// | VAL-210 | `kinds` | Holds at least one kind | [`options.no_kind`](OptionsError::NoKind) | GEN-001 | API-210 |
-    /// | VAL-211 | `dmarc_spf` | `SameCheck` only when the kinds hold SPF MAIL FROM | [`options.source_kind_missing`](OptionsError::SourceKindMissing) | DMC-005 | API-211 |
-    /// | VAL-212 | `dmarc_dkim` | `SameCheck` only when the kinds hold DKIM | [`options.source_kind_missing`](OptionsError::SourceKindMissing) | DMC-005 | API-212 |
-    /// | VAL-213 | `dmarc_spf` | An `Earlier` result is for the MAIL FROM identity | [`options.earlier_result_invalid`](OptionsError::EarlierResultInvalid) | DMC-005 | API-213 |
-    /// | VAL-214 | `message_id` | 1 to 256 octets, when given | [`options.message_id_invalid`](OptionsError::MessageIdInvalid) | TRC-014, RFC 7493 §2.1 | API-214 |
-    /// | VAL-215 | `receiving_host` | A domain name with a lookup form | [`options.receiving_host_invalid`](OptionsError::ReceivingHostInvalid) | REC-014, ADS-002 | API-215 |
-    /// | VAL-216 | `kinds`, `dkim_signing` | The kinds hold `DkimSign` exactly when the list isn't empty | [`options.signing_mismatch`](OptionsError::SigningMismatch) | GEN-001, DKS-002 | API-216 |
-    /// | VAL-217 | `kinds`, `dkim2_signing` | The kinds hold `Dkim2Sign` exactly when `dkim2_signing` is `Some` | [`options.signing_mismatch`](OptionsError::SigningMismatch) | GEN-001, DK2-003 | API-217 |
-    /// | VAL-220 | `DkimSigning.domain` | A domain name with a lookup form | [`options.signing_domain_invalid`](OptionsError::SigningDomainInvalid) | ADS-002, RFC 6376 §3.5 | API-220 |
-    /// | VAL-221 | `DkimSigning.selector` | Matches `selector` of RFC 6376 §3.1, and the key name `<selector>._domainkey.<domain>` fits ADS-004 | [`options.selector_invalid`](OptionsError::SelectorInvalid) | DNS-008, RFC 6376 §3.1 | API-221 |
-    /// | VAL-222 | `DkimSigning.statement` | The algorithm is `RsaSha256` or `Ed25519Sha256` | [`options.algorithm_not_allowed`](OptionsError::AlgorithmNotAllowed) | DKS-001 | API-222 |
-    /// | VAL-223 | `DkimSigning.statement` | The public key decodes for its algorithm: an RSAPublicKey or a SubjectPublicKeyInfo that holds one, or 32 octets of Ed25519 | [`options.public_key_invalid`](OptionsError::PublicKeyInvalid) | SGN-003, RFC 8463 §4.2 | API-223 |
-    /// | VAL-224 | `DkimSigning.statement` | An RSA modulus has at least 1,024 bits | [`options.rsa_key_too_small`](OptionsError::RsaKeyTooSmall) | SGN-003, RFC 8301 §3.2 | SIGN-004 |
-    /// | VAL-225 | `DkimSigning.statement` | An RSA modulus has at most `rsa_key_bits` bits | [`options.rsa_key_too_large`](OptionsError::RsaKeyTooLarge) | SAF-002 | API-225 |
-    /// | VAL-226 | `DkimSigning.headers` | Each name matches `field-name` of RFC 5322 §3.6.8 | [`options.header_name_invalid`](OptionsError::HeaderNameInvalid) | DKS-003 | API-226 |
-    /// | VAL-227 | `DkimSigning.headers` | Holds From, in any case | [`options.from_not_signed`](OptionsError::FromNotSigned) | DKS-003, RFC 6376 §5.4 | API-227 |
-    /// | VAL-228 | `DkimSigning.expiration` | At least 1, and `time` plus it at most 999,999,999,999 | [`options.expiration_invalid`](OptionsError::ExpirationInvalid) | DKS-004, RFC 6376 §3.5 | API-228 |
-    /// | VAL-230 | `Dkim2Signing.domain` | A domain name with a lookup form | [`options.signing_domain_invalid`](OptionsError::SigningDomainInvalid) | ADS-002, draft-09 §10.8 | API-230 |
-    /// | VAL-231 | `Dkim2Signing.groups` | At least one group, and at least one signer in each | [`options.no_signer`](OptionsError::NoSigner) | draft-09 §10.9 | API-231 |
-    /// | VAL-232 | `Dkim2Signing.groups` | Each selector matches `selector` of RFC 6376 §3.1 and fits ADS-004 in its key name | [`options.selector_invalid`](OptionsError::SelectorInvalid) | dns-03 §3 | API-232 |
-    /// | VAL-233 | `Dkim2Signing.groups` | No selector appears twice | [`options.selector_repeated`](OptionsError::SelectorRepeated) | draft-09 §10.9 | API-233 |
-    /// | VAL-234 | `Dkim2Signing.groups` | Each public key decodes for its algorithm: RSA as in VAL-223, 32 octets of Ed25519, or 1,312 octets of ML-DSA-44 | [`options.public_key_invalid`](OptionsError::PublicKeyInvalid) | DK2-011, dns-03 §4 | API-234 |
-    /// | VAL-235 | `Dkim2Signing.groups` | An RSA modulus has from 1,024 to `rsa_key_bits` bits | [`options.rsa_key_too_small`](OptionsError::RsaKeyTooSmall) or [`options.rsa_key_too_large`](OptionsError::RsaKeyTooLarge) | SGN-003, draft-09 §3.2 | API-235 |
-    /// | VAL-236 | `Dkim2Signing.groups` | An RSA public exponent is 65537 | [`options.rsa_exponent_not_65537`](OptionsError::RsaExponentNot65537) | SGN-003, draft-09 §3.2 | SIGN-005 |
-    /// | VAL-237 | `Dkim2Signing` | Either `next_domain` with no `mail_from` and no `rcpt_to`, or `mail_from` and at least one `rcpt_to` with no `next_domain` | [`options.dkim2_envelope_invalid`](OptionsError::Dkim2EnvelopeInvalid) | draft-09 §10.7 | API-237 |
-    /// | VAL-238 | `Dkim2Signing.mail_from`, `rcpt_to` | `mail_from` is a Reverse-path and each `rcpt_to` a Forward-path, with angle brackets and without parameters | [`options.path_invalid`](OptionsError::PathInvalid) | ADS-020, ADS-021, draft-09 §10.5, §10.6 | API-238 |
-    /// | VAL-239 | `Dkim2Signing.rcpt_to` | At most `rcpt_to` paths | [`options.rcpt_to_limit`](OptionsError::RcptToLimit) | SAF-004 | API-239 |
-    /// | VAL-240 | `Dkim2Signing.next_domain` | A domain name with a lookup form | [`options.signing_domain_invalid`](OptionsError::SigningDomainInvalid) | ADS-002, draft-09 §10.7 | API-240 |
-    /// | VAL-241 | `Dkim2Signing.nonce` | At most 64 characters of printable ASCII other than `;` | [`options.nonce_invalid`](OptionsError::NonceInvalid) | draft-09 §10.3 | API-241 |
-    /// | VAL-242 | `Dkim2Signing.revision` | The `Unchanged` ranges have `first` at most `last`, start at line 1 or later, and go in ascending order without overlap | [`options.revision_invalid`](OptionsError::RevisionInvalid) | DK2-014, draft-09 §5.2 | API-242 |
+    /// | VAL-210 | `kinds` | Holds at least one kind | [`check_options.no_kind`](CheckOptionsError::NoKind) | GEN-001 | API-210 |
+    /// | VAL-211 | `dmarc_spf` | `SameCheck` only when the kinds hold SPF MAIL FROM | [`check_options.source_kind_missing`](CheckOptionsError::SourceKindMissing) | DMC-005 | API-211 |
+    /// | VAL-212 | `dmarc_dkim` | `SameCheck` only when the kinds hold DKIM | [`check_options.source_kind_missing`](CheckOptionsError::SourceKindMissing) | DMC-005 | API-212 |
+    /// | VAL-213 | `dmarc_spf` | An `Earlier` result is for the MAIL FROM identity | [`check_options.earlier_result_invalid`](CheckOptionsError::EarlierResultInvalid) | DMC-005 | API-213 |
+    /// | VAL-214 | `message_id` | 1 to 256 octets, when given | [`check_options.message_id_invalid`](CheckOptionsError::MessageIdInvalid) | TRC-014, RFC 7493 §2.1 | API-214 |
+    /// | VAL-215 | `receiving_host` | A domain name with a lookup form | [`check_options.receiving_host_invalid`](CheckOptionsError::ReceivingHostInvalid) | REC-014, ADS-002 | API-215 |
     ///
     /// Requirements: GEN-001, PAR-004.
-    pub fn new(options: Options) -> Result<Check, OptionsError> {
+    pub fn new(options: CheckOptions) -> Result<Check, CheckOptionsError> {
         unimplemented!()
     }
 
@@ -143,19 +109,19 @@ impl Check {
     /// Takes one header field as a milter receives it: a name and a value.
     ///
     /// Accepted in Envelope and Headers. The check rebuilds the raw bytes from
-    /// `name`, a colon, `value` and [`Options::field_form`], and reads them
-    /// with the parser of a raw header section (HDR-005, FLD-060). A `name`
-    /// that isn't a field name gives a malformed line, as it would in a raw
-    /// header section (HDR-004). A bare CR or LF in `value`, outside the folds
-    /// that the field form states, stays an octet of the field (HDR-012). A
-    /// field over `header_field_size` reaches that limit.
+    /// `name`, a colon, `value` and [`CheckOptions::field_form`], and reads
+    /// them with the parser of a raw header section (HDR-005, FLD-060). A
+    /// `name` that isn't a field name gives a malformed line, as it would in a
+    /// raw header section (HDR-004). A bare CR or LF in `value`, outside the
+    /// folds that the field form states, stays an octet of the field
+    /// (HDR-012). A field over `header_field_size` reaches that limit.
     ///
     /// # Parameters
     ///
     /// - `name`: one field name as a milter receives it: the octets before the
     ///   colon, without the colon.
     /// - `value`: that field's value in the form that
-    ///   [`Options::field_form`] states, without the line ending that ends
+    ///   [`CheckOptions::field_form`] states, without the line ending that ends
     ///   the field.
     ///
     /// # Validation
@@ -333,37 +299,6 @@ impl Check {
         unimplemented!()
     }
 
-    /// Takes the signer's answer to a signing request.
-    ///
-    /// Accepted in every state. An `Err` stops that signing with
-    /// [`SigningError::SignerFailed`] in the results (SGN-004, SIGN-008). The
-    /// check keeps the failure's description for that error and writes none
-    /// of it into the trace.
-    ///
-    /// # Parameters
-    ///
-    /// - `id`: the ID of a signing request from [`Check::take_requests`].
-    /// - `answer`: `Ok` with the signature the signer made, or `Err` with the
-    ///   signer's failure.
-    ///
-    /// # Validation
-    ///
-    /// | ID | Input | Rule | Error code | Requirement | Scenario |
-    /// |---|---|---|---|---|---|
-    /// | VAL-140 | `id` | Names a signing request that [`Check::take_requests`] gave | [`check.unknown_request`](CheckError::UnknownRequest) | CHK-004 | API-140 |
-    /// | VAL-141 | `id` | The request has no answer yet | [`check.already_answered`](CheckError::AlreadyAnswered) | CHK-004 | API-141 |
-    /// | VAL-142 | `answer` | An `Ok` signature has the size that its algorithm and the stated key give | Not an error: signing stops with [`signing.wrong_size`](SigningError::WrongSize) in the results | SGN-004 | SIGN-007 |
-    /// | VAL-143 | `answer` | An `Ok` signature verifies with the stated public key, when `verify` is on in its [`DkimSigning`] or `Dkim2Signing` | Not an error: signing stops with [`signing.not_verified`](SigningError::NotVerified) in the results | SGN-006 | SIGN-016 |
-    ///
-    /// Requirements: SGN-004.
-    pub fn answer_signing(
-        &mut self,
-        id: RequestId,
-        answer: Result<Signature, SignerFailure>,
-    ) -> Result<(), CheckError> {
-        unimplemented!()
-    }
-
     /// Writes the next trace bytes into `buffer`.
     ///
     /// Accepted in every state. It gives how many bytes it wrote and whether
@@ -411,26 +346,26 @@ impl Check {
     /// | VAL-161 | The call | The results haven't been taken | [`check.results_taken`](CheckError::ResultsTaken) | CHK-002 | API-161 |
     ///
     /// Requirements: CHK-002.
-    pub fn take_results(&mut self) -> Result<Results, CheckError> {
+    pub fn take_results(&mut self) -> Result<CheckResults, CheckError> {
         unimplemented!()
     }
 
     /// Gives the options the check was created with.
     ///
     /// Accepted in every state. The method takes no input, so it has no rule
-    /// to check (SIGN-018).
+    /// to check (RUN-017).
     ///
     /// Requirements: INV-015.
-    pub fn options(&self) -> &Options {
+    pub fn options(&self) -> &CheckOptions {
         unimplemented!()
     }
 }
 
 /// The SMTP envelope of a message (GEN-002).
 ///
-/// The caller starts from `Envelope::default()`, in which every field is
-/// empty, and sets the fields its kinds need. [`Check::envelope`] checks it
-/// (VAL-101 to VAL-106).
+/// The verifying caller starts from `Envelope::default()`, in which every
+/// field is empty, and sets the fields its kinds need. [`Check::envelope`]
+/// checks it (VAL-101 to VAL-106).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct Envelope {
@@ -446,7 +381,7 @@ pub struct Envelope {
     pub rcpt_to: Vec<Vec<u8>>,
 }
 
-/// One thing a check needs from the caller.
+/// One thing a check needs from the verifying caller.
 ///
 /// [`Check::take_requests`] gives them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -456,8 +391,6 @@ pub enum Request {
     Question(Question),
     /// A public suffix question, for [`Check::answer_suffix`] (DMC-010).
     Suffix(SuffixQuestion),
-    /// A signature to make, for [`Check::answer_signing`] (SGN-002).
-    Signing(SigningRequest),
 }
 
 /// What one call of [`Check::read_trace`] wrote.
@@ -484,22 +417,22 @@ pub struct Waiting {
     /// The DNS and public suffix questions without an answer, waiting or
     /// taken, in the order they appeared.
     pub questions: Vec<QuestionId>,
-    /// The signing requests without an answer, waiting or taken, in the order
-    /// they appeared.
-    pub signing: Vec<RequestId>,
 }
 
-/// The message input a check expects next, by state.
+/// The message input that a check or a signing expects next, by state.
+///
+/// [`Waiting`] and [`SigningWaiting`] hold it. The methods named are those of
+/// [`Check`] and of [`Signing`] alike.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExpectedInput {
-    /// Created: [`Check::envelope`].
+    /// A check in Created: `envelope`. A signing never expects it.
     Envelope,
-    /// Envelope: [`Check::header_field`], [`Check::end_of_header_fields`],
-    /// [`Check::header_section`] or [`Check::whole_message`].
+    /// A check in Envelope, or a signing in Created: `header_field`,
+    /// `end_of_header_fields`, `header_section` or `whole_message`.
     Header,
-    /// Headers: [`Check::header_field`] or [`Check::end_of_header_fields`].
+    /// Headers: `header_field` or `end_of_header_fields`.
     MoreHeaderFields,
-    /// Body: [`Check::body_chunk`] or [`Check::end_of_message`].
+    /// Body: `body_chunk` or `end_of_message`.
     Body,
 }
 
@@ -512,8 +445,7 @@ pub enum ExpectedInput {
 /// | `check.rcpt_to_limit` | [`RcptToLimit`](Self::RcptToLimit) | [`Check::envelope`] | VAL-106 | SAF-004 |
 /// | `check.body_in_header_section` | [`BodyInHeaderSection`](Self::BodyInHeaderSection) | [`Check::header_section`] | VAL-110 | HDR-001 |
 /// | `check.unknown_question` | [`UnknownQuestion`](Self::UnknownQuestion) | [`Check::answer`], [`Check::answer_suffix`] | VAL-120, VAL-130 | CHK-004 |
-/// | `check.unknown_request` | [`UnknownRequest`](Self::UnknownRequest) | [`Check::answer_signing`] | VAL-140 | CHK-004 |
-/// | `check.already_answered` | [`AlreadyAnswered`](Self::AlreadyAnswered) | [`Check::answer`], [`Check::answer_suffix`], [`Check::answer_signing`] | VAL-121, VAL-131, VAL-141 | CHK-004 |
+/// | `check.already_answered` | [`AlreadyAnswered`](Self::AlreadyAnswered) | [`Check::answer`], [`Check::answer_suffix`] | VAL-121, VAL-131 | CHK-004 |
 /// | `check.answer_type_mismatch` | [`AnswerTypeMismatch`](Self::AnswerTypeMismatch) | [`Check::answer`] | VAL-122 | DNS-006 |
 /// | `check.answer_malformed` | [`AnswerMalformed`](Self::AnswerMalformed) | [`Check::answer`] | VAL-123, VAL-124 | DNS-002, DNS-006 |
 /// | `check.suffix_out_of_range` | [`SuffixOutOfRange`](Self::SuffixOutOfRange) | [`Check::answer_suffix`] | VAL-132 | DMC-011 |
@@ -539,9 +471,6 @@ pub enum CheckError {
     BodyInHeaderSection,
     /// `check.unknown_question`: no question with that ID was handed out.
     UnknownQuestion,
-    /// `check.unknown_request`: no signing request with that ID was handed
-    /// out.
-    UnknownRequest,
     /// `check.already_answered`: the request has its answer.
     AlreadyAnswered,
     /// `check.answer_type_mismatch`: a record of another type than the
