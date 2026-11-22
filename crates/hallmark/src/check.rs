@@ -6,17 +6,17 @@ use std::net::IpAddr;
 
 #[cfg(feature = "unstable-dkim2")]
 mod dkim2_signing;
+mod dkim_signing;
 mod options;
 mod results;
-mod signing_options;
 
 #[cfg(feature = "unstable-dkim2")]
 pub use dkim2_signing::{
     BodyRevision, Dkim2Flags, Dkim2Signer, Dkim2Signing, EarlierLines, FieldRevision, Revision,
 };
+pub use dkim_signing::{CanonAlgorithm, DkimCanonicalization, DkimSigning};
 pub use options::{DkimSource, DmarcMode, Kind, Options, OptionsError, SpfSource};
 pub use results::{HeaderFieldOut, Results, ResultsError, Signing, SigningError};
-pub use signing_options::{CanonAlgorithm, DkimCanonicalization, DkimSigning};
 
 /// One run of any set of checks on one message: the one type that a caller
 /// creates and feeds
