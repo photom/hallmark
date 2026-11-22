@@ -24,7 +24,7 @@ hallmark hands the records to the caller in chunks of bounded size (STR-002), an
 
 ## Events
 
-Each event is one step of a check. Its members appear in this order:
+Each event is one step of a check or a signing. Its members appear in this order:
 
 | Member | Type | Present | Meaning |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Each event is one step of a check. Its members appear in this order:
 
 A position is a list of counts: the child numbers on the path from the root of the tree. `[]` is the root, `[3]` is the third slot under the root, and `[3,1]` is the first child of `[3]`. Child numbers start at 1.
 
-The slots under the root are fixed, one for each kind of check and one for the header section ([Trace codes](trace-codes.md#slots-under-the-root)). Below them, a step's number comes from the order that the specifications fix and from the order of items in the input, such as header fields, terms in a record and records in an answer. It never depends on when a DNS answer arrived, where the body chunks were cut, or how many events went out before it (TRC-012). A step that didn't happen leaves its number unused, and the numbers after it don't move.
+The slots under the root are fixed, one for each kind of check and of signing, and one for the header section ([Trace codes](trace-codes.md#slots-under-the-root)). Below them, a step's number comes from the order that the specifications fix and from the order of items in the input, such as header fields, terms in a record and records in an answer. It never depends on when a DNS answer arrived, where the body chunks were cut, or how many events went out before it (TRC-012). A step that didn't happen leaves its number unused, and the numbers after it don't move.
 
 To sort events, compare their positions element by element as integers. The first element that differs decides, and the smaller sorts first. A position that is a prefix of another sorts before it. So `[]`, `[3]`, `[3,1]`, `[3,1,2]`, `[3,2]` and `[10]` are in order. This puts each parent before its children, and siblings in their order. The trace in its canonical form is its events sorted this way.
 
@@ -86,7 +86,7 @@ hallmark writes every event, snapshot and case in one fixed form, so the same co
 | Level | Events that go out | Timing |
 |---|---|---|
 | off | None | |
-| summary | The root event, then, for each check, the events on the path from its top step to the steps that decided its result, and every caution (TRC-004) | Once the check finishes, in position order |
+| summary | The root event, then, for each kind of check or signing that ran, the events on the path from its top step to the steps that decided its result, and every caution (TRC-004) | Once the check or the signing finishes, in position order |
 | full | Every event | Each event when its step finishes, and the root event last |
 
 At the full level, a step finishes after the steps it ran, so a parent's event usually goes out after its children's. The order of events can differ between runs with the same inputs, because DNS answers arrive in any order. Sorted by position, the events are the same, in the same bytes (TRC-012). The library offers the sort.
