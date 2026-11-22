@@ -28,277 +28,351 @@ use crate::*;
 /// |---|---|---|---|---|---|
 /// | VAL-202 | `value` | Within the range that [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives for the limit | [`limits.out_of_range`](LimitsError::OutOfRange) | PAR-004 | API-202 |
 /// | VAL-203 | `value` of [`set_header_field_size`](Self::set_header_field_size) or [`set_header_section_size`](Self::set_header_section_size) | `header_field_size` at most `header_section_size`, after the change | [`limits.conflict`](LimitsError::Conflict) | PAR-004 | API-203 |
-#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Limits {
-    values: [u32; 23],
+    header_fields: u32,
+    header_field_size: u32,
+    header_section_size: u32,
+    comment_depth: u32,
+    mailboxes: u32,
+    address_size: u32,
+    rcpt_to: u32,
+    rt_entries: u32,
+    dkim_signatures: u32,
+    key_records: u32,
+    rsa_key_bits: u32,
+    rsa_exponent_bits: u32,
+    author_domains: u32,
+    dns_questions: u32,
+    answer_size: u32,
+    dkim2_signatures: u32,
+    message_instances: u32,
+    recipe_steps: u32,
+    recipe_size: u32,
+    recipe_depth: u32,
+    spf_void_lookups: u32,
+    trace_size: u32,
+    trace_places: u32,
 }
 
-#[cfg(doc)]
 impl Default for Limits {
     /// Every limit of a check or a signing at the default that
     /// [Limits](https://github.com/photom/hallmark/blob/main/docs/reference/design/limits.md#limits-of-a-check-or-a-signing) gives (PAR-004).
     fn default() -> Limits {
-        unimplemented!()
+        Limits {
+            header_fields: Limit::HeaderFields.default_value(),
+            header_field_size: Limit::HeaderFieldSize.default_value(),
+            header_section_size: Limit::HeaderSectionSize.default_value(),
+            comment_depth: Limit::CommentDepth.default_value(),
+            mailboxes: Limit::Mailboxes.default_value(),
+            address_size: Limit::AddressSize.default_value(),
+            rcpt_to: Limit::RcptTo.default_value(),
+            rt_entries: Limit::RtEntries.default_value(),
+            dkim_signatures: Limit::DkimSignatures.default_value(),
+            key_records: Limit::KeyRecords.default_value(),
+            rsa_key_bits: Limit::RsaKeyBits.default_value(),
+            rsa_exponent_bits: Limit::RsaExponentBits.default_value(),
+            author_domains: Limit::AuthorDomains.default_value(),
+            dns_questions: Limit::DnsQuestions.default_value(),
+            answer_size: Limit::AnswerSize.default_value(),
+            dkim2_signatures: Limit::Dkim2Signatures.default_value(),
+            message_instances: Limit::MessageInstances.default_value(),
+            recipe_steps: Limit::RecipeSteps.default_value(),
+            recipe_size: Limit::RecipeSize.default_value(),
+            recipe_depth: Limit::RecipeDepth.default_value(),
+            spf_void_lookups: Limit::SpfVoidLookups.default_value(),
+            trace_size: Limit::TraceSize.default_value(),
+            trace_places: Limit::TracePlaces.default_value(),
+        }
     }
 }
 
-#[cfg(doc)]
 impl Limits {
     /// `header_fields`: the most header fields and malformed lines in the header section (SAF-002).
     pub fn header_fields(&self) -> u32 {
-        unimplemented!()
+        self.header_fields
     }
 
     /// Sets [`header_fields`](Self::header_fields) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_header_fields(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.header_fields = Limit::HeaderFields.checked(value)?;
+        Ok(())
     }
 
     /// `header_field_size`: the most octets of one header field, its name and folding included (SAF-002).
     pub fn header_field_size(&self) -> u32 {
-        unimplemented!()
+        self.header_field_size
     }
 
     /// Sets [`header_field_size`](Self::header_field_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_header_field_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        let value = Limit::HeaderFieldSize.checked(value)?;
+        if value > self.header_section_size {
+            return Err(LimitsError::Conflict);
+        }
+        self.header_field_size = value;
+        Ok(())
     }
 
     /// `header_section_size`: the most octets of the raw header section (SAF-002).
     pub fn header_section_size(&self) -> u32 {
-        unimplemented!()
+        self.header_section_size
     }
 
     /// Sets [`header_section_size`](Self::header_section_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_header_section_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        let value = Limit::HeaderSectionSize.checked(value)?;
+        if self.header_field_size > value {
+            return Err(LimitsError::Conflict);
+        }
+        self.header_section_size = value;
+        Ok(())
     }
 
     /// `comment_depth`: the most levels of nested comments (HDR-011).
     pub fn comment_depth(&self) -> u32 {
-        unimplemented!()
+        self.comment_depth
     }
 
     /// Sets [`comment_depth`](Self::comment_depth) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_comment_depth(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.comment_depth = Limit::CommentDepth.checked(value)?;
+        Ok(())
     }
 
     /// `mailboxes`: the most mailboxes in one address list (SAF-002).
     pub fn mailboxes(&self) -> u32 {
-        unimplemented!()
+        self.mailboxes
     }
 
     /// Sets [`mailboxes`](Self::mailboxes) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_mailboxes(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.mailboxes = Limit::Mailboxes.checked(value)?;
+        Ok(())
     }
 
     /// `address_size`: the most octets of one address or path (ADS-007).
     pub fn address_size(&self) -> u32 {
-        unimplemented!()
+        self.address_size
     }
 
     /// Sets [`address_size`](Self::address_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_address_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.address_size = Limit::AddressSize.checked(value)?;
+        Ok(())
     }
 
     /// `rcpt_to`: the most RCPT TO paths, in the envelope and in DKIM2 signing (SAF-004).
     pub fn rcpt_to(&self) -> u32 {
-        unimplemented!()
+        self.rcpt_to
     }
 
     /// Sets [`rcpt_to`](Self::rcpt_to) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_rcpt_to(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.rcpt_to = Limit::RcptTo.checked(value)?;
+        Ok(())
     }
 
     /// `rt_entries`: the most entries in one DKIM2 `rt=` tag (SAF-002).
     pub fn rt_entries(&self) -> u32 {
-        unimplemented!()
+        self.rt_entries
     }
 
     /// Sets [`rt_entries`](Self::rt_entries) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_rt_entries(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.rt_entries = Limit::RtEntries.checked(value)?;
+        Ok(())
     }
 
     /// `dkim_signatures`: the most DKIM-Signature fields verified, in header order (DKV-004).
     pub fn dkim_signatures(&self) -> u32 {
-        unimplemented!()
+        self.dkim_signatures
     }
 
     /// Sets [`dkim_signatures`](Self::dkim_signatures) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_dkim_signatures(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.dkim_signatures = Limit::DkimSignatures.checked(value)?;
+        Ok(())
     }
 
     /// `key_records`: the most key records at one DKIM selector (REC-052).
     pub fn key_records(&self) -> u32 {
-        unimplemented!()
+        self.key_records
     }
 
     /// Sets [`key_records`](Self::key_records) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_key_records(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.key_records = Limit::KeyRecords.checked(value)?;
+        Ok(())
     }
 
     /// `rsa_key_bits`: the most bits of an RSA modulus (DKV-003).
     pub fn rsa_key_bits(&self) -> u32 {
-        unimplemented!()
+        self.rsa_key_bits
     }
 
     /// Sets [`rsa_key_bits`](Self::rsa_key_bits) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_rsa_key_bits(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.rsa_key_bits = Limit::RsaKeyBits.checked(value)?;
+        Ok(())
     }
 
     /// `rsa_exponent_bits`: the most bits of an RSA public exponent in a DKIM key (REC-051).
     pub fn rsa_exponent_bits(&self) -> u32 {
-        unimplemented!()
+        self.rsa_exponent_bits
     }
 
     /// Sets [`rsa_exponent_bits`](Self::rsa_exponent_bits) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_rsa_exponent_bits(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.rsa_exponent_bits = Limit::RsaExponentBits.checked(value)?;
+        Ok(())
     }
 
     /// `author_domains`: the most author domains evaluated when the verifying
     /// caller asks for several (DMC-002).
     pub fn author_domains(&self) -> u32 {
-        unimplemented!()
+        self.author_domains
     }
 
     /// Sets [`author_domains`](Self::author_domains) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_author_domains(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.author_domains = Limit::AuthorDomains.checked(value)?;
+        Ok(())
     }
 
     /// `dns_questions`: the most distinct DNS questions in one check (SAF-002).
     pub fn dns_questions(&self) -> u32 {
-        unimplemented!()
+        self.dns_questions
     }
 
     /// Sets [`dns_questions`](Self::dns_questions) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_dns_questions(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.dns_questions = Limit::DnsQuestions.checked(value)?;
+        Ok(())
     }
 
     /// `answer_size`: the most octets of record data and description in one DNS
     /// answer, and of the description in one public suffix answer (SAF-004).
     pub fn answer_size(&self) -> u32 {
-        unimplemented!()
+        self.answer_size
     }
 
     /// Sets [`answer_size`](Self::answer_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_answer_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.answer_size = Limit::AnswerSize.checked(value)?;
+        Ok(())
     }
 
     /// `dkim2_signatures`: the most DKIM2-Signature fields (SAF-002).
     pub fn dkim2_signatures(&self) -> u32 {
-        unimplemented!()
+        self.dkim2_signatures
     }
 
     /// Sets [`dkim2_signatures`](Self::dkim2_signatures) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_dkim2_signatures(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.dkim2_signatures = Limit::Dkim2Signatures.checked(value)?;
+        Ok(())
     }
 
     /// `message_instances`: the most Message-Instance fields (SAF-002).
     pub fn message_instances(&self) -> u32 {
-        unimplemented!()
+        self.message_instances
     }
 
     /// Sets [`message_instances`](Self::message_instances) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_message_instances(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.message_instances = Limit::MessageInstances.checked(value)?;
+        Ok(())
     }
 
     /// `recipe_steps`: the most steps in one recipe (DK2-007).
     pub fn recipe_steps(&self) -> u32 {
-        unimplemented!()
+        self.recipe_steps
     }
 
     /// Sets [`recipe_steps`](Self::recipe_steps) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_recipe_steps(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.recipe_steps = Limit::RecipeSteps.checked(value)?;
+        Ok(())
     }
 
     /// `recipe_size`: the most octets of one recipe's decoded JSON (SAF-002).
     pub fn recipe_size(&self) -> u32 {
-        unimplemented!()
+        self.recipe_size
     }
 
     /// Sets [`recipe_size`](Self::recipe_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_recipe_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.recipe_size = Limit::RecipeSize.checked(value)?;
+        Ok(())
     }
 
     /// `recipe_depth`: the most levels of nesting in recipe JSON (PAR-005).
     pub fn recipe_depth(&self) -> u32 {
-        unimplemented!()
+        self.recipe_depth
     }
 
     /// Sets [`recipe_depth`](Self::recipe_depth) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_recipe_depth(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.recipe_depth = Limit::RecipeDepth.checked(value)?;
+        Ok(())
     }
 
     /// `spf_void_lookups`: the most void lookups in one SPF evaluation (SPF-006).
     pub fn spf_void_lookups(&self) -> u32 {
-        unimplemented!()
+        self.spf_void_lookups
     }
 
     /// Sets [`spf_void_lookups`](Self::spf_void_lookups) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_spf_void_lookups(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.spf_void_lookups = Limit::SpfVoidLookups.checked(value)?;
+        Ok(())
     }
 
     /// `trace_size`: the most octets of trace events written, read or not (TRC-005).
     pub fn trace_size(&self) -> u32 {
-        unimplemented!()
+        self.trace_size
     }
 
     /// Sets [`trace_size`](Self::trace_size) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_trace_size(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.trace_size = Limit::TraceSize.checked(value)?;
+        Ok(())
     }
 
     /// `trace_places`: the most places listed for each kind of body change, and
     /// for bare CR and LF in the body and the header section (TRC-010).
     pub fn trace_places(&self) -> u32 {
-        unimplemented!()
+        self.trace_places
     }
 
     /// Sets [`trace_places`](Self::trace_places) to `value`, under the rules of
     /// [Validation](#validation).
     pub fn set_trace_places(&mut self, value: u32) -> Result<(), LimitsError> {
-        unimplemented!()
+        self.trace_places = Limit::TracePlaces.checked(value)?;
+        Ok(())
     }
 }
 
@@ -580,6 +654,75 @@ impl std::error::Error for LimitsError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_202_comment_depth_takes_1_to_256() {
+        let mut limits = Limits::default();
+        let out_of_range = LimitsError::OutOfRange {
+            limit: Limit::CommentDepth,
+        };
+        assert_eq!(limits.set_comment_depth(0), Err(out_of_range.clone()));
+        assert_eq!(limits.set_comment_depth(257), Err(out_of_range.clone()));
+        assert_eq!(limits.comment_depth(), 16);
+        assert_eq!(limits.set_comment_depth(256), Ok(()));
+        assert_eq!(limits.comment_depth(), 256);
+        assert!(out_of_range.to_string().contains("comment_depth"));
+    }
+
+    #[test]
+    fn api_203_header_field_size_stays_within_header_section_size() {
+        let mut limits = Limits::default();
+        assert_eq!(limits.header_section_size(), 1_048_576);
+        assert_eq!(
+            limits.set_header_field_size(2_000_000),
+            Err(LimitsError::Conflict)
+        );
+        assert_eq!(limits.header_field_size(), 65_536);
+        assert_eq!(limits.set_header_section_size(2_000_000), Ok(()));
+        assert_eq!(limits.set_header_field_size(2_000_000), Ok(()));
+        assert_eq!(limits.header_field_size(), 2_000_000);
+        assert_eq!(
+            limits.set_header_section_size(1_999_999),
+            Err(LimitsError::Conflict)
+        );
+        assert_eq!(limits.header_section_size(), 2_000_000);
+        assert_eq!(LimitsError::Conflict.code(), "limits.conflict");
+        let text = LimitsError::Conflict.to_string();
+        assert!(text.starts_with("limits.conflict"));
+    }
+
+    #[test]
+    fn prs_006_limits_have_their_documented_defaults() {
+        let limits = Limits::default();
+        let defaults = [
+            (limits.header_fields(), 1_000),
+            (limits.header_field_size(), 65_536),
+            (limits.header_section_size(), 1_048_576),
+            (limits.comment_depth(), 16),
+            (limits.mailboxes(), 64),
+            (limits.address_size(), 1_024),
+            (limits.rcpt_to(), 1_000),
+            (limits.rt_entries(), 1_000),
+            (limits.dkim_signatures(), 16),
+            (limits.key_records(), 8),
+            (limits.rsa_key_bits(), 4_096),
+            (limits.rsa_exponent_bits(), 32),
+            (limits.author_domains(), 4),
+            (limits.dns_questions(), 512),
+            (limits.answer_size(), 65_535),
+            (limits.dkim2_signatures(), 32),
+            (limits.message_instances(), 32),
+            (limits.recipe_steps(), 10_000),
+            (limits.recipe_size(), 65_536),
+            (limits.recipe_depth(), 8),
+            (limits.spf_void_lookups(), 2),
+            (limits.trace_size(), 1_048_576),
+            (limits.trace_places(), 16),
+        ];
+        for (value, default) in defaults {
+            assert_eq!(value, default);
+        }
+    }
 
     #[test]
     fn api_204_document_depth_takes_1_to_64() {
