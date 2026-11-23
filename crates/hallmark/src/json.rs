@@ -1,12 +1,11 @@
-//! The writer of the fixed form that traces, snapshots and demo cases share
-//! (TRC-007). The reader, with its size and depth limits (PAR-005), comes
-//! with the first API that reads one of those documents.
+//! The reader and the writer of the documents that traces, snapshots and demo
+//! cases share (TRC-007): I-JSON texts (RFC 7493), written in one fixed form.
 
-// The trace recorder, which writes events, comes in a later change, so only
-// the tests use this module for now.
+// sort_trace and the trace recorder, which read and write these documents,
+// come in later changes, so only the tests use this module for now.
 #![cfg_attr(
     not(test),
-    expect(dead_code, reason = "the trace recorder comes later")
+    expect(dead_code, reason = "its callers come in later changes")
 )]
 
 /// Appends `text` to `out` as a JSON string in the fixed form: escaped as
@@ -62,5 +61,391 @@ fn hex_digit(nibble: u32) -> u8 {
         14 => b'e',
         // The callers pass four bits, so this arm is 15.
         _ => b'f',
+    }
+}
+
+/// A JSON value (RFC 8259 §3) that [`read`] took from a document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Json {
+    /// `null`.
+    Null,
+    /// `true` or `false`.
+    Bool(bool),
+    /// A number, as the text that matched the grammar of RFC 8259 §6. The
+    /// reader of each document converts it to the type its member takes.
+    Number(String),
+    /// A string, with its escapes decoded.
+    String(String),
+    /// An array, its values in document order.
+    Array(Vec<Json>),
+    /// An object, its members in document order.
+    Object(Vec<(String, Json)>),
+}
+
+/// Why [`read`] refused a document. Each offset counts bytes from the start
+/// of the document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JsonError {
+    /// The document isn't one I-JSON text: the byte at this offset breaks
+    /// RFC 8259 or RFC 7493 §2.
+    Malformed { offset: usize },
+    /// The array or object that opens at this offset is nested deeper than
+    /// the limit (PAR-005).
+    TooDeep { offset: usize },
+}
+
+/// Reads one I-JSON text (RFC 7493) from `bytes`, with arrays and objects
+/// nested at most `depth_limit` levels. It reads left to right with a stack
+/// of the open arrays and objects, and never recurses (PAR-005).
+pub(crate) fn read(bytes: &[u8], depth_limit: u32) -> Result<Json, JsonError> {
+    // RFC 7493 §2.1: an I-JSON text is UTF-8.
+    let text = match core::str::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) => {
+            let offset = error.valid_up_to();
+            return Err(JsonError::Malformed { offset });
+        }
+    };
+    let mut reader = Reader {
+        text,
+        at: 0,
+        open: Vec::new(),
+        depth_limit,
+    };
+    loop {
+        if let Some(value) = reader.value()?
+            && let Some(document) = reader.close(value)?
+        {
+            return Ok(document);
+        }
+    }
+}
+
+/// An array or an object that is still open, with what it holds so far.
+enum Open {
+    Array(Vec<Json>),
+    /// An object, and the name of the member whose value comes next.
+    Object {
+        members: Vec<(String, Json)>,
+        name: String,
+    },
+}
+
+/// The state of [`read`]: the text, the offset of the next byte, and the
+/// open arrays and objects, innermost last.
+struct Reader<'a> {
+    text: &'a str,
+    at: usize,
+    open: Vec<Open>,
+    depth_limit: u32,
+}
+
+impl Reader<'_> {
+    /// Reads the start of a value: a whole value, or `None` for an array or
+    /// an object that holds something, which goes on the stack.
+    fn value(&mut self) -> Result<Option<Json>, JsonError> {
+        self.skip_space();
+        let value = match self.peek() {
+            Some(b'[') => return self.open_array(),
+            Some(b'{') => return self.open_object(),
+            Some(b'"') => Json::String(self.string()?),
+            Some(b't') => self.literal("true", Json::Bool(true))?,
+            Some(b'f') => self.literal("false", Json::Bool(false))?,
+            Some(b'n') => self.literal("null", Json::Null)?,
+            Some(b'-' | b'0'..=b'9') => self.number()?,
+            _ => return Err(self.malformed()),
+        };
+        Ok(Some(value))
+    }
+
+    /// Hands a finished value to the open arrays and objects, closing each one
+    /// that ends after it. Gives the document once nothing is left open.
+    fn close(&mut self, mut value: Json) -> Result<Option<Json>, JsonError> {
+        while let Some(open) = self.open.pop() {
+            self.skip_space();
+            let closed = match open {
+                Open::Array(values) => self.add_item(values, value)?,
+                Open::Object { members, name } => self.add_member(members, name, value)?,
+            };
+            match closed {
+                Some(closed) => value = closed,
+                None => return Ok(None),
+            }
+        }
+        // RFC 8259 §2: white space may follow the text, and nothing else.
+        self.skip_space();
+        if self.at < self.text.len() {
+            return Err(self.malformed());
+        }
+        Ok(Some(value))
+    }
+
+    /// Adds `item` to an open array. A comma keeps the array open, and `]`
+    /// gives the finished array.
+    fn add_item(&mut self, mut items: Vec<Json>, item: Json) -> Result<Option<Json>, JsonError> {
+        items.push(item);
+        match self.peek() {
+            Some(b',') => {
+                self.at += 1;
+                self.open.push(Open::Array(items));
+                Ok(None)
+            }
+            Some(b']') => {
+                self.at += 1;
+                Ok(Some(Json::Array(items)))
+            }
+            _ => Err(self.malformed()),
+        }
+    }
+
+    /// Adds the member `name` with `value` to an open object. A comma and the
+    /// next name keep the object open, and `}` gives the finished object.
+    fn add_member(
+        &mut self,
+        mut members: Vec<(String, Json)>,
+        name: String,
+        value: Json,
+    ) -> Result<Option<Json>, JsonError> {
+        members.push((name, value));
+        match self.peek() {
+            Some(b',') => {
+                self.at += 1;
+                let name = self.name()?;
+                self.open.push(Open::Object { members, name });
+                Ok(None)
+            }
+            Some(b'}') => {
+                self.at += 1;
+                Ok(Some(Json::Object(members)))
+            }
+            _ => Err(self.malformed()),
+        }
+    }
+
+    /// Opens the array at the cursor. An empty array is a finished value.
+    fn open_array(&mut self) -> Result<Option<Json>, JsonError> {
+        self.enter()?;
+        self.skip_space();
+        if self.peek() == Some(b']') {
+            self.at += 1;
+            return Ok(Some(Json::Array(Vec::new())));
+        }
+        self.open.push(Open::Array(Vec::new()));
+        Ok(None)
+    }
+
+    /// Opens the object at the cursor and reads its first name. An empty
+    /// object is a finished value.
+    fn open_object(&mut self) -> Result<Option<Json>, JsonError> {
+        self.enter()?;
+        self.skip_space();
+        if self.peek() == Some(b'}') {
+            self.at += 1;
+            return Ok(Some(Json::Object(Vec::new())));
+        }
+        let name = self.name()?;
+        let open = Open::Object {
+            members: Vec::new(),
+            name,
+        };
+        self.open.push(open);
+        Ok(None)
+    }
+
+    /// Steps over the bracket that opens an array or an object, which nests
+    /// one level deeper than the open ones (PAR-005).
+    fn enter(&mut self) -> Result<(), JsonError> {
+        let depth = self.open.len().saturating_add(1);
+        let within = match u32::try_from(depth) {
+            Ok(depth) => depth <= self.depth_limit,
+            Err(_) => false,
+        };
+        if !within {
+            return Err(JsonError::TooDeep { offset: self.at });
+        }
+        self.at += 1;
+        Ok(())
+    }
+
+    /// Reads a member name and the colon after it.
+    fn name(&mut self) -> Result<String, JsonError> {
+        self.skip_space();
+        if self.peek() != Some(b'"') {
+            return Err(self.malformed());
+        }
+        let name = self.string()?;
+        self.skip_space();
+        if self.peek() != Some(b':') {
+            return Err(self.malformed());
+        }
+        self.at += 1;
+        Ok(name)
+    }
+
+    /// Reads the string whose opening quote is at the cursor (RFC 8259 §7).
+    /// Escapes come with the next change, so a backslash ends the string with
+    /// an error for now.
+    fn string(&mut self) -> Result<String, JsonError> {
+        self.at += 1;
+        let mut out = String::new();
+        loop {
+            let character = match self.peek() {
+                Some(b'"') => {
+                    self.at += 1;
+                    return Ok(out);
+                }
+                Some(0x20..=0x5B | 0x5D..=0xFF) => self.character()?,
+                _ => return Err(self.malformed()),
+            };
+            out.push(character);
+        }
+    }
+
+    /// Reads the character at the cursor. The text is UTF-8, so a valid
+    /// UTF-8 sequence starts there.
+    fn character(&mut self) -> Result<char, JsonError> {
+        let Some(rest) = self.text.get(self.at..) else {
+            return Err(self.malformed());
+        };
+        let Some(character) = rest.chars().next() else {
+            return Err(self.malformed());
+        };
+        self.at += character.len_utf8();
+        Ok(character)
+    }
+
+    /// Reads the literal `word` (RFC 8259 §3).
+    fn literal(&mut self, word: &str, value: Json) -> Result<Json, JsonError> {
+        let end = self.at + word.len();
+        if self.text.as_bytes().get(self.at..end) != Some(word.as_bytes()) {
+            return Err(self.malformed());
+        }
+        self.at = end;
+        Ok(value)
+    }
+
+    /// Reads a number (RFC 8259 §6): an optional minus, an integer part with
+    /// no leading zero, an optional fraction and an optional exponent.
+    fn number(&mut self) -> Result<Json, JsonError> {
+        let start = self.at;
+        if self.peek() == Some(b'-') {
+            self.at += 1;
+        }
+        match self.peek() {
+            Some(b'0') => self.at += 1,
+            Some(b'1'..=b'9') => self.digits()?,
+            _ => return Err(self.malformed()),
+        }
+        if self.peek() == Some(b'.') {
+            self.at += 1;
+            self.digits()?;
+        }
+        if let Some(b'e' | b'E') = self.peek() {
+            self.at += 1;
+            if let Some(b'+' | b'-') = self.peek() {
+                self.at += 1;
+            }
+            self.digits()?;
+        }
+        match self.text.get(start..self.at) {
+            Some(text) => Ok(Json::Number(text.to_owned())),
+            None => Err(JsonError::Malformed { offset: start }),
+        }
+    }
+
+    /// Reads one or more digits.
+    fn digits(&mut self) -> Result<(), JsonError> {
+        let start = self.at;
+        while let Some(b'0'..=b'9') = self.peek() {
+            self.at += 1;
+        }
+        if self.at == start {
+            return Err(self.malformed());
+        }
+        Ok(())
+    }
+
+    /// Steps over white space (RFC 8259 §2).
+    fn skip_space(&mut self) {
+        while let Some(b' ' | b'\t' | b'\n' | b'\r') = self.peek() {
+            self.at += 1;
+        }
+    }
+
+    /// The byte at the cursor, if any.
+    fn peek(&self) -> Option<u8> {
+        self.text.as_bytes().get(self.at).copied()
+    }
+
+    /// The error for the byte at the cursor.
+    fn malformed(&self) -> JsonError {
+        JsonError::Malformed { offset: self.at }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Reads `bytes` with the default `document_depth`, 16.
+    fn read_text(bytes: &[u8]) -> Result<Json, JsonError> {
+        read(bytes, 16)
+    }
+
+    /// What `read` gives for a text that breaks at `offset`.
+    fn malformed(offset: usize) -> Result<Json, JsonError> {
+        Err(JsonError::Malformed { offset })
+    }
+
+    /// Arrays nested `levels` deep.
+    fn nested(levels: usize) -> Vec<u8> {
+        let mut text = vec![b'['; levels];
+        text.resize(levels * 2, b']');
+        text
+    }
+
+    #[test]
+    fn prs_007_values_keep_their_order_and_numbers_their_text() {
+        let text = b" {\"a\":[1,-0.5e+3,true,false,null],\"b\":{},\"c\":\"x\"}\r\n";
+        let values = vec![
+            Json::Number("1".to_owned()),
+            Json::Number("-0.5e+3".to_owned()),
+            Json::Bool(true),
+            Json::Bool(false),
+            Json::Null,
+        ];
+        let members = vec![
+            ("a".to_owned(), Json::Array(values)),
+            ("b".to_owned(), Json::Object(Vec::new())),
+            ("c".to_owned(), Json::String("x".to_owned())),
+        ];
+        assert_eq!(read_text(text), Ok(Json::Object(members)));
+    }
+
+    #[test]
+    fn prs_010_text_outside_the_grammar_is_refused() {
+        let cases: [(&[u8], usize); 10] = [
+            (b"01", 1),
+            (b"1.", 2),
+            (b"-", 1),
+            (b"1e+", 3),
+            (b"[1,]", 3),
+            (b"tru", 0),
+            (br#"{"a" 1}"#, 5),
+            (br#"{"a":1} x"#, 8),
+            (b"", 0),
+            (b"\xef\xbb\xbf{}", 0),
+        ];
+        for (text, offset) in cases {
+            assert_eq!(read_text(text), malformed(offset));
+        }
+    }
+
+    #[test]
+    fn prs_011_nesting_stops_at_the_depth_limit() {
+        assert!(read_text(&nested(16)).is_ok());
+        let too_deep = Err(JsonError::TooDeep { offset: 16 });
+        assert_eq!(read_text(&nested(17)), too_deep);
+        assert_eq!(read_text(&nested(100_000)), too_deep);
     }
 }
