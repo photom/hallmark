@@ -1,7 +1,7 @@
 //! The `Signing` aggregate: its input, its signing requests, its options and
 //! its results.
 
-use crate::*;
+use crate::{Check, ExpectedInput, RequestId, Signature, SignerFailure, SigningRequest, TraceRead};
 
 #[cfg(feature = "unstable-dkim2")]
 mod dkim2_signing;

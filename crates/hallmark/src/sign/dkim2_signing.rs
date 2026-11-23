@@ -1,7 +1,7 @@
 //! The options of DKIM2 signing. The whole module exists only with the
 //! `unstable-dkim2` feature.
 
-use crate::*;
+use crate::{SignerStatement, Signing, SigningOptions};
 
 /// The DKIM2-Signature field to add, and the Message-Instance field that a
 /// Reviser needs (DK2-003, DK2-014). Available with the `unstable-dkim2`

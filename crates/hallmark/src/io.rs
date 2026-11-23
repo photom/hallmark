@@ -5,7 +5,7 @@
 //! (STR-006), and the check or the signing stays as the last successful call
 //! left it.
 
-use crate::*;
+use crate::{Check, CheckError, Signing, SigningError};
 
 /// Passes a whole message from `reader` to `check`: the header section in one
 /// call, then the body in chunks the size of `buffer`, then the end of the

@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::*;
+use crate::{Check, CheckOptions, DocumentLimits, Signing, SigningOptions};
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -386,7 +386,7 @@ impl std::error::Error for TraceError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Data, Parties};
 
     /// Writes `bytes` from the sender as a data value.
     fn written(bytes: &[u8]) -> String {

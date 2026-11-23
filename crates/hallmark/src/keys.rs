@@ -1,7 +1,7 @@
 //! The signer for keys held in memory. The private key types inside it stay
 //! crate-private.
 
-use crate::*;
+use crate::{Signature, Signer, SignerFailure, SignerStatement, SigningRequest};
 
 /// The library's signer for keys held in memory, which tests and the demo
 /// use (SGN-005,

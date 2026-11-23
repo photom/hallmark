@@ -1,6 +1,8 @@
 //! The options of a signing.
 
-use crate::*;
+#[cfg(feature = "unstable-dkim2")]
+use crate::Dkim2Signing;
+use crate::{CheckOptions, DkimSigning, FieldForm, Level, Limits, Signing, VerificationTime};
 
 /// Everything a signing caller fixes when it creates a signing. Nothing
 /// changes the options later (INV-015).

@@ -1,7 +1,7 @@
 //! The `Check` aggregate: its input, its requests, its options and its
 //! results.
 
-use crate::*;
+use crate::{Answer, Question, QuestionId, Signing, SigningWaiting, SuffixAnswer, SuffixQuestion};
 use std::net::IpAddr;
 
 mod options;

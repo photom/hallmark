@@ -1,7 +1,7 @@
 //! Domain names as results name them. The header and envelope address
 //! parsers stay crate-private.
 
-use crate::*;
+use crate::Data;
 
 /// A domain name as a result names it (ADS-002).
 #[derive(Debug, Clone, PartialEq, Eq)]

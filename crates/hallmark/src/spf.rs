@@ -1,7 +1,7 @@
 //! The result of SPF. The record parser, macro expansion and `check_host()`
 //! stay crate-private.
 
-use crate::*;
+use crate::{CheckResults, Data, Domain, Limit, ParseError, Position, QuestionType};
 
 /// The result of SPF for one identity (SPF-001, SPF-002).
 ///
