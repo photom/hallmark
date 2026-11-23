@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::*;
+use crate::{Check, CheckOptions, DocumentLimits, Signing, SigningOptions};
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -386,7 +386,7 @@ impl std::error::Error for TraceError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Data, Parties};
 
     /// Writes `bytes` from the sender as a data value.
     fn written(bytes: &[u8]) -> String {
@@ -406,7 +406,7 @@ mod tests {
 
     #[test]
     fn step_051_text_is_escaped_as_rfc_8785_says() {
-        let expected = r#"{"text":"a\"b\\c\u001f\té/","from":["sender"]}"#;
+        let expected = r#"{"text":"a\"b\\c\\u001f\\té/","from":["sender"]}"#;
         assert_eq!(written(b"a\"b\\c\x1f\t\xc3\xa9/"), expected);
     }
 
