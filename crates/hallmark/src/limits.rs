@@ -4,7 +4,10 @@ use core::ops::RangeInclusive;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::*;
+use crate::{
+    AuthenticationResults, Canonicalizer, CheckOptions, Event, PastedRecords, SigningOptions,
+    Snapshot, drive, sort_trace,
+};
 
 /// The limits of one check or one signing (SAF-002, PAR-004).
 ///
@@ -653,7 +656,7 @@ impl std::error::Error for LimitsError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{DocumentLimits, Limit, Limits, LimitsError};
 
     #[test]
     fn api_202_comment_depth_takes_1_to_256() {

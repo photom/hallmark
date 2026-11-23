@@ -1,6 +1,9 @@
 //! Snapshots of DNS answers, their resolver, and pasted records.
 
-use crate::*;
+use crate::{
+    Answer, DocumentLimits, Limit, ParseError, Question, Resolver, SuffixAnswer, SuffixQuestion,
+    SuffixSource, TraceError, drive, sort_trace,
+};
 
 /// The DNS questions of a check, each with its answer, and whether it answers
 /// as complete zone data (DNS-004, DNS-010).

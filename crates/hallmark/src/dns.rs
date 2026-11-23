@@ -1,6 +1,6 @@
 //! DNS questions and answers.
 
-use crate::*;
+use crate::{Check, Request, Snapshot, drive};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// A DNS question that a check hands the verifying caller (DNS-001).

@@ -6,6 +6,9 @@ allow-indexing-slicing-in-tests = true
 allow-panic-in-tests = true
 allow-unwrap-in-tests = true
 
+# wildcard_imports also covers use super::* in test modules.
+warn-on-all-wildcard-imports = true
+
 # Size limits for functions (ADR 0064).
 too-many-lines-threshold = 80
 excessive-nesting-threshold = 4

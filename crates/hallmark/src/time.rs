@@ -85,7 +85,7 @@ impl std::error::Error for TimeError {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{TimeError, VerificationTime};
 
     #[test]
     fn api_201_time_takes_at_most_twelve_digits() {

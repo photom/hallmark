@@ -1,6 +1,6 @@
 //! Authentication-Results header fields (RFC 8601).
 
-use crate::*;
+use crate::{CheckResults, FieldForm, HeaderFieldOut, Limits, ParseError};
 
 /// The verifying caller's authserv-id (AR-001).
 ///

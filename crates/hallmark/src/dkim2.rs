@@ -2,7 +2,7 @@
 //! records, verification, signing and revisions stay crate-private. The whole
 //! module exists only with the `unstable-dkim2` feature.
 
-use crate::*;
+use crate::{CheckResults, Data, Limit, Position};
 
 /// The result of DKIM2 verification (DK2-013). Available with the
 /// `unstable-dkim2` feature.

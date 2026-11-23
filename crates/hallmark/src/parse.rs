@@ -1,7 +1,7 @@
 //! Parse errors. The cursor, byte ranges and number readers stay
 //! crate-private.
 
-use crate::*;
+use crate::{AuthResError, CanonicalizerError, DocumentError, Limit, SpfReason};
 
 /// A parse error: the grammar rule that failed, the byte offset and the input
 /// that the parser read (PAR-001).

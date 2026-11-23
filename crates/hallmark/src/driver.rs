@@ -1,6 +1,9 @@
 //! The drivers and the traits a caller implements for them.
 
-use crate::*;
+use crate::{
+    Answer, Check, CheckError, MemorySigner, Question, Signature, SignerFailure, Signing,
+    SigningRequest, SnapshotResolver, SuffixAnswer, SuffixQuestion,
+};
 
 /// Resolves the DNS questions of a check for [`drive`] (DNS-001, DNS-003).
 ///

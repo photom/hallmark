@@ -1,6 +1,6 @@
 //! The results of a signing.
 
-use crate::*;
+use crate::{HeaderFieldOut, Limit, SignerFailure, Signing, SigningOptions};
 
 /// The results of a signing: one outcome for DKIM and one for DKIM2.
 ///
