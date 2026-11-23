@@ -67,10 +67,12 @@ A snapshot of a check within every default limit fits in `document_size`: 512 an
 
 ## Rules between limits
 
+A caller sets the limits in any order. Nothing checks them until an API takes them, and then that API checks every rule below at once, before it reads any input. `Limits::validate` and `DocumentLimits::validate` run the same checks for a caller that wants them earlier ([ADR 0065](../../adr/0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md)).
+
 | Rule | When broken |
 |---|---|
-| `header_field_size` is at most `header_section_size` | Error when the check or the signing is created |
-| Every value lies in its range | Error when the check, the signing, the reader or the driver is created |
+| Every value lies in its range | Error from the API that takes the limits, VAL-202 and VAL-204. The driver checks `driver_in_flight` when it starts, VAL-801 |
+| `header_field_size` is at most `header_section_size` | Error from the API that takes the limits, VAL-203 |
 
 ## Limits the specifications fix
 
