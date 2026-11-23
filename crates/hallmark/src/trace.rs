@@ -2,8 +2,12 @@
 //! crate-private, and the English renderer is in the application layer
 //! ([ADR 0061](https://github.com/photom/hallmark/blob/main/docs/adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
-use crate::*;
+use crate::{base64, json};
 use std::net::IpAddr;
+
+// The doc comments link to items of other modules.
+#[cfg(doc)]
+use crate::*;
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -49,6 +53,7 @@ pub enum Level {
 /// | VAL-506 | The events | No two hold the same position | [`trace.position_repeated`](TraceError::PositionRepeated) | TRC-012 | API-506 |
 ///
 /// Requirements: TRC-012.
+#[cfg(doc)]
 pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, TraceError> {
     unimplemented!()
 }
@@ -65,6 +70,7 @@ pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, Trac
 /// body content (TRC-006, TRC-010). Values that a sender or a DNS publisher
 /// controls come out unescaped, and the reader escapes them for its output
 /// (TRC-013).
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Event {
@@ -88,6 +94,7 @@ pub struct Event {
     pub cite: Vec<String>,
 }
 
+#[cfg(doc)]
 impl Event {
     /// Reads one event from one record of a trace.
     ///
@@ -204,6 +211,60 @@ pub struct Data {
     pub from: Parties,
 }
 
+impl Data {
+    /// Appends the value to `out` in the fixed form of
+    /// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#values):
+    /// `text` when the bytes are text that I-JSON can hold, `base64url`
+    /// otherwise, then `from` (TRC-007, TRC-013).
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the trace recorder comes later")
+    )]
+    pub(crate) fn write_json(&self, out: &mut Vec<u8>) {
+        match json_text(&self.bytes) {
+            Some(text) => {
+                out.extend_from_slice(b"{\"text\":");
+                json::write_string(text, out);
+            }
+            None => {
+                out.extend_from_slice(b"{\"base64url\":\"");
+                base64::encode_url_unpadded(&self.bytes, out);
+                out.push(b'"');
+            }
+        }
+        out.extend_from_slice(b",\"from\":");
+        self.from.write_json(out);
+        out.push(b'}');
+    }
+}
+
+/// The bytes as a string, when I-JSON can hold them as one: UTF-8
+/// (RFC 3629) with no noncharacter (RFC 7493 §2.1).
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the trace recorder comes later")
+)]
+fn json_text(bytes: &[u8]) -> Option<&str> {
+    let text = core::str::from_utf8(bytes).ok()?;
+    for character in text.chars() {
+        if is_noncharacter(character) {
+            return None;
+        }
+    }
+    Some(text)
+}
+
+/// Whether `character` is a noncharacter of Unicode: U+FDD0 to U+FDEF, or
+/// one of the last two code points of a plane, such as U+FFFE and U+FFFF.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the trace recorder comes later")
+)]
+fn is_noncharacter(character: char) -> bool {
+    let value = u32::from(character);
+    (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
+}
+
 /// The parties that control a value (TRC-013). At least one is true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -214,6 +275,35 @@ pub struct Parties {
     pub dns: bool,
     /// The sender controls the value.
     pub sender: bool,
+}
+
+impl Parties {
+    /// Appends the parties to `out` as a list, in the order `caller`, `dns`,
+    /// `sender` (TRC-013).
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the trace recorder comes later")
+    )]
+    fn write_json(self, out: &mut Vec<u8>) {
+        let parties = [
+            (self.caller, "caller"),
+            (self.dns, "dns"),
+            (self.sender, "sender"),
+        ];
+        out.push(b'[');
+        let mut first = true;
+        for (controls, name) in parties {
+            if !controls {
+                continue;
+            }
+            if !first {
+                out.push(b',');
+            }
+            first = false;
+            json::write_string(name, out);
+        }
+        out.push(b']');
+    }
 }
 
 /// A place in the body (TRC-010), or in the raw header section (HDR-012).
@@ -243,6 +333,7 @@ pub struct Place {
 /// | `trace.too_deep` | [`TooDeep`](Self::TooDeep) | [`sort_trace`], [`Event::parse`] | VAL-503, VAL-511 | PAR-005 |
 /// | `trace.version_unknown` | [`VersionUnknown`](Self::VersionUnknown) | [`sort_trace`], [`Event::parse`] | VAL-504, VAL-511 | TRC-007 |
 /// | `trace.position_repeated` | [`PositionRepeated`](Self::PositionRepeated) | [`sort_trace`] | VAL-506 | TRC-012 |
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceError {
@@ -275,6 +366,7 @@ pub enum TraceError {
     },
 }
 
+#[cfg(doc)]
 impl TraceError {
     /// The error's code, such as `trace.too_large` (STB-001).
     pub fn code(&self) -> &'static str {
@@ -282,10 +374,51 @@ impl TraceError {
     }
 }
 
+#[cfg(doc)]
 impl core::fmt::Display for TraceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         unimplemented!()
     }
 }
 
+#[cfg(doc)]
 impl std::error::Error for TraceError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Writes `bytes` from the sender as a data value.
+    fn written(bytes: &[u8]) -> String {
+        let from = Parties {
+            caller: false,
+            dns: false,
+            sender: true,
+        };
+        let data = Data {
+            bytes: bytes.to_vec(),
+            from,
+        };
+        let mut out = Vec::new();
+        data.write_json(&mut out);
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn step_051_text_is_escaped_as_rfc_8785_says() {
+        let expected = r#"{"text":"a\"b\\c\u001f\té/","from":["sender"]}"#;
+        assert_eq!(written(b"a\"b\\c\x1f\t\xc3\xa9/"), expected);
+    }
+
+    #[test]
+    fn step_052_bytes_that_are_not_utf_8_are_base64url() {
+        let expected = r#"{"base64url":"-_8","from":["sender"]}"#;
+        assert_eq!(written(b"\xfb\xff"), expected);
+    }
+
+    #[test]
+    fn step_053_a_noncharacter_makes_the_value_base64url() {
+        let expected = r#"{"base64url":"77-_","from":["sender"]}"#;
+        assert_eq!(written(b"\xef\xbf\xbf"), expected);
+    }
+}
