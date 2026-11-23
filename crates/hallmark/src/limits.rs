@@ -664,31 +664,42 @@ mod tests {
         let out_of_range = LimitsError::OutOfRange {
             limit: Limit::CommentDepth,
         };
-        assert_eq!(limits.set_comment_depth(0), Err(out_of_range.clone()));
-        assert_eq!(limits.set_comment_depth(257), Err(out_of_range.clone()));
-        assert_eq!(limits.comment_depth(), 16);
-        assert_eq!(limits.set_comment_depth(256), Ok(()));
-        assert_eq!(limits.comment_depth(), 256);
+        for value in [0, 257] {
+            limits.comment_depth = value;
+            assert_eq!(limits.validate(), Err(out_of_range.clone()));
+        }
+        limits.comment_depth = 256;
+        assert_eq!(limits.validate(), Ok(()));
         assert!(out_of_range.to_string().contains("comment_depth"));
+        let two = Limits {
+            header_fields: 0,
+            comment_depth: 0,
+            ..Limits::default()
+        };
+        let first = LimitsError::OutOfRange {
+            limit: Limit::HeaderFields,
+        };
+        assert_eq!(two.validate(), Err(first));
     }
 
     #[test]
     fn api_203_header_field_size_stays_within_header_section_size() {
         let mut limits = Limits::default();
-        assert_eq!(limits.header_section_size(), 1_048_576);
-        assert_eq!(
-            limits.set_header_field_size(2_000_000),
-            Err(LimitsError::Conflict)
-        );
-        assert_eq!(limits.header_field_size(), 65_536);
-        assert_eq!(limits.set_header_section_size(2_000_000), Ok(()));
-        assert_eq!(limits.set_header_field_size(2_000_000), Ok(()));
-        assert_eq!(limits.header_field_size(), 2_000_000);
-        assert_eq!(
-            limits.set_header_section_size(1_999_999),
-            Err(LimitsError::Conflict)
-        );
-        assert_eq!(limits.header_section_size(), 2_000_000);
+        assert_eq!(limits.header_section_size, 1_048_576);
+        limits.header_field_size = 2_000_000;
+        assert_eq!(limits.validate(), Err(LimitsError::Conflict));
+        limits.header_section_size = 2_000_000;
+        assert_eq!(limits.validate(), Ok(()));
+        let mut other_order = Limits::default();
+        assert_eq!(other_order.validate(), Ok(()));
+        other_order.header_section_size = 2_000_000;
+        other_order.header_field_size = 2_000_000;
+        assert_eq!(other_order.validate(), Ok(()));
+        limits.header_field_size = 20_000_000;
+        let out_of_range = LimitsError::OutOfRange {
+            limit: Limit::HeaderFieldSize,
+        };
+        assert_eq!(limits.validate(), Err(out_of_range));
         assert_eq!(LimitsError::Conflict.code(), "limits.conflict");
         let text = LimitsError::Conflict.to_string();
         assert!(text.starts_with("limits.conflict"));
@@ -698,29 +709,29 @@ mod tests {
     fn prs_006_limits_have_their_documented_defaults() {
         let limits = Limits::default();
         let defaults = [
-            (limits.header_fields(), 1_000),
-            (limits.header_field_size(), 65_536),
-            (limits.header_section_size(), 1_048_576),
-            (limits.comment_depth(), 16),
-            (limits.mailboxes(), 64),
-            (limits.address_size(), 1_024),
-            (limits.rcpt_to(), 1_000),
-            (limits.rt_entries(), 1_000),
-            (limits.dkim_signatures(), 16),
-            (limits.key_records(), 8),
-            (limits.rsa_key_bits(), 4_096),
-            (limits.rsa_exponent_bits(), 32),
-            (limits.author_domains(), 4),
-            (limits.dns_questions(), 512),
-            (limits.answer_size(), 65_535),
-            (limits.dkim2_signatures(), 32),
-            (limits.message_instances(), 32),
-            (limits.recipe_steps(), 10_000),
-            (limits.recipe_size(), 65_536),
-            (limits.recipe_depth(), 8),
-            (limits.spf_void_lookups(), 2),
-            (limits.trace_size(), 1_048_576),
-            (limits.trace_places(), 16),
+            (limits.header_fields, 1_000),
+            (limits.header_field_size, 65_536),
+            (limits.header_section_size, 1_048_576),
+            (limits.comment_depth, 16),
+            (limits.mailboxes, 64),
+            (limits.address_size, 1_024),
+            (limits.rcpt_to, 1_000),
+            (limits.rt_entries, 1_000),
+            (limits.dkim_signatures, 16),
+            (limits.key_records, 8),
+            (limits.rsa_key_bits, 4_096),
+            (limits.rsa_exponent_bits, 32),
+            (limits.author_domains, 4),
+            (limits.dns_questions, 512),
+            (limits.answer_size, 65_535),
+            (limits.dkim2_signatures, 32),
+            (limits.message_instances, 32),
+            (limits.recipe_steps, 10_000),
+            (limits.recipe_size, 65_536),
+            (limits.recipe_depth, 8),
+            (limits.spf_void_lookups, 2),
+            (limits.trace_size, 1_048_576),
+            (limits.trace_places, 16),
         ];
         for (value, default) in defaults {
             assert_eq!(value, default);
@@ -733,23 +744,23 @@ mod tests {
         let out_of_range = LimitsError::OutOfRange {
             limit: Limit::DocumentDepth,
         };
-        assert_eq!(limits.set_document_depth(65), Err(out_of_range.clone()));
-        assert_eq!(limits.document_depth(), 16);
+        limits.document_depth = 65;
+        assert_eq!(limits.validate(), Err(out_of_range.clone()));
         assert_eq!(out_of_range.code(), "limits.out_of_range");
         let text = out_of_range.to_string();
         assert!(text.starts_with("limits.out_of_range"));
         assert!(text.contains("document_depth"));
-        assert_eq!(limits.set_document_depth(64), Ok(()));
-        assert_eq!(limits.document_depth(), 64);
+        limits.document_depth = 64;
+        assert_eq!(limits.validate(), Ok(()));
     }
 
     #[test]
     fn prs_006_document_limits_have_their_documented_defaults() {
         let documents = DocumentLimits::default();
         let defaults = [
-            (documents.pasted_records_size(), 1_048_576),
-            (documents.document_size(), 33_554_432),
-            (documents.document_depth(), 16),
+            (documents.pasted_records_size, 1_048_576),
+            (documents.document_size, 33_554_432),
+            (documents.document_depth, 16),
         ];
         for (value, default) in defaults {
             assert_eq!(value, default);
