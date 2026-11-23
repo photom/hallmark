@@ -1,6 +1,6 @@
 //! Authentication-Results header fields (RFC 8601).
 
-use crate::{CheckResults, FieldForm, HeaderFieldOut, Limits, ParseError};
+use crate::{CheckResults, FieldForm, HeaderFieldOut, Limits, LimitsError, ParseError};
 
 /// The verifying caller's authserv-id (AR-001).
 ///
@@ -100,6 +100,7 @@ impl AuthenticationResults {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-709 | `limits` | Each limit within its range, and `header_field_size` at most `header_section_size`, as [`Limits::validate`](crate::Limits::validate) checks them | [`authres.limits_invalid`](AuthResError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-709 |
     /// | VAL-710 | `value` | At most `header_field_size` octets | [`authres.syntax`](AuthResError::Syntax), naming the limit | SAF-002 | API-710 |
     /// | VAL-711 | `value` | Matches `authres-payload` of RFC 8601 §2.2 | [`authres.syntax`](AuthResError::Syntax), with the rule and the offset | HDR-009, PAR-001 | ARH-001 to ARH-007 |
     /// | VAL-712 | `value` | Comments nest at most `comment_depth` levels | [`authres.syntax`](AuthResError::Syntax), naming the limit | HDR-011 | API-712 |
@@ -129,7 +130,7 @@ impl AuthenticationResults {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
-    /// | VAL-720 | `value` | The rules of VAL-710 to VAL-712, up to the authserv-id | [`authres.syntax`](AuthResError::Syntax) | AR-005 | API-720 |
+    /// | VAL-720 | `limits`, `value` | The rules of VAL-709 to VAL-712, up to the authserv-id | [`authres.limits_invalid`](AuthResError::LimitsInvalid) or [`authres.syntax`](AuthResError::Syntax) | AR-005 | API-720 |
     ///
     /// Requirements: AR-005.
     pub fn carries_authserv_id(
@@ -174,11 +175,14 @@ pub struct Property {
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `authres.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`AuthenticationResults::parse`], [`AuthenticationResults::carries_authserv_id`] | VAL-709, VAL-720 | PAR-004 |
 /// | `authres.authserv_id_invalid` | [`AuthservIdInvalid`](Self::AuthservIdInvalid) | [`AuthservId::new`] | VAL-701, VAL-702 | AR-001, AR-005 |
 /// | `authres.syntax` | [`Syntax`](Self::Syntax) | [`AuthenticationResults::parse`], [`AuthenticationResults::carries_authserv_id`] | VAL-710 to VAL-712, VAL-720 | HDR-009, PAR-001 |
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AuthResError {
+    /// `authres.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `authres.authserv_id_invalid`: an authserv-id that isn't a `value`, or
     /// holds a bad A-label.
     AuthservIdInvalid,
