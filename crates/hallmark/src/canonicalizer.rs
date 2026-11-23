@@ -3,7 +3,7 @@
 //! reading of `dkim2`
 //! ([ADR 0059](https://github.com/photom/hallmark/blob/main/docs/adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
 
-use crate::*;
+use crate::{Limit, Limits, ParseError};
 
 /// Streams out the canonical body that a check or a signing hashes, for
 /// callers that want to see it, such as the demo (STR-012,
