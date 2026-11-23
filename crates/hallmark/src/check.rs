@@ -63,6 +63,7 @@ impl Check {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-209 | `limits` | Each limit within its range, and `header_field_size` at most `header_section_size`, as [`Limits::validate`](crate::Limits::validate) checks them | [`check_options.limits_invalid`](CheckOptionsError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-209 |
     /// | VAL-210 | `kinds` | Holds at least one kind | [`check_options.no_kind`](CheckOptionsError::NoKind) | GEN-001 | API-210 |
     /// | VAL-211 | `dmarc_spf` | `SameCheck` only when the kinds hold SPF MAIL FROM | [`check_options.source_kind_missing`](CheckOptionsError::SourceKindMissing) | DMC-005 | API-211 |
     /// | VAL-212 | `dmarc_dkim` | `SameCheck` only when the kinds hold DKIM | [`check_options.source_kind_missing`](CheckOptionsError::SourceKindMissing) | DMC-005 | API-212 |
