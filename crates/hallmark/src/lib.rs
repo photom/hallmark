@@ -175,6 +175,7 @@
 mod address;
 #[cfg(doc)]
 mod authres;
+mod base64;
 #[cfg(doc)]
 mod canonicalizer;
 #[cfg(doc)]
@@ -193,6 +194,7 @@ mod driver;
 mod header;
 #[cfg(doc)]
 pub mod io;
+mod json;
 #[cfg(doc)]
 mod keys;
 mod limits;

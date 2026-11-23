@@ -2,6 +2,7 @@
 //! crate-private, and the English renderer is in the application layer
 //! ([ADR 0061](https://github.com/photom/hallmark/blob/main/docs/adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
+use crate::{base64, json};
 use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
@@ -215,11 +216,53 @@ impl Data {
     /// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#values):
     /// `text` when the bytes are text that I-JSON can hold, `base64url`
     /// otherwise, then `from` (TRC-007, TRC-013).
-    #[cfg_attr(not(test), expect(dead_code, reason = "the trace recorder comes later"))]
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the trace recorder comes later")
+    )]
     pub(crate) fn write_json(&self, out: &mut Vec<u8>) {
-        let _ = (self, out);
-        unimplemented!()
+        match json_text(&self.bytes) {
+            Some(text) => {
+                out.extend_from_slice(b"{\"text\":");
+                json::write_string(text, out);
+            }
+            None => {
+                out.extend_from_slice(b"{\"base64url\":\"");
+                base64::encode_url_unpadded(&self.bytes, out);
+                out.push(b'"');
+            }
+        }
+        out.extend_from_slice(b",\"from\":");
+        self.from.write_json(out);
+        out.push(b'}');
     }
+}
+
+/// The bytes as a string, when I-JSON can hold them as one: UTF-8
+/// (RFC 3629) with no noncharacter (RFC 7493 §2.1).
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the trace recorder comes later")
+)]
+fn json_text(bytes: &[u8]) -> Option<&str> {
+    let text = core::str::from_utf8(bytes).ok()?;
+    for character in text.chars() {
+        if is_noncharacter(character) {
+            return None;
+        }
+    }
+    Some(text)
+}
+
+/// Whether `character` is a noncharacter of Unicode: U+FDD0 to U+FDEF, or
+/// one of the last two code points of a plane, such as U+FFFE and U+FFFF.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the trace recorder comes later")
+)]
+fn is_noncharacter(character: char) -> bool {
+    let value = u32::from(character);
+    (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
 }
 
 /// The parties that control a value (TRC-013). At least one is true.
@@ -232,6 +275,35 @@ pub struct Parties {
     pub dns: bool,
     /// The sender controls the value.
     pub sender: bool,
+}
+
+impl Parties {
+    /// Appends the parties to `out` as a list, in the order `caller`, `dns`,
+    /// `sender` (TRC-013).
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the trace recorder comes later")
+    )]
+    fn write_json(self, out: &mut Vec<u8>) {
+        let parties = [
+            (self.caller, "caller"),
+            (self.dns, "dns"),
+            (self.sender, "sender"),
+        ];
+        out.push(b'[');
+        let mut first = true;
+        for (controls, name) in parties {
+            if !controls {
+                continue;
+            }
+            if !first {
+                out.push(b',');
+            }
+            first = false;
+            json::write_string(name, out);
+        }
+        out.push(b']');
+    }
 }
 
 /// A place in the body (TRC-010), or in the raw header section (HDR-012).
