@@ -57,7 +57,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0051](0051-a-bare-cr-or-lf-in-the-header-section-is-an-octet-of-the-line-that-holds-it.md) | A bare CR or LF in the header section is an octet of the line that holds it | Accepted |
 | [0052](0052-the-api-reference-is-rustdoc-published-on-github-pages.md) | The API reference is rustdoc, published on GitHub Pages | Accepted |
 | [0053](0053-the-tests-run-on-rocky-linux-9-and-debian-13.md) | The tests run on Rocky Linux 9 and Debian 13 | Accepted |
-| [0054](0054-the-public-api-follows-one-set-of-conventions.md) | The public API follows one set of conventions | Accepted |
+| [0054](0054-the-public-api-follows-one-set-of-conventions.md) | The public API follows one set of conventions | Superseded by ADR 0065 |
 | [0055](0055-the-idna-tables-use-unicode-12-0-0.md) | The IDNA tables use Unicode 12.0.0 | Accepted |
 | [0056](0056-authentication-results-map-each-typed-reason-to-one-result-value.md) | Authentication-Results map each typed reason to one result value | Accepted |
 | [0057](0057-the-conversion-to-a-labels-runs-the-contexto-rules.md) | The conversion to A-labels runs the CONTEXTO rules | Accepted |
@@ -68,6 +68,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0062](0062-verification-and-signing-have-separate-entry-types.md) | Verification and signing have separate entry types | Accepted |
 | [0063](0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md) | Checks and signings fix their evaluations when created, and each input once it arrives | Accepted |
 | [0064](0064-rust-code-is-procedural-and-lints-types-and-size-limits-keep-it-efficient-and-reviewable.md) | Rust code is procedural, and lints, types and size limits keep it efficient and reviewable | Accepted |
+| [0065](0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md) | The public API follows one set of conventions, and each API checks the limits it takes | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
