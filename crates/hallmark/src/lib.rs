@@ -175,6 +175,7 @@
 mod address;
 #[cfg(doc)]
 mod authres;
+mod base64;
 #[cfg(doc)]
 mod canonicalizer;
 #[cfg(doc)]
@@ -193,6 +194,7 @@ mod driver;
 mod header;
 #[cfg(doc)]
 pub mod io;
+mod json;
 #[cfg(doc)]
 mod keys;
 mod limits;
@@ -211,7 +213,6 @@ mod spf;
 #[cfg(doc)]
 mod suffix;
 mod time;
-#[cfg(doc)]
 mod trace;
 
 #[cfg(doc)]
@@ -265,11 +266,9 @@ pub use spf::{SpfIdentity, SpfOutcome, SpfReason, SpfResult};
 #[cfg(doc)]
 pub use suffix::{SuffixAnswer, SuffixQuestion};
 pub use time::{TimeError, VerificationTime};
+pub use trace::{Data, EventKind, Level, Param, Parties, Place, Position, Value, Version};
 #[cfg(doc)]
-pub use trace::{
-    Data, Event, EventKind, Level, Param, Parties, Place, Position, TraceError, Value, Version,
-    sort_trace,
-};
+pub use trace::{Event, TraceError, sort_trace};
 
 #[cfg(all(doc, feature = "unstable-dkim2"))]
 pub use sign::{
