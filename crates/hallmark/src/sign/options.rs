@@ -2,7 +2,9 @@
 
 #[cfg(feature = "unstable-dkim2")]
 use crate::Dkim2Signing;
-use crate::{CheckOptions, DkimSigning, FieldForm, Level, Limits, Signing, VerificationTime};
+use crate::{
+    CheckOptions, DkimSigning, FieldForm, Level, Limits, LimitsError, Signing, VerificationTime,
+};
 
 /// Everything a signing caller fixes when it creates a signing. Nothing
 /// changes the options later (INV-015).
@@ -11,9 +13,8 @@ use crate::{CheckOptions, DkimSigning, FieldForm, Level, Limits, Signing, Verifi
 /// the time and sets every other field to its default, and then sets the other
 /// public fields, at least one of `dkim` and `dkim2`. `SigningOptions` checks
 /// nothing while the signing caller builds it: [`Signing::new`] checks every
-/// rule at once, VAL-250, VAL-251 and VAL-220 to VAL-242. [`Limits`] checks its
-/// own rules in its setters. Verification has options of its own,
-/// [`CheckOptions`].
+/// rule at once, VAL-249 to VAL-251 and VAL-220 to VAL-242, the rules of
+/// [`Limits`] included. Verification has options of its own, [`CheckOptions`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SigningOptions {
@@ -53,10 +54,11 @@ impl SigningOptions {
     }
 }
 
-/// The error of [`Signing::new`] (CHK-006).
+/// The error of [`Signing::new`] (CHK-006, PAR-004).
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `signing_options.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`Signing::new`] | VAL-249 | PAR-004 |
 /// | `signing_options.no_signature` | [`NoSignature`](Self::NoSignature) | [`Signing::new`] | VAL-250 | CHK-006 |
 /// | `signing_options.message_id_invalid` | [`MessageIdInvalid`](Self::MessageIdInvalid) | [`Signing::new`] | VAL-251 | TRC-014 |
 /// | `signing_options.signing_domain_invalid` | [`SigningDomainInvalid`](Self::SigningDomainInvalid) | [`Signing::new`] | VAL-220, VAL-230, VAL-240 | ADS-002 |
@@ -79,6 +81,8 @@ impl SigningOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SigningOptionsError {
+    /// `signing_options.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `signing_options.no_signature`: neither a DKIM nor a DKIM2 signature
     /// to add.
     NoSignature,

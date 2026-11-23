@@ -70,6 +70,7 @@ impl Signing {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-249 | `limits` | Each limit within its range, and `header_field_size` at most `header_section_size`, as [`Limits::validate`](crate::Limits::validate) checks them | [`signing_options.limits_invalid`](SigningOptionsError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-249 |
     /// | VAL-250 | `dkim`, `dkim2` | `dkim` holds at least one entry, or `dkim2` is `Some` | [`signing_options.no_signature`](SigningOptionsError::NoSignature) | CHK-006 | API-250 |
     /// | VAL-251 | `message_id` | 1 to 256 octets, when given | [`signing_options.message_id_invalid`](SigningOptionsError::MessageIdInvalid) | TRC-014, RFC 7493 §2.1 | API-251 |
     /// | VAL-220 | `DkimSigning.domain` | A domain name with a lookup form | [`signing_options.signing_domain_invalid`](SigningOptionsError::SigningDomainInvalid) | ADS-002, RFC 6376 §3.5 | API-220 |
