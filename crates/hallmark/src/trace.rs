@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn step_051_text_is_escaped_as_rfc_8785_says() {
-        let expected = r#"{"text":"a\"b\\c\\u001f\té/","from":["sender"]}"#;
+        let expected = r#"{"text":"a\"b\\c\u001f\té/","from":["sender"]}"#;
         assert_eq!(written(b"a\"b\\c\x1f\t\xc3\xa9/"), expected);
     }
 
