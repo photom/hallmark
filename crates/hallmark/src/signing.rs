@@ -1,6 +1,6 @@
 //! The values that pass between a signing and the signing caller's signer.
 
-use crate::*;
+use crate::{DkimSigning, MemorySigner, SignatureError, Signing};
 
 /// A signature algorithm.
 ///
