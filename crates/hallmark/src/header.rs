@@ -2,7 +2,7 @@
 //! generates. The header section splitter and the milter field reader stay
 //! crate-private.
 
-use crate::*;
+use crate::{AuthenticationResults, Check, CheckOptions, Signing, SigningOptions, SigningOutcome};
 
 /// The form of the header field values that [`Check::header_field`] and
 /// [`Signing::header_field`] take, and that hallmark generates (STR-008,
