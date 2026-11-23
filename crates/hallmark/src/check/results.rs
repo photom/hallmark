@@ -1,6 +1,8 @@
 //! The results of a check.
 
-use crate::*;
+#[cfg(feature = "unstable-dkim2")]
+use crate::Dkim2Result;
+use crate::{Check, CheckOptions, DkimResults, DmarcResult, SpfResult};
 
 /// The results of a check: one result for each kind of check, each with a
 /// typed reason (GEN-004) and its position in the trace (DMC-005).

@@ -1,6 +1,6 @@
 //! Public suffix questions and answers.
 
-use crate::*;
+use crate::{Check, QuestionId, Request};
 
 /// A public suffix question that a check hands the verifying caller (DMC-010).
 ///

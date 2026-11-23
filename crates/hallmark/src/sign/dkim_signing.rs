@@ -1,6 +1,6 @@
 //! The options of DKIM signing.
 
-use crate::*;
+use crate::{SignerStatement, Signing, SigningOptions};
 
 /// One DKIM-Signature field to add (DKS-002).
 ///
