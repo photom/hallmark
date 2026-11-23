@@ -11,18 +11,16 @@
 /// Appends `bytes` to `out` in base64url without padding (RFC 4648 §5,
 /// §3.2), as the trace format writes data that isn't text (TRC-007).
 pub(crate) fn encode_url_unpadded(bytes: &[u8], out: &mut Vec<u8>) {
-    let mut groups = bytes.chunks_exact(3);
-    for group in &mut groups {
-        if let [first, second, third] = *group {
-            out.push(url_symbol(first >> 2));
-            out.push(url_symbol(((first & 0x03) << 4) | (second >> 4)));
-            out.push(url_symbol(((second & 0x0F) << 2) | (third >> 6)));
-            out.push(url_symbol(third & 0x3F));
-        }
+    let (groups, remainder) = bytes.as_chunks::<3>();
+    for &[first, second, third] in groups {
+        out.push(url_symbol(first >> 2));
+        out.push(url_symbol(((first & 0x03) << 4) | (second >> 4)));
+        out.push(url_symbol(((second & 0x0F) << 2) | (third >> 6)));
+        out.push(url_symbol(third & 0x3F));
     }
     // RFC 4648 §4: a final group of one or two octets gives two or three
     // symbols, and the padding that would follow them is left out (§3.2).
-    match *groups.remainder() {
+    match *remainder {
         [first] => {
             out.push(url_symbol(first >> 2));
             out.push(url_symbol((first & 0x03) << 4));
@@ -32,8 +30,8 @@ pub(crate) fn encode_url_unpadded(bytes: &[u8], out: &mut Vec<u8>) {
             out.push(url_symbol(((first & 0x03) << 4) | (second >> 4)));
             out.push(url_symbol((second & 0x0F) << 2));
         }
-        // chunks_exact(3) leaves fewer than three octets, so the remainder
-        // here is empty.
+        // as_chunks leaves fewer than three octets, so the remainder here is
+        // empty.
         _ => {}
     }
 }
