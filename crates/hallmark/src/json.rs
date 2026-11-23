@@ -423,6 +423,38 @@ mod tests {
     }
 
     #[test]
+    fn prs_008_strings_decode_escapes_and_refuse_bad_code_points() {
+        // A backslash in these byte strings is written as \x5c.
+        let text = b"\"\x5c\"\x5c\x5c\x5c/\x5cb\x5cf\x5cn\x5cr\x5ct\x5cu00e9\x5cuD83D\x5cuDE00\"";
+        let expected = "\"\x5c/\x08\x0c\n\r\té😀".to_owned();
+        assert_eq!(read_text(text), Ok(Json::String(expected)));
+        let cases: [(&[u8], usize); 9] = [
+            (b"\"\x5cudead\"", 1),
+            (b"\"\x5cud83dx\"", 1),
+            (b"\"\x5cud83d\x5cu0041\"", 1),
+            (b"\"\x5cuffff\"", 1),
+            (b"\"\xef\xbf\xbf\"", 1),
+            (b"\"\x5ca\"", 2),
+            (b"\"\x5cu12\"", 5),
+            (b"\"a\x1fb\"", 2),
+            (b"\"\xff\"", 1),
+        ];
+        for (text, offset) in cases {
+            assert_eq!(read_text(text), malformed(offset));
+        }
+    }
+
+    #[test]
+    fn prs_009_names_in_one_object_differ() {
+        assert_eq!(read_text(b"{\"a\":1,\"a\":2}"), malformed(7));
+        assert_eq!(read_text(b"{\"a\":1,\"\x5cu0061\":2}"), malformed(7));
+        let one = Json::Number("1".to_owned());
+        let inner = Json::Object(vec![("a".to_owned(), one)]);
+        let outer = Json::Object(vec![("a".to_owned(), inner)]);
+        assert_eq!(read_text(b"{\"a\":{\"a\":1}}"), Ok(outer));
+    }
+
+    #[test]
     fn prs_010_text_outside_the_grammar_is_refused() {
         let cases: [(&[u8], usize); 10] = [
             (b"01", 1),
