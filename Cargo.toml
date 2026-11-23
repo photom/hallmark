@@ -38,6 +38,11 @@ option_option = "deny"
 # An exception is #[expect(lint, reason = "...")] (ADR 0064).
 allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
+# A use declaration names each item it brings in, so the imports of a module
+# list its dependencies. Both lints are in the pedantic group. clippy.toml
+# extends wildcard_imports to use super::* in test modules.
+enum_glob_use = "deny"
+wildcard_imports = "deny"
 # clippy.toml sets the limits of these two (ADR 0064). excessive_nesting
 # comes with all, and too_many_lines is in the pedantic group.
 too_many_lines = "deny"

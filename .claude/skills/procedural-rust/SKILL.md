@@ -15,6 +15,7 @@ Style:
 - No closures. No external API needs one yet; when one does, a new ADR names it as the exception. `async` blocks are fine; `async |x|` closures are not.
 - No `Fn`, `FnMut`, `FnOnce` or `AsyncFn*` bounds, and no `Box<dyn Fn...>`.
 - No function pointer types (`fn(u8) -> bool`). Use an enum and a `match`.
+- Each `use` names every item it brings in: no `use path::*` and no `use Enum::*`, in test modules too (`use super::{Limit, Limits};`). Import a name that only a doc comment links to under `#[cfg(doc)]` in a module that compiles without rustdoc, and gate a name that exists only with a feature behind that feature. `wildcard_imports` and `enum_glob_use` check it.
 
 Panics:
 - No panics in library code: no `unwrap`, `expect`, `panic!`, `unreachable!`, `todo!`, `unimplemented!`, and no slice indexing (`buf[i]`, `&buf[a..b]`). Use `get`, `split_at_checked`, `strip_prefix`, pattern matching on slices, and checked arithmetic. Tests may use them; `clippy.toml` allows them in tests. `unwrap_or` and `unwrap_or_default` stay disallowed in tests too, because `allow-unwrap-in-tests` doesn't cover `disallowed-methods`.
