@@ -1,6 +1,8 @@
 //! The options of a check.
 
-use crate::*;
+use crate::{
+    Check, DkimResult, FieldForm, Level, Limits, SigningOptions, SpfResult, VerificationTime,
+};
 
 /// Everything a verifying caller fixes when it creates a check. Nothing
 /// changes the options later (INV-015).

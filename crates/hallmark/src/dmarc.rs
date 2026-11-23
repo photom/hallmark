@@ -1,7 +1,7 @@
 //! The result of DMARC. The record parser, policy discovery, alignment and
 //! evaluation stay crate-private.
 
-use crate::*;
+use crate::{CheckOptions, CheckResults, Data, Domain, Limit, Position, QuestionType};
 
 /// The result of DMARC for one author domain (DMC-002, DMC-006).
 ///
