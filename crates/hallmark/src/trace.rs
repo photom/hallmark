@@ -247,22 +247,11 @@ impl Data {
 fn json_text(bytes: &[u8]) -> Option<&str> {
     let text = core::str::from_utf8(bytes).ok()?;
     for character in text.chars() {
-        if is_noncharacter(character) {
+        if json::is_noncharacter(character) {
             return None;
         }
     }
     Some(text)
-}
-
-/// Whether `character` is a noncharacter of Unicode: U+FDD0 to U+FDEF, or
-/// one of the last two code points of a plane, such as U+FFFE and U+FFFF.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the trace recorder comes later")
-)]
-fn is_noncharacter(character: char) -> bool {
-    let value = u32::from(character);
-    (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
 }
 
 /// The parties that control a value (TRC-013). At least one is true.

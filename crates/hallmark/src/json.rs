@@ -8,6 +8,8 @@
     expect(dead_code, reason = "its callers come in later changes")
 )]
 
+use std::collections::BTreeSet;
+
 /// Appends `text` to `out` as a JSON string in the fixed form: escaped as
 /// RFC 8785 §3.2.2.2 does, with every other code point as it is in UTF-8.
 pub(crate) fn write_string(text: &str, out: &mut Vec<u8>) {
@@ -64,6 +66,14 @@ fn hex_digit(nibble: u32) -> u8 {
     }
 }
 
+/// Whether `character` is a noncharacter of Unicode: U+FDD0 to U+FDEF, or
+/// one of the last two code points of a plane, such as U+FFFE and U+FFFF.
+/// I-JSON strings hold none (RFC 7493 §2.1).
+pub(crate) fn is_noncharacter(character: char) -> bool {
+    let value = u32::from(character);
+    (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
+}
+
 /// A JSON value (RFC 8259 §3) that [`read`] took from a document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Json {
@@ -78,7 +88,8 @@ pub(crate) enum Json {
     String(String),
     /// An array, its values in document order.
     Array(Vec<Json>),
-    /// An object, its members in document order.
+    /// An object, its members in document order, no two with the same name
+    /// (RFC 7493 §2.3).
     Object(Vec<(String, Json)>),
 }
 
@@ -124,9 +135,11 @@ pub(crate) fn read(bytes: &[u8], depth_limit: u32) -> Result<Json, JsonError> {
 /// An array or an object that is still open, with what it holds so far.
 enum Open {
     Array(Vec<Json>),
-    /// An object, and the name of the member whose value comes next.
+    /// An object, the names of its members, and the name of the member whose
+    /// value comes next.
     Object {
         members: Vec<(String, Json)>,
+        names: BTreeSet<String>,
         name: String,
     },
 }
@@ -165,7 +178,11 @@ impl Reader<'_> {
             self.skip_space();
             let closed = match open {
                 Open::Array(values) => self.add_item(values, value)?,
-                Open::Object { members, name } => self.add_member(members, name, value)?,
+                Open::Object {
+                    members,
+                    names,
+                    name,
+                } => self.add_member(members, names, name, value)?,
             };
             match closed {
                 Some(closed) => value = closed,
@@ -203,6 +220,7 @@ impl Reader<'_> {
     fn add_member(
         &mut self,
         mut members: Vec<(String, Json)>,
+        mut names: BTreeSet<String>,
         name: String,
         value: Json,
     ) -> Result<Option<Json>, JsonError> {
@@ -210,8 +228,13 @@ impl Reader<'_> {
         match self.peek() {
             Some(b',') => {
                 self.at += 1;
-                let name = self.name()?;
-                self.open.push(Open::Object { members, name });
+                let name = self.name(&mut names)?;
+                let open = Open::Object {
+                    members,
+                    names,
+                    name,
+                };
+                self.open.push(open);
                 Ok(None)
             }
             Some(b'}') => {
@@ -243,9 +266,11 @@ impl Reader<'_> {
             self.at += 1;
             return Ok(Some(Json::Object(Vec::new())));
         }
-        let name = self.name()?;
+        let mut names = BTreeSet::new();
+        let name = self.name(&mut names)?;
         let open = Open::Object {
             members: Vec::new(),
+            names,
             name,
         };
         self.open.push(open);
@@ -267,13 +292,18 @@ impl Reader<'_> {
         Ok(())
     }
 
-    /// Reads a member name and the colon after it.
-    fn name(&mut self) -> Result<String, JsonError> {
+    /// Reads a member name and the colon after it. The name differs from the
+    /// names before it in its object (RFC 7493 §2.3).
+    fn name(&mut self, names: &mut BTreeSet<String>) -> Result<String, JsonError> {
         self.skip_space();
+        let start = self.at;
         if self.peek() != Some(b'"') {
             return Err(self.malformed());
         }
         let name = self.string()?;
+        if !names.insert(name.clone()) {
+            return Err(JsonError::Malformed { offset: start });
+        }
         self.skip_space();
         if self.peek() != Some(b':') {
             return Err(self.malformed());
@@ -282,27 +312,31 @@ impl Reader<'_> {
         Ok(name)
     }
 
-    /// Reads the string whose opening quote is at the cursor (RFC 8259 §7).
-    /// Escapes come with the next change, so a backslash ends the string with
-    /// an error for now.
+    /// Reads the string whose opening quote is at the cursor (RFC 8259 §7),
+    /// which holds no surrogate or noncharacter (RFC 7493 §2.1).
     fn string(&mut self) -> Result<String, JsonError> {
         self.at += 1;
         let mut out = String::new();
         loop {
+            let start = self.at;
             let character = match self.peek() {
                 Some(b'"') => {
                     self.at += 1;
                     return Ok(out);
                 }
-                Some(0x20..=0x5B | 0x5D..=0xFF) => self.character()?,
+                Some(b'\\') => self.escape()?,
+                Some(0x20..=0xFF) => self.character()?,
                 _ => return Err(self.malformed()),
             };
+            if is_noncharacter(character) {
+                return Err(JsonError::Malformed { offset: start });
+            }
             out.push(character);
         }
     }
 
     /// Reads the character at the cursor. The text is UTF-8, so a valid
-    /// UTF-8 sequence starts there.
+    /// UTF-8 sequence starts there and it holds no surrogate.
     fn character(&mut self) -> Result<char, JsonError> {
         let Some(rest) = self.text.get(self.at..) else {
             return Err(self.malformed());
@@ -312,6 +346,67 @@ impl Reader<'_> {
         };
         self.at += character.len_utf8();
         Ok(character)
+    }
+
+    /// Reads the escape whose backslash is at the cursor (RFC 8259 §7).
+    fn escape(&mut self) -> Result<char, JsonError> {
+        let start = self.at;
+        self.at += 1;
+        let character = match self.peek() {
+            Some(b'"') => '"',
+            Some(b'\\') => '\\',
+            Some(b'/') => '/',
+            Some(b'b') => '\x08',
+            Some(b'f') => '\x0c',
+            Some(b'n') => '\n',
+            Some(b'r') => '\r',
+            Some(b't') => '\t',
+            Some(b'u') => return self.unicode_escape(start),
+            _ => return Err(self.malformed()),
+        };
+        self.at += 1;
+        Ok(character)
+    }
+
+    /// Reads the four hex digits of a six-character escape, and the escape
+    /// of the low surrogate after them when they give a high surrogate. A
+    /// surrogate that isn't half of such a pair breaks RFC 7493 §2.1.
+    fn unicode_escape(&mut self, start: usize) -> Result<char, JsonError> {
+        self.at += 1;
+        let first = self.code_unit()?;
+        let mut value = first;
+        if (0xD800..=0xDBFF).contains(&first) {
+            let end = self.at + 2;
+            if self.text.as_bytes().get(self.at..end) != Some(b"\x5cu".as_slice()) {
+                return Err(JsonError::Malformed { offset: start });
+            }
+            self.at = end;
+            let second = self.code_unit()?;
+            if !(0xDC00..=0xDFFF).contains(&second) {
+                return Err(JsonError::Malformed { offset: start });
+            }
+            value = 0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00);
+        }
+        match char::from_u32(value) {
+            Some(character) => Ok(character),
+            None => Err(JsonError::Malformed { offset: start }),
+        }
+    }
+
+    /// Reads four hex digits as one UTF-16 code unit.
+    fn code_unit(&mut self) -> Result<u32, JsonError> {
+        let mut value = 0;
+        for _ in 0..4 {
+            let digit = match self.peek() {
+                Some(byte @ b'0'..=b'9') => byte - b'0',
+                Some(byte @ b'a'..=b'f') => byte - b'a' + 10,
+                Some(byte @ b'A'..=b'F') => byte - b'A' + 10,
+                _ => return Err(self.malformed()),
+            };
+            value = (value << 4) | u32::from(digit);
+            self.at += 1;
+        }
+        Ok(value)
     }
 
     /// Reads the literal `word` (RFC 8259 §3).
@@ -420,6 +515,38 @@ mod tests {
             ("c".to_owned(), Json::String("x".to_owned())),
         ];
         assert_eq!(read_text(text), Ok(Json::Object(members)));
+    }
+
+    #[test]
+    fn prs_008_strings_decode_escapes_and_refuse_bad_code_points() {
+        // A backslash in these byte strings is written as \x5c.
+        let text = b"\"\x5c\"\x5c\x5c\x5c/\x5cb\x5cf\x5cn\x5cr\x5ct\x5cu00e9\x5cuD83D\x5cuDE00\"";
+        let expected = "\"\x5c/\x08\x0c\n\r\té😀".to_owned();
+        assert_eq!(read_text(text), Ok(Json::String(expected)));
+        let cases: [(&[u8], usize); 9] = [
+            (b"\"\x5cudead\"", 1),
+            (b"\"\x5cud83dx\"", 1),
+            (b"\"\x5cud83d\x5cu0041\"", 1),
+            (b"\"\x5cuffff\"", 1),
+            (b"\"\xef\xbf\xbf\"", 1),
+            (b"\"\x5ca\"", 2),
+            (b"\"\x5cu12\"", 5),
+            (b"\"a\x1fb\"", 2),
+            (b"\"\xff\"", 1),
+        ];
+        for (text, offset) in cases {
+            assert_eq!(read_text(text), malformed(offset));
+        }
+    }
+
+    #[test]
+    fn prs_009_names_in_one_object_differ() {
+        assert_eq!(read_text(b"{\"a\":1,\"a\":2}"), malformed(7));
+        assert_eq!(read_text(b"{\"a\":1,\"\x5cu0061\":2}"), malformed(7));
+        let one = Json::Number("1".to_owned());
+        let inner = Json::Object(vec![("a".to_owned(), one)]);
+        let outer = Json::Object(vec![("a".to_owned(), inner)]);
+        assert_eq!(read_text(b"{\"a\":{\"a\":1}}"), Ok(outer));
     }
 
     #[test]
