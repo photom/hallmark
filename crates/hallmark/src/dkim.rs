@@ -1,7 +1,7 @@
 //! The results of DKIM verification. DKIM-Signature fields, key records,
 //! verification and signing stay crate-private.
 
-use crate::*;
+use crate::{CheckResults, Data, Domain, Limit, Position};
 
 /// The results of DKIM verification (DKV-001).
 ///
