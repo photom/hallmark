@@ -385,7 +385,7 @@ impl Reader<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Json, JsonError, read};
 
     /// Reads `bytes` with the default `document_depth`, 16.
     fn read_text(bytes: &[u8]) -> Result<Json, JsonError> {
