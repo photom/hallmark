@@ -63,7 +63,7 @@ The caller sets these in `Limits`, part of the options of each check and each si
 | `document_depth` | 16 | 1 to 64 | Levels of nesting in a trace event, a snapshot or a demo case | `sort_trace`, `Event::parse`, and the snapshot and case readers | Error that names the limit | PAR-005 |
 | `driver_in_flight` | 16 | 1 to 1,024 | Futures the driver keeps pending at once | Driver | The driver waits for one to complete before it starts another | CHK-005 |
 
-A snapshot of a check within every default limit fits in `document_size`: 512 answers of 65,535 octets each. So does a trace of `trace_size` octets, when both limits are at their defaults or both at their largest. A caller that raises `trace_size` above `document_size` raises `document_size` with it, or `sort_trace` refuses the larger traces with `trace.too_large`.
+A snapshot of a check within every default limit fits in `document_size`: 512 answers of 65,535 octets each. So does a trace of `trace_size` octets when both limits are at their defaults. A caller that raises `trace_size` to `document_size` or above raises `document_size` with it, or `sort_trace` refuses the larger traces with `trace.too_large`.
 
 ## Rules between limits
 
