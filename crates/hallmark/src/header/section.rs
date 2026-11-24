@@ -46,8 +46,9 @@ pub(crate) enum LineKind {
         name: Range<usize>,
         value: Range<usize>,
     },
-    /// A line that isn't a header field, with the rule it breaks (HDR-004).
-    Malformed(Malformed),
+    /// A line that isn't a header field, with the rule it breaks and the
+    /// offset of the octet where it breaks it (HDR-004, PAR-001).
+    Malformed(Malformed, usize),
 }
 
 /// The rule that a malformed line breaks (HDR-004).
@@ -120,15 +121,15 @@ pub(crate) fn split(input: &[u8]) -> HeaderSection {
         let Some((bytes, after)) = rest.split_at_checked(length) else {
             break;
         };
-        let content = match bytes.strip_suffix(b"\r\n") {
-            Some(content) => content,
-            None => bytes,
+        let (content, line_ending) = match bytes.strip_suffix(b"\r\n") {
+            Some(content) => (content, true),
+            None => (bytes, false),
         };
         let end = start + bytes.len();
-        let line_ending = content.len() < bytes.len();
         let content_end = start + content.len();
         let wsp = matches!(first, b' ' | b'\t');
-        if !(wsp && fold(&mut section.lines, content_end, end, line_ending)) {
+        let folded = wsp && fold(&mut section.lines, content_end, end, line_ending);
+        if !folded {
             let kind = classify(content, start);
             let line = HeaderLine {
                 kind,
@@ -189,7 +190,7 @@ fn fold(lines: &mut [HeaderLine], content_end: usize, end: usize, line_ending: b
 /// line without its CRLF, and starts at `start`.
 fn classify(content: &[u8], start: usize) -> LineKind {
     if let Some(b' ' | b'\t') = content.first() {
-        return LineKind::Malformed(Malformed::NoField);
+        return LineKind::Malformed(Malformed::NoField, start);
     }
     let mut name = 0;
     let mut before_colon = false;
@@ -204,15 +205,16 @@ fn classify(content: &[u8], start: usize) -> LineKind {
             }
             33..=57 | 59..=126 if !before_colon => name += 1,
             b' ' | b'\t' if name > 0 => before_colon = true,
-            _ if before_colon => return LineKind::Malformed(Malformed::Colon),
-            _ => return LineKind::Malformed(Malformed::FieldName),
+            _ if before_colon => return LineKind::Malformed(Malformed::Colon, start + index),
+            _ => return LineKind::Malformed(Malformed::FieldName, start + index),
         }
     }
-    LineKind::Malformed(Malformed::Colon)
+    LineKind::Malformed(Malformed::Colon, start + content.len())
 }
 
 #[cfg(test)]
 mod tests {
+    use super::Malformed::{Colon, FieldName, NoField};
     use super::{HeaderLine, LineKind, Malformed, split};
 
     /// The raw bytes of `line`.
@@ -224,7 +226,7 @@ mod tests {
     fn name<'a>(input: &'a [u8], line: &HeaderLine) -> &'a [u8] {
         match &line.kind {
             LineKind::Field { name, .. } => &input[name.clone()],
-            LineKind::Malformed(rule) => panic!("a malformed line: {rule:?}"),
+            LineKind::Malformed(rule, at) => panic!("a malformed line: {rule:?} at {at}"),
         }
     }
 
@@ -315,20 +317,21 @@ mod tests {
 
     #[test]
     fn fld_041_to_043_053_054_lines_that_hold_no_field_are_malformed() {
-        // The input, its number of lines, the malformed line, its rule and the
-        // range of its raw bytes. A malformed line folds into nothing (FLD-042).
-        let cases: [(&[u8], usize, usize, Malformed, core::ops::Range<usize>); 5] = [
-            (b"Subj\xc3\xa9ct: x\r\n\r\n", 1, 0, Malformed::FieldName, 0..13),
-            (b"A: 1\r\nnot a field\r\nB: 2\r\n\r\n", 3, 1, Malformed::Colon, 6..19),
-            (b" A: 1\r\nB: 2\r\n\r\n", 2, 0, Malformed::NoField, 0..7),
-            (b"A: 1\r\n\nB: 2\r\n\r\n", 2, 1, Malformed::FieldName, 6..13),
-            (b"Fr\rom: a@void.test\r\n\r\n", 1, 0, Malformed::FieldName, 0..20),
+        // The input, the malformed line, its rule, the offset of the octet that
+        // breaks it, and the range of its raw bytes. A malformed line folds into
+        // nothing (FLD-042).
+        let cases: [(&[u8], usize, Malformed, usize, core::ops::Range<usize>); 5] = [
+            (b"Subj\xc3\xa9ct: x\r\n\r\n", 0, FieldName, 4, 0..13),
+            (b"A: 1\r\nnot a field\r\nB: 2\r\n\r\n", 1, Colon, 10, 6..19),
+            (b" A: 1\r\nB: 2\r\n\r\n", 0, NoField, 0, 0..7),
+            (b"A: 1\r\n\nB: 2\r\n\r\n", 1, FieldName, 6, 6..13),
+            (b"Fr\rom: a@void.test\r\n\r\n", 0, FieldName, 2, 0..20),
         ];
-        for (input, count, index, rule, expected) in cases {
+        for (input, index, rule, at, expected) in cases {
             let section = split(input);
-            assert_eq!(section.lines.len(), count);
-            assert_eq!(section.lines[index].kind, LineKind::Malformed(rule));
-            assert_eq!(section.lines[index].raw, expected);
+            let line = &section.lines[index];
+            assert_eq!(line.kind, LineKind::Malformed(rule, at));
+            assert_eq!(line.raw, expected);
         }
     }
 
@@ -344,25 +347,29 @@ mod tests {
             (b"Fr\rom: a@void.test\r\n\r\n", 2),
         ];
         for (input, offset) in cases {
-            assert_eq!(split(input).bare_cr_lf, vec![offset]);
+            assert_eq!(split(input).bare_cr_lf, [offset]);
         }
     }
 
     #[test]
     fn fld_080_the_raw_lines_join_to_the_header_section() {
-        // A xorshift generator gives the same inputs on every run, drawn from
-        // the octets that change how a line splits.
+        // A xorshift generator gives the same inputs on every run. Odd rounds
+        // draw from every octet, even rounds from the octets that change how a
+        // line splits.
         let alphabet = b"A: \t\r\n\xc3x";
         let mut state: u64 = 0x2545_f491_4f6c_dd1d;
         for round in 0..2_000_usize {
             let long = round % 200 == 0;
             let length = if long { 65_536 } else { round % 300 };
+            let every_octet = round % 2 == 1;
             let mut input = Vec::with_capacity(length);
             for _ in 0..length {
                 state ^= state << 13;
                 state ^= state >> 7;
                 state ^= state << 17;
-                input.push(alphabet[(state % 8) as usize]);
+                let octet = state.to_le_bytes()[0];
+                let drawn = alphabet[usize::from(octet % 8)];
+                input.push(if every_octet { octet } else { drawn });
             }
             let section = split(&input);
             let end = match section.body {
