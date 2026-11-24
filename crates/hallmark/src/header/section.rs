@@ -46,8 +46,8 @@ pub(crate) enum LineKind {
         name: Range<usize>,
         value: Range<usize>,
     },
-    /// A line that isn't a header field, with the rule it breaks and the
-    /// offset of the octet where it breaks it (HDR-004, PAR-001).
+    /// A line that isn't a header field, with the rule it breaks and the offset
+    /// of the breaking octet, or of the line's end with no colon (PAR-001).
     Malformed(Malformed, usize),
 }
 
@@ -320,7 +320,8 @@ mod tests {
         // The input, the malformed line, its rule, the offset of the octet that
         // breaks it, and the range of its raw bytes. A malformed line folds into
         // nothing (FLD-042).
-        let cases: [(&[u8], usize, Malformed, usize, core::ops::Range<usize>); 5] = [
+        type Case = (&'static [u8], usize, Malformed, usize, core::ops::Range<usize>);
+        let cases: [Case; 5] = [
             (b"Subj\xc3\xa9ct: x\r\n\r\n", 0, FieldName, 4, 0..13),
             (b"A: 1\r\nnot a field\r\nB: 2\r\n\r\n", 1, Colon, 10, 6..19),
             (b" A: 1\r\nB: 2\r\n\r\n", 0, NoField, 0, 0..7),
@@ -328,8 +329,7 @@ mod tests {
             (b"Fr\rom: a@void.test\r\n\r\n", 0, FieldName, 2, 0..20),
         ];
         for (input, index, rule, at, expected) in cases {
-            let section = split(input);
-            let line = &section.lines[index];
+            let line = &split(input).lines[index];
             assert_eq!(line.kind, LineKind::Malformed(rule, at));
             assert_eq!(line.raw, expected);
         }
@@ -359,7 +359,7 @@ mod tests {
         let alphabet = b"A: \t\r\n\xc3x";
         let mut state: u64 = 0x2545_f491_4f6c_dd1d;
         for round in 0..2_000_usize {
-            let long = round % 200 == 0;
+            let long = round % 199 == 0;
             let length = if long { 65_536 } else { round % 300 };
             let every_octet = round % 2 == 1;
             let mut input = Vec::with_capacity(length);
@@ -369,7 +369,7 @@ mod tests {
                 state ^= state << 17;
                 let octet = state.to_le_bytes()[0];
                 let drawn = alphabet[usize::from(octet % 8)];
-                input.push(if every_octet { octet } else { drawn });
+                input.push([drawn, octet][usize::from(every_octet)]);
             }
             let section = split(&input);
             let end = match section.body {
