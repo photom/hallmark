@@ -59,7 +59,7 @@ The caller sets these in `Limits`, part of the options of each check and each si
 | Limit | Default | Range | Counts | Checked by | When input reaches it | Requirements |
 |---|---|---|---|---|---|---|
 | `pasted_records_size` | 1,048,576 | 1 to 16,777,216 | Octets of pasted records | Pasted records parser | Error that names the limit | DNS-010 |
-| `document_size` | 33,554,432 | 1 to 268,435,456 | Octets of a trace, a snapshot or a demo case | `sort_trace`, `Event::parse`, and the snapshot and case readers | Error that names the limit | DNS-004, DEM-004, SAF-004 |
+| `document_size` | 33,554,432 | 1 to 268,435,456 | Octets of a trace, a snapshot or a demo case | `sort_trace`, and the snapshot and case readers | Error that names the limit | DNS-004, DEM-004, SAF-004 |
 | `document_depth` | 16 | 1 to 64 | Levels of nesting in a trace event, a snapshot or a demo case | `sort_trace`, `Event::parse`, and the snapshot and case readers | Error that names the limit | PAR-005 |
 | `driver_in_flight` | 16 | 1 to 1,024 | Futures the driver keeps pending at once | Driver | The driver waits for one to complete before it starts another | CHK-005 |
 

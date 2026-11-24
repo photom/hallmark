@@ -57,7 +57,7 @@ const MAX_COUNT: u64 = (1 << 53) - 1;
 /// |---|---|---|---|---|---|
 /// | VAL-500 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`trace.limits_invalid`](TraceError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-500 |
 /// | VAL-501 | `trace` | At most `document_size` octets | [`trace.too_large`](TraceError::TooLarge) | SAF-004 | API-501 |
-/// | VAL-502 | `trace` | A sequence of records, each RS, bytes that hold no RS or LF, and LF. No record of the format holds an LF before its last byte ([Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#records)) | [`trace.record_malformed`](TraceError::RecordMalformed), with the offset | TRC-007, RFC 7464 §2.2 | API-502 |
+/// | VAL-502 | `trace` | A sequence of records, each RS, bytes that hold no RS or LF, and LF. No record of the format holds an LF before its last byte ([Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#records)), so this rule narrows the parser of RFC 7464 §2.1, which can ignore extra RS bytes and goes on after a record that fails to parse | [`trace.record_malformed`](TraceError::RecordMalformed), with the offset | TRC-007, RFC 7464 §2.1 and §2.2 | API-502, PRS-012 |
 /// | VAL-503 | Each record | Between RS and LF, one I-JSON text (RFC 7493) that holds an object, nested at most `document_depth` levels | [`trace.event_malformed`](TraceError::EventMalformed) or [`trace.too_deep`](TraceError::TooDeep) | TRC-007, PAR-005 | API-503 |
 /// | VAL-504 | Each event | `v` names major version 1 | [`trace.version_unknown`](TraceError::VersionUnknown), with the major version | TRC-007 | STEP-057 |
 /// | VAL-505 | Each event | `pos` is a list of counts, each at least 1 | [`trace.event_malformed`](TraceError::EventMalformed) | TRC-012 | API-505 |
@@ -577,11 +577,22 @@ impl core::fmt::Display for TraceError {
                 write!(f, "has major version {major}; this library reads 1")
             }
             TraceError::PositionRepeated { position } => {
-                let path = &position.path;
-                write!(f, "{code}: two events hold the position {path:?}")
+                write!(f, "{code}: two events hold the position ")?;
+                write_path(f, &position.path)
             }
         }
     }
+}
+
+/// Writes a position as the trace writes it, such as `[3,1]`.
+fn write_path(f: &mut core::fmt::Formatter<'_>, path: &[u64]) -> core::fmt::Result {
+    f.write_str("[")?;
+    let mut separator = "";
+    for number in path {
+        write!(f, "{separator}{number}")?;
+        separator = ",";
+    }
+    f.write_str("]")
 }
 
 impl std::error::Error for TraceError {
@@ -758,6 +769,31 @@ mod tests {
     fn api_506_two_events_at_one_position_are_refused() {
         let position = Position { path: vec![3, 1] };
         let expected = TraceError::PositionRepeated { position };
-        assert_eq!(sorted(&events(&["[3,1]", "[]", "[3,1]"])), Err(expected));
+        let error = sorted(&events(&["[3,1]", "[]", "[3,1]"])).unwrap_err();
+        assert_eq!(error, expected);
+        assert!(error.to_string().ends_with("position [3,1]"));
+    }
+
+    #[test]
+    fn prs_012_a_record_is_rs_a_text_without_rs_or_lf_and_lf() {
+        let root = event("[]");
+        let spread = r#"{"v":[1,0],"pos":[3],"kind":"fact",
+"code":"trace"}"#;
+        let after_lf = u64::try_from(spread.find('\n').unwrap() + 2).unwrap();
+        let mut doubled = vec![RS];
+        doubled.extend_from_slice(&records(&[root.as_str()]));
+        let mut unended = records(&[root.as_str()]);
+        let last = u64::try_from(unended.len()).unwrap();
+        unended.push(RS);
+        unended.extend_from_slice(event("[3]").as_bytes());
+        let cases = [
+            (records(&[spread]), after_lf),
+            (doubled, 0),
+            (unended, last),
+        ];
+        for (trace, offset) in cases {
+            let expected = TraceError::RecordMalformed { offset };
+            assert_eq!(sorted(&trace), Err(expected));
+        }
     }
 }
