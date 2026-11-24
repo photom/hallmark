@@ -7,7 +7,7 @@ use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::{Check, CheckOptions, DocumentLimits, Signing, SigningOptions};
+use crate::{Check, CheckOptions, DocumentLimits, LimitsError, Signing, SigningOptions};
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -45,6 +45,7 @@ pub enum Level {
 ///
 /// | ID | Input | Rule | Error code | Requirement | Scenario |
 /// |---|---|---|---|---|---|
+/// | VAL-500 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`trace.limits_invalid`](TraceError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-500 |
 /// | VAL-501 | `trace` | At most `document_size` octets | [`trace.too_large`](TraceError::TooLarge) | SAF-004 | API-501 |
 /// | VAL-502 | `trace` | A sequence of records, each RS, one JSON text and LF | [`trace.record_malformed`](TraceError::RecordMalformed), with the offset | TRC-007, RFC 7464 §2.2 | API-502 |
 /// | VAL-503 | Each record | An I-JSON object (RFC 7493) nested at most `document_depth` levels | [`trace.event_malformed`](TraceError::EventMalformed) or [`trace.too_deep`](TraceError::TooDeep) | TRC-007, PAR-005 | API-503 |
@@ -109,6 +110,7 @@ impl Event {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-509 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`trace.limits_invalid`](TraceError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-509 |
     /// | VAL-510 | `record` | One JSON text, with an RS before it and an LF after it, or neither | [`trace.record_malformed`](TraceError::RecordMalformed) | TRC-007 | API-510 |
     /// | VAL-511 | `record` | The rules of VAL-503 to VAL-505 of [`sort_trace`] | As VAL-503 to VAL-505 | TRC-007 | API-511 |
     /// | VAL-512 | `record` | `kind` is `fact`, `caution` or `hint`, and `code` is a keyword | [`trace.event_malformed`](TraceError::EventMalformed) | TRC-003, TRC-011 | API-512 |
@@ -316,6 +318,7 @@ pub struct Place {
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `trace.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`sort_trace`], [`Event::parse`] | VAL-500, VAL-509 | PAR-004 |
 /// | `trace.too_large` | [`TooLarge`](Self::TooLarge) | [`sort_trace`] | VAL-501 | SAF-004 |
 /// | `trace.record_malformed` | [`RecordMalformed`](Self::RecordMalformed) | [`sort_trace`], [`Event::parse`] | VAL-502, VAL-510 | TRC-007 |
 /// | `trace.event_malformed` | [`EventMalformed`](Self::EventMalformed) | [`sort_trace`], [`Event::parse`] | VAL-503, VAL-505, VAL-511, VAL-512 | TRC-007 |
@@ -326,6 +329,8 @@ pub struct Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceError {
+    /// `trace.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `trace.too_large`: a trace over `document_size`.
     TooLarge,
     /// `trace.record_malformed`: bytes that aren't RS, one JSON text and LF.

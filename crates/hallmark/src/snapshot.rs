@@ -1,8 +1,8 @@
 //! Snapshots of DNS answers, their resolver, and pasted records.
 
 use crate::{
-    Answer, DocumentLimits, Limit, ParseError, Question, Resolver, SuffixAnswer, SuffixQuestion,
-    SuffixSource, TraceError, drive, sort_trace,
+    Answer, DocumentLimits, Limit, LimitsError, ParseError, Question, Resolver, SuffixAnswer,
+    SuffixQuestion, SuffixSource, TraceError, drive, sort_trace,
 };
 
 /// The DNS questions of a check, each with its answer, and whether it answers
@@ -35,6 +35,7 @@ impl Snapshot {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-900 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`document.limits_invalid`](DocumentError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-900 |
     /// | VAL-901 | `bytes` | At most `document_size` octets | [`document.too_large`](DocumentError::TooLarge) | SAF-004 | API-901 |
     /// | VAL-902 | `bytes` | One I-JSON text (RFC 7493) holding one object | [`document.syntax`](DocumentError::Syntax), with the offset | DNS-004, PAR-001 | API-902 |
     /// | VAL-903 | `bytes` | Nested at most `document_depth` levels | [`document.too_deep`](DocumentError::TooDeep) | PAR-005 | API-903 |
@@ -62,6 +63,7 @@ impl Snapshot {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-909 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`document.limits_invalid`](DocumentError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-909 |
     /// | VAL-910 | `trace` | The rules of [`sort_trace`], VAL-501 to VAL-506 | [`document.trace_invalid`](DocumentError::TraceInvalid), which carries the [`TraceError`] | TRC-007 | API-910 |
     /// | VAL-911 | `trace` | The root event says the level is `full` and the trace wasn't cut short | [`document.trace_incomplete`](DocumentError::TraceIncomplete) | TRC-008, TRC-005 | API-911 |
     /// | VAL-912 | `trace` | Every step that read the same question records the same answer | [`document.trace_inconsistent`](DocumentError::TraceInconsistent) | DNS-007, TRC-008 | RES-024 |
@@ -171,6 +173,7 @@ impl PastedRecords {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-919 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`document.limits_invalid`](DocumentError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-919 |
     /// | VAL-920 | `text` | At most `pasted_records_size` octets | [`document.too_large`](DocumentError::TooLarge) | DNS-010 | API-920 |
     /// | VAL-921 | Each line | One record in the presentation format of RFC 1035 §5.1: an absolute owner name, an optional TTL and class, the type and the data | [`document.line_invalid`](DocumentError::LineInvalid), with the line and the offset | DNS-010, PAR-001 | RES-034 |
     /// | VAL-922 | Each line | The class, when given, is `IN`, and the type is `A`, `AAAA`, `MX`, `PTR` or `TXT` | [`document.line_invalid`](DocumentError::LineInvalid), with the line and the offset | DNS-001, DNS-010 | API-922 |
@@ -187,6 +190,7 @@ impl PastedRecords {
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `document.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`Snapshot::parse`], [`Snapshot::from_trace`], [`PastedRecords::parse`] | VAL-900, VAL-909, VAL-919 | PAR-004 |
 /// | `document.too_large` | [`TooLarge`](Self::TooLarge) | [`Snapshot::parse`], [`PastedRecords::parse`] | VAL-901, VAL-920 | SAF-004 |
 /// | `document.syntax` | [`Syntax`](Self::Syntax) | [`Snapshot::parse`] | VAL-902 | PAR-001 |
 /// | `document.too_deep` | [`TooDeep`](Self::TooDeep) | [`Snapshot::parse`] | VAL-903 | PAR-005 |
@@ -201,6 +205,8 @@ impl PastedRecords {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DocumentError {
+    /// `document.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `document.too_large`: a document or pasted text over its limit.
     TooLarge {
         /// The limit the input went over.

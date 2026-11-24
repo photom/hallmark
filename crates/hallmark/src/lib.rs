@@ -139,7 +139,7 @@
 //! | [`SigningOptionsError`] | [`Signing::new`] | `signing_options.` |
 //! | [`SignatureError`] | Held in [`SigningOutcome::Stopped`] in the results | `signature.` |
 //! | [`TimeError`] | [`VerificationTime::from_unix_seconds`] | `time.` |
-//! | [`LimitsError`] | The setters of [`Limits`] and [`DocumentLimits`] | `limits.` |
+//! | [`LimitsError`] | [`Limits::validate`] and [`DocumentLimits::validate`], and inside the `LimitsInvalid` variant of every API that takes limits | `limits.` |
 //! | [`HeaderFieldError`] | [`HeaderFieldOut::read_value`] | `header_field.` |
 //! | [`KeyError`] | The methods of [`MemorySigner`] that add a key | `key.` |
 //! | [`TraceError`] | [`sort_trace`], [`Event::parse`] | `trace.` |

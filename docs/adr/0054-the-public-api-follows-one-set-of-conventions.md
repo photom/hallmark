@@ -1,6 +1,6 @@
 # ADR 0054: The public API follows one set of conventions
 
-- Status: Accepted
+- Status: Superseded by ADR 0065
 - Date: 2026-11-19
 - Affects: every public item of the `hallmark` crate, its doc comments, `docs/reference/design/modules.md`, `docs/reference/design/domain-model.md` and `docs/testing/api.md`
 

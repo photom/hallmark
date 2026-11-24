@@ -3,7 +3,7 @@
 //! reading of `dkim2`
 //! ([ADR 0059](https://github.com/photom/hallmark/blob/main/docs/adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md)).
 
-use crate::{Limit, Limits, ParseError};
+use crate::{Limit, Limits, LimitsError, ParseError};
 
 /// Streams out the canonical body that a check or a signing hashes, for
 /// callers that want to see it, such as the demo (STR-012,
@@ -43,6 +43,7 @@ impl Canonicalizer {
     ///
     /// | ID | Input | Rule | Error code | Requirement | Scenario |
     /// |---|---|---|---|---|---|
+    /// | VAL-600 | `limits` | Each limit within its range, and `header_field_size` at most `header_section_size`, as [`Limits::validate`](crate::Limits::validate) checks them | [`canonicalizer.limits_invalid`](CanonicalizerError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-600 |
     /// | VAL-601 | `length` | `Some` only with `Simple` or `Relaxed` | [`canonicalizer.length_not_allowed`](CanonicalizerError::LengthNotAllowed) | STR-012, draft-09 §6.1 | API-601 |
     /// | VAL-602 | `rebuild` | `Some` only with `Dkim2` | [`canonicalizer.rebuild_not_allowed`](CanonicalizerError::RebuildNotAllowed) | STR-012 | API-602 |
     /// | VAL-603 | `rebuild` | Each Message-Instance value parses, at most `message_instances` of them | [`canonicalizer.instance_invalid`](CanonicalizerError::InstanceInvalid), with the parse error | DK2-006, SAF-002 | API-603 |
@@ -188,6 +189,7 @@ pub struct Finish {
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `canonicalizer.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`Canonicalizer::new`] | VAL-600 | PAR-004 |
 /// | `canonicalizer.length_not_allowed` | [`LengthNotAllowed`](Self::LengthNotAllowed) | [`Canonicalizer::new`] | VAL-601 | STR-012 |
 /// | `canonicalizer.rebuild_not_allowed` | [`RebuildNotAllowed`](Self::RebuildNotAllowed) | [`Canonicalizer::new`] | VAL-602 | STR-012 |
 /// | `canonicalizer.instance_invalid` | [`InstanceInvalid`](Self::InstanceInvalid) | [`Canonicalizer::new`] | VAL-603 | DK2-006 |
@@ -199,6 +201,8 @@ pub struct Finish {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CanonicalizerError {
+    /// `canonicalizer.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `canonicalizer.length_not_allowed`: an `l=` length in `Dkim2` mode.
     LengthNotAllowed,
     /// `canonicalizer.rebuild_not_allowed`: a rebuild outside `Dkim2` mode.

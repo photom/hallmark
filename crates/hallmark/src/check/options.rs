@@ -1,7 +1,8 @@
 //! The options of a check.
 
 use crate::{
-    Check, DkimResult, FieldForm, Level, Limits, SigningOptions, SpfResult, VerificationTime,
+    Check, DkimResult, FieldForm, Level, Limits, LimitsError, SigningOptions, SpfResult,
+    VerificationTime,
 };
 
 /// Everything a verifying caller fixes when it creates a check. Nothing
@@ -11,8 +12,8 @@ use crate::{
 /// the kinds and the time and sets every other field to its default, and then
 /// sets the other public fields. `CheckOptions` checks nothing while the
 /// verifying caller builds it: [`Check::new`] checks every rule at once,
-/// VAL-210 to VAL-215. [`Limits`] checks its own rules in its setters. Signing
-/// has options of its own, [`SigningOptions`].
+/// VAL-209 to VAL-215, the rules of [`Limits`] included. Signing has options
+/// of its own, [`SigningOptions`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CheckOptions {
@@ -128,10 +129,11 @@ pub enum DkimSource {
     Absent,
 }
 
-/// The error of [`Check::new`] (GEN-001).
+/// The error of [`Check::new`] (GEN-001, PAR-004).
 ///
 /// | Code | Variant | Given by | Rules | Requirements |
 /// |---|---|---|---|---|
+/// | `check_options.limits_invalid` | [`LimitsInvalid`](Self::LimitsInvalid) | [`Check::new`] | VAL-209 | PAR-004 |
 /// | `check_options.no_kind` | [`NoKind`](Self::NoKind) | [`Check::new`] | VAL-210 | GEN-001 |
 /// | `check_options.source_kind_missing` | [`SourceKindMissing`](Self::SourceKindMissing) | [`Check::new`] | VAL-211, VAL-212 | DMC-005 |
 /// | `check_options.earlier_result_invalid` | [`EarlierResultInvalid`](Self::EarlierResultInvalid) | [`Check::new`] | VAL-213 | DMC-005 |
@@ -140,6 +142,8 @@ pub enum DkimSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CheckOptionsError {
+    /// `check_options.limits_invalid`: limits that break a rule of their `validate` method.
+    LimitsInvalid(LimitsError),
     /// `check_options.no_kind`: no kind of check.
     NoKind,
     /// `check_options.source_kind_missing`: DMARC takes an identifier from a
