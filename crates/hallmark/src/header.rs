@@ -2,7 +2,11 @@
 //! generates. The header section splitter and the milter field reader stay
 //! crate-private.
 
+// The doc comments link to items of other modules.
+#[cfg(doc)]
 use crate::{AuthenticationResults, Check, CheckOptions, Signing, SigningOptions, SigningOutcome};
+
+mod section;
 
 /// The form of the header field values that [`Check::header_field`] and
 /// [`Signing::header_field`] take, and that hallmark generates (STR-008,
@@ -56,12 +60,14 @@ pub enum LeadingSpace {
 /// [`value`](Self::value) gives the value at once, and
 /// [`read_value`](Self::read_value) gives it in chunks of the caller's size
 /// (STR-002).
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderFieldOut {
     name: String,
     value: Vec<u8>,
 }
 
+#[cfg(doc)]
 impl HeaderFieldOut {
     /// The field name, such as `DKIM-Signature`.
     ///
@@ -106,6 +112,7 @@ impl HeaderFieldOut {
 /// |---|---|---|---|---|
 /// | `header_field.buffer_empty` | [`BufferEmpty`](Self::BufferEmpty) | [`HeaderFieldOut::read_value`] | VAL-301 | STR-002 |
 /// | `header_field.offset_out_of_range` | [`OffsetOutOfRange`](Self::OffsetOutOfRange) | [`HeaderFieldOut::read_value`] | VAL-302 | STR-002 |
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HeaderFieldError {
@@ -116,6 +123,7 @@ pub enum HeaderFieldError {
     OffsetOutOfRange,
 }
 
+#[cfg(doc)]
 impl HeaderFieldError {
     /// The error's code, such as `header_field.buffer_empty` (STB-001).
     pub fn code(&self) -> &'static str {
@@ -123,10 +131,12 @@ impl HeaderFieldError {
     }
 }
 
+#[cfg(doc)]
 impl core::fmt::Display for HeaderFieldError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         unimplemented!()
     }
 }
 
+#[cfg(doc)]
 impl std::error::Error for HeaderFieldError {}

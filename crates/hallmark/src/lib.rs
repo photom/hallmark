@@ -190,7 +190,6 @@ mod dmarc;
 mod dns;
 #[cfg(doc)]
 mod driver;
-#[cfg(doc)]
 mod header;
 #[cfg(doc)]
 pub mod io;
@@ -243,8 +242,9 @@ pub use dns::{Answer, Question, QuestionId, QuestionType, Record};
 pub use driver::{
     DriveError, NoSuffixSource, Resolver, Signer, SuffixSource, drive, drive_signing,
 };
+pub use header::{FieldForm, LeadingSpace, LineBreak};
 #[cfg(doc)]
-pub use header::{FieldForm, HeaderFieldError, HeaderFieldOut, LeadingSpace, LineBreak};
+pub use header::{HeaderFieldError, HeaderFieldOut};
 #[cfg(doc)]
 pub use keys::{KeyError, MemorySigner, RandomFailure, RandomSource};
 pub use limits::{DocumentLimits, Limit, Limits, LimitsError};
