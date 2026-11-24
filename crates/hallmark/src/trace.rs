@@ -37,6 +37,10 @@ const MAX_COUNT: u64 = (1 << 53) - 1;
 /// Sorts one trace into its canonical form: the same events, ordered by
 /// position, each in the same bytes (TRC-012).
 ///
+/// `sort_trace` doesn't rewrite a record. A trace that hallmark wrote is in
+/// the fixed form of Trace format, so sorting it gives its canonical form, and
+/// a record written in another form keeps that form.
+///
 /// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md)
 /// defines the bytes, and
 /// [Trace codes](https://github.com/photom/hallmark/blob/main/docs/reference/trace-codes.md)
