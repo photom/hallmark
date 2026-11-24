@@ -175,9 +175,11 @@ impl Limits {
 pub struct DocumentLimits {
     /// The most octets of pasted records (DNS-010).
     pub pasted_records_size: u32,
-    /// The most octets of a snapshot or a demo case (DNS-004).
+    /// The most octets of a trace, a snapshot or a demo case (DNS-004,
+    /// SAF-004).
     pub document_size: u32,
-    /// The most levels of nesting in a snapshot or a demo case (PAR-005).
+    /// The most levels of nesting in a trace event, a snapshot or a demo case
+    /// (PAR-005).
     pub document_depth: u32,
 }
 
@@ -277,9 +279,10 @@ pub enum Limit {
     TracePlaces,
     /// `pasted_records_size`: octets of pasted records.
     PastedRecordsSize,
-    /// `document_size`: octets of a snapshot or a demo case.
+    /// `document_size`: octets of a trace, a snapshot or a demo case.
     DocumentSize,
-    /// `document_depth`: levels of nesting in a snapshot or a demo case.
+    /// `document_depth`: levels of nesting in a trace event, a snapshot or a
+    /// demo case.
     DocumentDepth,
     /// `driver_in_flight`: futures the driver keeps pending at once.
     DriverInFlight,
