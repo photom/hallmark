@@ -2,12 +2,12 @@
 //! crate-private, and the English renderer is in the application layer
 //! ([ADR 0061](https://github.com/photom/hallmark/blob/main/docs/adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
-use crate::{base64, json};
+use crate::{DocumentLimits, LimitsError, base64, json};
 use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::{Check, CheckOptions, DocumentLimits, LimitsError, Signing, SigningOptions};
+use crate::{Check, CheckOptions, Signing, SigningOptions};
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -23,6 +23,12 @@ pub enum Level {
     /// Every event, as each step finishes.
     Full,
 }
+
+/// The byte before each record of a trace (RFC 7464 §2.2).
+const RS: u8 = 0x1E;
+
+/// The byte after each record of a trace (RFC 7464 §2.2).
+const LF: u8 = 0x0A;
 
 /// Sorts one trace into its canonical form: the same events, ordered by
 /// position, each in the same bytes (TRC-012).
@@ -54,7 +60,6 @@ pub enum Level {
 /// | VAL-506 | The events | No two hold the same position | [`trace.position_repeated`](TraceError::PositionRepeated) | TRC-012 | API-506 |
 ///
 /// Requirements: TRC-012.
-#[cfg(doc)]
 pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, TraceError> {
     unimplemented!()
 }
@@ -325,7 +330,6 @@ pub struct Place {
 /// | `trace.too_deep` | [`TooDeep`](Self::TooDeep) | [`sort_trace`], [`Event::parse`] | VAL-503, VAL-511 | PAR-005 |
 /// | `trace.version_unknown` | [`VersionUnknown`](Self::VersionUnknown) | [`sort_trace`], [`Event::parse`] | VAL-504, VAL-511 | TRC-007 |
 /// | `trace.position_repeated` | [`PositionRepeated`](Self::PositionRepeated) | [`sort_trace`] | VAL-506 | TRC-012 |
-#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceError {
@@ -360,7 +364,6 @@ pub enum TraceError {
     },
 }
 
-#[cfg(doc)]
 impl TraceError {
     /// The error's code, such as `trace.too_large` (STB-001).
     pub fn code(&self) -> &'static str {
@@ -368,19 +371,18 @@ impl TraceError {
     }
 }
 
-#[cfg(doc)]
 impl core::fmt::Display for TraceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         unimplemented!()
     }
 }
 
-#[cfg(doc)]
 impl std::error::Error for TraceError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Data, Parties};
+    use super::{Data, LF, Parties, Position, RS, TraceError, sort_trace};
+    use crate::{DocumentLimits, Limit, LimitsError};
 
     /// Writes `bytes` from the sender as a data value.
     fn written(bytes: &[u8]) -> String {
@@ -414,5 +416,129 @@ mod tests {
     fn step_053_a_noncharacter_makes_the_value_base64url() {
         let expected = r#"{"base64url":"77-_","from":["sender"]}"#;
         assert_eq!(written(b"\xef\xbf\xbf"), expected);
+    }
+
+    /// The JSON texts as the records of one trace (RFC 7464 §2.2).
+    fn records(texts: &[&str]) -> Vec<u8> {
+        let mut trace = Vec::new();
+        for text in texts {
+            trace.push(RS);
+            trace.extend_from_slice(text.as_bytes());
+            trace.push(LF);
+        }
+        trace
+    }
+
+    /// One event at `pos`, written as hallmark writes it.
+    fn event(pos: &str) -> String {
+        format!(r#"{{"v":[1,0],"pos":{pos},"kind":"fact","code":"trace"}}"#)
+    }
+
+    /// A trace of one event at each position, in the order given.
+    fn events(positions: &[&str]) -> Vec<u8> {
+        let mut trace = Vec::new();
+        for pos in positions {
+            let text = event(pos);
+            trace.extend_from_slice(&records(&[text.as_str()]));
+        }
+        trace
+    }
+
+    /// Sorts `trace` with the default limits.
+    fn sorted(trace: &[u8]) -> Result<Vec<u8>, TraceError> {
+        sort_trace(trace, &DocumentLimits::default())
+    }
+
+    #[test]
+    fn step_043_events_sort_by_position_with_parents_first() {
+        let given = events(&["[10]", "[3,2]", "[]", "[3,1,2]", "[3]", "[3,1]"]);
+        let expected = events(&["[]", "[3]", "[3,1]", "[3,1,2]", "[3,2]", "[10]"]);
+        assert_eq!(sorted(&given), Ok(expected));
+    }
+
+    #[test]
+    fn step_056_an_unknown_member_and_code_stay_in_place() {
+        let unknown = r#"{"v":[1,3],"pos":[3],"kind":"fact","code":"later.step","later":true}"#;
+        let root = event("[]");
+        let given = records(&[unknown, root.as_str()]);
+        let expected = records(&[root.as_str(), unknown]);
+        assert_eq!(sorted(&given), Ok(expected));
+    }
+
+    #[test]
+    fn step_057_a_major_version_other_than_1_is_refused() {
+        let root = event("[]");
+        let later = r#"{"v":[2,0],"pos":[3],"kind":"fact","code":"trace"}"#;
+        let given = records(&[root.as_str(), later]);
+        let offset = u64::try_from(root.len() + 2).unwrap();
+        let error = sorted(&given).unwrap_err();
+        assert_eq!(error, TraceError::VersionUnknown { offset });
+        assert_eq!(error.code(), "trace.version_unknown");
+        assert!(error.to_string().contains("major version"));
+    }
+
+    #[test]
+    fn api_500_limits_are_checked_first() {
+        let limits = DocumentLimits {
+            document_size: 0,
+            ..DocumentLimits::default()
+        };
+        let invalid = LimitsError::OutOfRange {
+            limit: Limit::DocumentSize,
+        };
+        let result = sort_trace(&events(&["[]"]), &limits);
+        assert_eq!(result, Err(TraceError::LimitsInvalid(invalid)));
+    }
+
+    #[test]
+    fn api_501_a_trace_over_document_size_is_refused() {
+        let limits = DocumentLimits {
+            document_size: 1_024,
+            ..DocumentLimits::default()
+        };
+        // RS, the text, and LF make 2,000 octets.
+        let head = r#"{"v":[1,0],"pos":[],"kind":"fact","code":""#;
+        let code = "a".repeat(2_000 - head.len() - 4);
+        let text = format!(r#"{head}{code}"}}"#);
+        let trace = records(&[text.as_str()]);
+        assert_eq!(trace.len(), 2_000);
+        assert_eq!(sort_trace(&trace, &limits), Err(TraceError::TooLarge));
+        assert_eq!(sorted(&trace), Ok(trace));
+    }
+
+    #[test]
+    fn api_502_a_record_without_rs_is_refused() {
+        let mut trace = events(&["[]"]);
+        let offset = u64::try_from(trace.len()).unwrap();
+        trace.extend_from_slice(event("[3]").as_bytes());
+        trace.push(LF);
+        let expected = TraceError::RecordMalformed { offset };
+        assert_eq!(sorted(&trace), Err(expected));
+    }
+
+    #[test]
+    fn api_503_a_record_holds_an_object_within_document_depth() {
+        let expected = TraceError::EventMalformed { offset: 0 };
+        assert_eq!(sorted(&records(&["[1,2]"])), Err(expected));
+        // The event and its params make two levels, and the arrays the rest.
+        let head = r#"{"v":[1,0],"pos":[3],"kind":"fact","code":"x","params":{"p":"#;
+        let deepest = format!("{head}{}0{}}}}}", "[".repeat(14), "]".repeat(14));
+        assert!(sorted(&records(&[deepest.as_str()])).is_ok());
+        let too_deep = format!("{head}{}0{}}}}}", "[".repeat(15), "]".repeat(15));
+        let expected = TraceError::TooDeep { offset: 0 };
+        assert_eq!(sorted(&records(&[too_deep.as_str()])), Err(expected));
+    }
+
+    #[test]
+    fn api_505_child_numbers_start_at_1() {
+        let expected = TraceError::EventMalformed { offset: 0 };
+        assert_eq!(sorted(&events(&["[3,0]", "[]"])), Err(expected));
+    }
+
+    #[test]
+    fn api_506_two_events_at_one_position_are_refused() {
+        let position = Position { path: vec![3, 1] };
+        let expected = TraceError::PositionRepeated { position };
+        assert_eq!(sorted(&events(&["[3,1]", "[]", "[3,1]"])), Err(expected));
     }
 }
