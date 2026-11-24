@@ -215,7 +215,7 @@ fn classify(content: &[u8], start: usize) -> LineKind {
 #[cfg(test)]
 mod tests {
     use super::Malformed::{Colon, FieldName, NoField};
-    use super::{HeaderLine, LineKind, Malformed, split};
+    use super::{HeaderLine, LineKind, Malformed, Range, split};
 
     /// The raw bytes of `line`.
     fn raw<'a>(input: &'a [u8], line: &HeaderLine) -> &'a [u8] {
@@ -320,7 +320,7 @@ mod tests {
         // The input, the malformed line, its rule, the offset of the octet that
         // breaks it, and the range of its raw bytes. A malformed line folds into
         // nothing (FLD-042).
-        type Case = (&'static [u8], usize, Malformed, usize, core::ops::Range<usize>);
+        type Case = (&'static [u8], usize, Malformed, usize, Range<usize>);
         let cases: [Case; 5] = [
             (b"Subj\xc3\xa9ct: x\r\n\r\n", 0, FieldName, 4, 0..13),
             (b"A: 1\r\nnot a field\r\nB: 2\r\n\r\n", 1, Colon, 10, 6..19),
