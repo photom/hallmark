@@ -2,12 +2,12 @@
 //! crate-private, and the English renderer is in the application layer
 //! ([ADR 0061](https://github.com/photom/hallmark/blob/main/docs/adr/0061-each-context-owns-its-trace-codes-and-the-english-renderer-sits-in-the-application-layer.md)).
 
-use crate::{base64, json};
+use crate::{DocumentLimits, LimitsError, base64, json};
 use std::net::IpAddr;
 
 // The doc comments link to items of other modules.
 #[cfg(doc)]
-use crate::{Check, CheckOptions, DocumentLimits, LimitsError, Signing, SigningOptions};
+use crate::{Check, CheckOptions, Signing, SigningOptions};
 
 /// How much of the trace a check or a signing records (TRC-004).
 ///
@@ -24,8 +24,22 @@ pub enum Level {
     Full,
 }
 
+/// The byte before each record of a trace (RFC 7464 §2.2).
+const RS: u8 = 0x1E;
+
+/// The byte after each record of a trace (RFC 7464 §2.2).
+const LF: u8 = 0x0A;
+
+/// The largest count of the trace format, 2^53−1, the largest integer that
+/// I-JSON keeps exact (RFC 7493 §2.2).
+const MAX_COUNT: u64 = (1 << 53) - 1;
+
 /// Sorts one trace into its canonical form: the same events, ordered by
 /// position, each in the same bytes (TRC-012).
+///
+/// `sort_trace` doesn't rewrite a record. A trace that hallmark wrote is in
+/// the fixed form of Trace format, so sorting it gives its canonical form, and
+/// a record written in another form keeps that form.
 ///
 /// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md)
 /// defines the bytes, and
@@ -47,16 +61,183 @@ pub enum Level {
 /// |---|---|---|---|---|---|
 /// | VAL-500 | `limits` | Each limit within its range, as [`DocumentLimits::validate`](crate::DocumentLimits::validate) checks them | [`trace.limits_invalid`](TraceError::LimitsInvalid), which carries the [`LimitsError`](crate::LimitsError) | PAR-004 | API-500 |
 /// | VAL-501 | `trace` | At most `document_size` octets | [`trace.too_large`](TraceError::TooLarge) | SAF-004 | API-501 |
-/// | VAL-502 | `trace` | A sequence of records, each RS, one JSON text and LF | [`trace.record_malformed`](TraceError::RecordMalformed), with the offset | TRC-007, RFC 7464 §2.2 | API-502 |
-/// | VAL-503 | Each record | An I-JSON object (RFC 7493) nested at most `document_depth` levels | [`trace.event_malformed`](TraceError::EventMalformed) or [`trace.too_deep`](TraceError::TooDeep) | TRC-007, PAR-005 | API-503 |
-/// | VAL-504 | Each event | `v` names major version 1 | [`trace.version_unknown`](TraceError::VersionUnknown) | TRC-007 | STEP-057 |
+/// | VAL-502 | `trace` | A sequence of records, each RS, bytes that hold no RS or LF, and LF. No record of the format holds an LF before its last byte ([Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#records)), so this rule narrows the parser of RFC 7464 §2.1, which can ignore extra RS bytes and goes on after a record that fails to parse | [`trace.record_malformed`](TraceError::RecordMalformed), with the offset | TRC-007, RFC 7464 §2.1 and §2.2 | API-502, PRS-012 |
+/// | VAL-503 | Each record | Between RS and LF, one I-JSON text (RFC 7493) that holds an object, nested at most `document_depth` levels | [`trace.event_malformed`](TraceError::EventMalformed) or [`trace.too_deep`](TraceError::TooDeep) | TRC-007, PAR-005 | API-503 |
+/// | VAL-504 | Each event | `v` names major version 1 | [`trace.version_unknown`](TraceError::VersionUnknown), with the major version | TRC-007 | STEP-057 |
 /// | VAL-505 | Each event | `pos` is a list of counts, each at least 1 | [`trace.event_malformed`](TraceError::EventMalformed) | TRC-012 | API-505 |
 /// | VAL-506 | The events | No two hold the same position | [`trace.position_repeated`](TraceError::PositionRepeated) | TRC-012 | API-506 |
 ///
 /// Requirements: TRC-012.
-#[cfg(doc)]
 pub fn sort_trace(trace: &[u8], limits: &DocumentLimits) -> Result<Vec<u8>, TraceError> {
-    unimplemented!()
+    if let Err(error) = limits.validate() {
+        return Err(TraceError::LimitsInvalid(error));
+    }
+    let within = match u32::try_from(trace.len()) {
+        Ok(size) => size <= limits.document_size,
+        Err(_) => false,
+    };
+    if !within {
+        return Err(TraceError::TooLarge);
+    }
+    // VAL-502 covers the whole trace, so every record is split before any
+    // event is read.
+    let framed = split_records(trace)?;
+    let mut records = Vec::with_capacity(framed.len());
+    for (offset, bytes) in framed {
+        let position = event_position(bytes, offset, limits.document_depth)?;
+        records.push(Record { position, bytes });
+    }
+    records.sort_unstable();
+    let mut sorted = Vec::with_capacity(trace.len());
+    let mut previous: Option<&Position> = None;
+    for record in &records {
+        if previous == Some(&record.position) {
+            let position = record.position.clone();
+            return Err(TraceError::PositionRepeated { position });
+        }
+        previous = Some(&record.position);
+        sorted.extend_from_slice(record.bytes);
+    }
+    Ok(sorted)
+}
+
+/// One record of a trace: the position of its event, then its bytes from RS
+/// to LF. Records order by position, as [`sort_trace`] puts them.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Record<'a> {
+    position: Position,
+    bytes: &'a [u8],
+}
+
+/// Splits `trace` into its records, each with the offset of its RS (VAL-502 of
+/// [`sort_trace`]).
+fn split_records(trace: &[u8]) -> Result<Vec<(u64, &[u8])>, TraceError> {
+    let mut records = Vec::new();
+    let mut start = 0;
+    let mut rest = trace;
+    while !rest.is_empty() {
+        let offset = wide(start);
+        let Some(length) = record_length(rest) else {
+            return Err(TraceError::RecordMalformed { offset });
+        };
+        let Some((bytes, after)) = rest.split_at_checked(length) else {
+            return Err(TraceError::RecordMalformed { offset });
+        };
+        records.push((offset, bytes));
+        start += length;
+        rest = after;
+    }
+    Ok(records)
+}
+
+/// The length of the record that starts `bytes`: RS, bytes that are neither
+/// RS nor LF, then LF (RFC 7464 §2.2,
+/// [Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#records)).
+/// `None` when `bytes` doesn't start with one.
+fn record_length(bytes: &[u8]) -> Option<usize> {
+    let [RS, text @ ..] = bytes else {
+        return None;
+    };
+    for (index, byte) in text.iter().enumerate() {
+        match *byte {
+            LF => return Some(index + 2),
+            RS => return None,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The position of the event in `record`, which runs from RS to LF and starts
+/// at `offset` in the trace (VAL-503 to VAL-505 of [`sort_trace`]). Within
+/// major version 1, the event's other members can be any that a later minor
+/// version adds (TRC-007).
+fn event_position(record: &[u8], offset: u64, depth_limit: u32) -> Result<Position, TraceError> {
+    // split_records gives each record from RS to LF, so this pattern matches.
+    let [RS, text @ .., LF] = record else {
+        return Err(TraceError::RecordMalformed { offset });
+    };
+    let members = match json::read(text, depth_limit) {
+        Ok(json::Json::Object(members)) => members,
+        Ok(_) | Err(json::JsonError::Malformed { .. }) => {
+            return Err(TraceError::EventMalformed { offset });
+        }
+        Err(json::JsonError::TooDeep { .. }) => return Err(TraceError::TooDeep { offset }),
+    };
+    let Some(json::Json::Array(version)) = member(&members, "v") else {
+        return Err(TraceError::EventMalformed { offset });
+    };
+    // Trace format, Versions: the major version alone decides whether this
+    // version of the library reads the event.
+    let Some(first) = version.first() else {
+        return Err(TraceError::EventMalformed { offset });
+    };
+    match count(first) {
+        Some(1) => {}
+        Some(major) => return Err(TraceError::VersionUnknown { offset, major }),
+        None => return Err(TraceError::EventMalformed { offset }),
+    }
+    let [_, minor] = version.as_slice() else {
+        return Err(TraceError::EventMalformed { offset });
+    };
+    if count(minor).is_none() {
+        return Err(TraceError::EventMalformed { offset });
+    }
+    let Some(path) = counts(member(&members, "pos")) else {
+        return Err(TraceError::EventMalformed { offset });
+    };
+    // Trace format, Positions: child numbers start at 1.
+    if path.contains(&0) {
+        return Err(TraceError::EventMalformed { offset });
+    }
+    Ok(Position { path })
+}
+
+/// The value of the member `name` of an object.
+fn member<'a>(members: &'a [(String, json::Json)], name: &str) -> Option<&'a json::Json> {
+    for (key, value) in members {
+        if key == name {
+            return Some(value);
+        }
+    }
+    None
+}
+
+/// The counts of a JSON list of counts, such as `pos`.
+fn counts(value: Option<&json::Json>) -> Option<Vec<u64>> {
+    let Some(json::Json::Array(items)) = value else {
+        return None;
+    };
+    let mut counts = Vec::with_capacity(items.len());
+    for item in items {
+        counts.push(count(item)?);
+    }
+    Some(counts)
+}
+
+/// A count: a JSON integer from 0 to 2^53−1, written in decimal digits with no
+/// sign, fraction or exponent
+/// ([Trace format](https://github.com/photom/hallmark/blob/main/docs/reference/trace-format.md#values)).
+fn count(value: &json::Json) -> Option<u64> {
+    let json::Json::Number(text) = value else {
+        return None;
+    };
+    for byte in text.bytes() {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+    }
+    let number = text.parse::<u64>().ok()?;
+    if number > MAX_COUNT {
+        return None;
+    }
+    Some(number)
+}
+
+/// An offset in the trace as the errors carry it. A `usize` is at most 64
+/// bits wide on every target that Rust supports, so the cast keeps the value.
+fn wide(offset: usize) -> u64 {
+    offset as u64
 }
 
 /// One trace event: one step of a check or a signing, as one record of the
@@ -325,7 +506,6 @@ pub struct Place {
 /// | `trace.too_deep` | [`TooDeep`](Self::TooDeep) | [`sort_trace`], [`Event::parse`] | VAL-503, VAL-511 | PAR-005 |
 /// | `trace.version_unknown` | [`VersionUnknown`](Self::VersionUnknown) | [`sort_trace`], [`Event::parse`] | VAL-504, VAL-511 | TRC-007 |
 /// | `trace.position_repeated` | [`PositionRepeated`](Self::PositionRepeated) | [`sort_trace`] | VAL-506 | TRC-012 |
-#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceError {
@@ -333,7 +513,8 @@ pub enum TraceError {
     LimitsInvalid(LimitsError),
     /// `trace.too_large`: a trace over `document_size`.
     TooLarge,
-    /// `trace.record_malformed`: bytes that aren't RS, one JSON text and LF.
+    /// `trace.record_malformed`: bytes that don't split into records of RS, a
+    /// text with no RS or LF, and LF.
     RecordMalformed {
         /// The offset of the record in the input.
         offset: u64,
@@ -352,6 +533,8 @@ pub enum TraceError {
     VersionUnknown {
         /// The offset of the record in the input.
         offset: u64,
+        /// The major version that the event's `v` names.
+        major: u64,
     },
     /// `trace.position_repeated`: two events at one position.
     PositionRepeated {
@@ -360,27 +543,80 @@ pub enum TraceError {
     },
 }
 
-#[cfg(doc)]
 impl TraceError {
     /// The error's code, such as `trace.too_large` (STB-001).
     pub fn code(&self) -> &'static str {
-        unimplemented!()
+        match self {
+            TraceError::LimitsInvalid(_) => "trace.limits_invalid",
+            TraceError::TooLarge => "trace.too_large",
+            TraceError::RecordMalformed { .. } => "trace.record_malformed",
+            TraceError::EventMalformed { .. } => "trace.event_malformed",
+            TraceError::TooDeep { .. } => "trace.too_deep",
+            TraceError::VersionUnknown { .. } => "trace.version_unknown",
+            TraceError::PositionRepeated { .. } => "trace.position_repeated",
+        }
     }
 }
 
-#[cfg(doc)]
 impl core::fmt::Display for TraceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        unimplemented!()
+        let code = self.code();
+        match self {
+            TraceError::LimitsInvalid(error) => write!(f, "{code}: {error}"),
+            TraceError::TooLarge => write!(f, "{code}: the trace is over document_size"),
+            TraceError::RecordMalformed { offset } => {
+                let text = "isn't RS, a text with no RS or LF, and LF";
+                write!(f, "{code}: the record at offset {offset} {text}")
+            }
+            TraceError::EventMalformed { offset } => {
+                let text = "isn't an event of the trace format";
+                write!(f, "{code}: the record at offset {offset} {text}")
+            }
+            TraceError::TooDeep { offset } => {
+                let text = "is nested deeper than document_depth";
+                write!(f, "{code}: the event at offset {offset} {text}")
+            }
+            TraceError::VersionUnknown { offset, major } => {
+                write!(f, "{code}: the event at offset {offset} ")?;
+                write!(f, "has major version {major}; this library reads 1")
+            }
+            TraceError::PositionRepeated { position } => {
+                write!(f, "{code}: two events hold the position ")?;
+                write_path(f, &position.path)
+            }
+        }
     }
 }
 
-#[cfg(doc)]
-impl std::error::Error for TraceError {}
+/// Writes a position as the trace writes it, such as `[3,1]`.
+fn write_path(f: &mut core::fmt::Formatter<'_>, path: &[u64]) -> core::fmt::Result {
+    f.write_str("[")?;
+    let mut separator = "";
+    for number in path {
+        write!(f, "{separator}{number}")?;
+        separator = ",";
+    }
+    f.write_str("]")
+}
+
+impl std::error::Error for TraceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            TraceError::LimitsInvalid(error) => Some(error),
+            TraceError::TooLarge
+            | TraceError::RecordMalformed { .. }
+            | TraceError::EventMalformed { .. }
+            | TraceError::TooDeep { .. }
+            | TraceError::VersionUnknown { .. }
+            | TraceError::PositionRepeated { .. } => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use super::{Data, Parties};
+    use super::{Data, LF, Parties, Position, RS, TraceError, sort_trace};
+    use crate::{DocumentLimits, Limit, LimitsError};
 
     /// Writes `bytes` from the sender as a data value.
     fn written(bytes: &[u8]) -> String {
@@ -414,5 +650,154 @@ mod tests {
     fn step_053_a_noncharacter_makes_the_value_base64url() {
         let expected = r#"{"base64url":"77-_","from":["sender"]}"#;
         assert_eq!(written(b"\xef\xbf\xbf"), expected);
+    }
+
+    /// The JSON texts as the records of one trace (RFC 7464 §2.2).
+    fn records(texts: &[&str]) -> Vec<u8> {
+        let mut trace = Vec::new();
+        for text in texts {
+            trace.push(RS);
+            trace.extend_from_slice(text.as_bytes());
+            trace.push(LF);
+        }
+        trace
+    }
+
+    /// One event at `pos`, written as hallmark writes it.
+    fn event(pos: &str) -> String {
+        format!(r#"{{"v":[1,0],"pos":{pos},"kind":"fact","code":"trace"}}"#)
+    }
+
+    /// A trace of one event at each position, in the order given.
+    fn events(positions: &[&str]) -> Vec<u8> {
+        let mut trace = Vec::new();
+        for pos in positions {
+            let text = event(pos);
+            trace.extend_from_slice(&records(&[text.as_str()]));
+        }
+        trace
+    }
+
+    /// Sorts `trace` with the default limits.
+    fn sorted(trace: &[u8]) -> Result<Vec<u8>, TraceError> {
+        sort_trace(trace, &DocumentLimits::default())
+    }
+
+    #[test]
+    fn step_043_events_sort_by_position_with_parents_first() {
+        let given = events(&["[10]", "[3,2]", "[]", "[3,1,2]", "[3]", "[3,1]"]);
+        let expected = events(&["[]", "[3]", "[3,1]", "[3,1,2]", "[3,2]", "[10]"]);
+        assert_eq!(sorted(&given), Ok(expected));
+    }
+
+    #[test]
+    fn step_056_an_unknown_member_and_code_stay_in_place() {
+        let unknown = r#"{"v":[1,3],"pos":[3],"kind":"fact","code":"later.step","later":true}"#;
+        let root = event("[]");
+        let given = records(&[unknown, root.as_str()]);
+        let expected = records(&[root.as_str(), unknown]);
+        assert_eq!(sorted(&given), Ok(expected));
+    }
+
+    #[test]
+    fn step_057_a_major_version_other_than_1_is_refused() {
+        let root = event("[]");
+        let later = r#"{"v":[2,0],"pos":[3],"kind":"fact","code":"trace"}"#;
+        let given = records(&[root.as_str(), later]);
+        let offset = u64::try_from(root.len() + 2).unwrap();
+        let error = sorted(&given).unwrap_err();
+        assert_eq!(error, TraceError::VersionUnknown { offset, major: 2 });
+        assert_eq!(error.code(), "trace.version_unknown");
+        assert!(error.to_string().contains("major version 2"));
+    }
+
+    #[test]
+    fn api_500_limits_are_checked_first() {
+        let limits = DocumentLimits {
+            document_size: 0,
+            ..DocumentLimits::default()
+        };
+        let invalid = LimitsError::OutOfRange {
+            limit: Limit::DocumentSize,
+        };
+        let result = sort_trace(&events(&["[]"]), &limits);
+        assert_eq!(result, Err(TraceError::LimitsInvalid(invalid)));
+    }
+
+    #[test]
+    fn api_501_a_trace_over_document_size_is_refused() {
+        let limits = DocumentLimits {
+            document_size: 1_024,
+            ..DocumentLimits::default()
+        };
+        // RS, the text, and LF make 2,000 octets.
+        let head = r#"{"v":[1,0],"pos":[],"kind":"fact","code":""#;
+        let code = "a".repeat(2_000 - head.len() - 4);
+        let text = format!(r#"{head}{code}"}}"#);
+        let trace = records(&[text.as_str()]);
+        assert_eq!(trace.len(), 2_000);
+        assert_eq!(sort_trace(&trace, &limits), Err(TraceError::TooLarge));
+        assert_eq!(sorted(&trace), Ok(trace));
+    }
+
+    #[test]
+    fn api_502_a_record_without_rs_is_refused() {
+        let mut trace = events(&["[]"]);
+        let offset = u64::try_from(trace.len()).unwrap();
+        trace.extend_from_slice(event("[3]").as_bytes());
+        trace.push(LF);
+        let expected = TraceError::RecordMalformed { offset };
+        assert_eq!(sorted(&trace), Err(expected));
+    }
+
+    #[test]
+    fn api_503_a_record_holds_an_object_within_document_depth() {
+        let expected = TraceError::EventMalformed { offset: 0 };
+        assert_eq!(sorted(&records(&["[1,2]"])), Err(expected));
+        // The event and its params make two levels, and the arrays the rest.
+        let head = r#"{"v":[1,0],"pos":[3],"kind":"fact","code":"x","params":{"p":"#;
+        let deepest = format!("{head}{}0{}}}}}", "[".repeat(14), "]".repeat(14));
+        assert!(sorted(&records(&[deepest.as_str()])).is_ok());
+        let too_deep = format!("{head}{}0{}}}}}", "[".repeat(15), "]".repeat(15));
+        let expected = TraceError::TooDeep { offset: 0 };
+        assert_eq!(sorted(&records(&[too_deep.as_str()])), Err(expected));
+    }
+
+    #[test]
+    fn api_505_child_numbers_start_at_1() {
+        let expected = TraceError::EventMalformed { offset: 0 };
+        assert_eq!(sorted(&events(&["[3,0]", "[]"])), Err(expected));
+    }
+
+    #[test]
+    fn api_506_two_events_at_one_position_are_refused() {
+        let position = Position { path: vec![3, 1] };
+        let expected = TraceError::PositionRepeated { position };
+        let error = sorted(&events(&["[3,1]", "[]", "[3,1]"])).unwrap_err();
+        assert_eq!(error, expected);
+        assert!(error.to_string().ends_with("position [3,1]"));
+    }
+
+    #[test]
+    fn prs_012_a_record_is_rs_a_text_without_rs_or_lf_and_lf() {
+        let root = event("[]");
+        let spread = r#"{"v":[1,0],"pos":[3],"kind":"fact",
+"code":"trace"}"#;
+        let after_lf = u64::try_from(spread.find('\n').unwrap() + 2).unwrap();
+        let mut doubled = vec![RS];
+        doubled.extend_from_slice(&records(&[root.as_str()]));
+        let mut unended = records(&[root.as_str()]);
+        let last = u64::try_from(unended.len()).unwrap();
+        unended.push(RS);
+        unended.extend_from_slice(event("[3]").as_bytes());
+        let cases = [
+            (records(&[spread]), after_lf),
+            (doubled, 0),
+            (unended, last),
+        ];
+        for (trace, offset) in cases {
+            let expected = TraceError::RecordMalformed { offset };
+            assert_eq!(sorted(&trace), Err(expected));
+        }
     }
 }

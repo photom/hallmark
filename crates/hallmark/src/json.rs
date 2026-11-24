@@ -1,8 +1,9 @@
 //! The reader and the writer of the documents that traces, snapshots and demo
 //! cases share (TRC-007): I-JSON texts (RFC 7493), written in one fixed form.
 
-// sort_trace and the trace recorder, which read and write these documents,
-// come in later changes, so only the tests use this module for now.
+// The trace recorder, which writes these documents, comes in a later change,
+// and only the tests read the offsets of a JsonError, so parts of this module
+// are unused outside the tests for now.
 #![cfg_attr(
     not(test),
     expect(dead_code, reason = "its callers come in later changes")
