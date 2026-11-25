@@ -75,7 +75,7 @@ The name of a tag decides how its value decodes (RFC 6376 §3.2).
 
 | Value kind | Tags | Rule | Requirements | Scenario |
 |---|---|---|---|---|
-| base64 | DKIM `b=`, `bh=`, key `p=`, DKIM2 hashes and signatures | Folding white space inside the value is ignored | HDR-007, RFC 6376 §2.10 | TAG-020 |
+| base64 | DKIM `b=`, `bh=`, key `p=`, DKIM2 hashes and signatures | One FWS between two symbols and one before each `=` are ignored. The value is canonical: `=` completes the last group of four symbols, and the pad bits are zero | HDR-007, ADR 0066, RFC 6376 §2.10, draft-09 §2.14, RFC 4648 §3.5 | TAG-020, TAG-031 to TAG-034 |
 | dkim-quoted-printable | DKIM `z=`, `i=` | `=` and two uppercase hex digits. In an internationalized message, well-formed UTF-8 may stay unencoded | HDR-007, RFC 6376 §2.11, RFC 8616 §5 | TAG-021, TAG-022, TAG-024, TAG-025 |
 | Colon-separated names | DKIM `h=` | Header field names, with FWS allowed around each colon | HDR-007, RFC 6376 §3.5 | TAG-023 |
 | Canonicalization pair | DKIM `c=` | One name sets the header algorithm and leaves the body `simple`. A missing `c=` means `simple/simple` | HDR-007 | TAG-026, TAG-027 |

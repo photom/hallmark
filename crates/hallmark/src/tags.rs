@@ -255,6 +255,7 @@ fn utf8(input: &[u8], at: usize) -> Result<usize, TagListError> {
 #[cfg(test)]
 mod tests {
     use super::{Grammar, Rule, TagList, TagListError};
+    use crate::base64::{decode, encode_url_unpadded};
 
     /// The name and value of each tag of `input`, as text.
     fn pairs(input: &[u8], grammar: Grammar) -> Vec<(&str, &str)> {
@@ -374,5 +375,18 @@ mod tests {
     fn tag_019_names_are_case_sensitive() {
         let tags = pairs(b"v=1; V=1", Grammar::Dkim);
         assert_eq!(tags, [("v", "1"), ("V", "1")]);
+    }
+
+    #[test]
+    fn tag_020_a_fold_inside_base64_is_not_part_of_it() {
+        let input = b"bh=frcCV1k9oG9oKj3dpUqdJg1P\r\n xRT2RSN/XKdLCPjaYaY=";
+        let tags = pairs(input, Grammar::Dkim);
+        let hash = decode(tags[0].1.as_bytes()).unwrap();
+        let unfolded = decode(b"frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=");
+        // The 32 octets, written in base64url by the trace encoder.
+        let mut written = Vec::new();
+        encode_url_unpadded(&hash, &mut written);
+        assert_eq!(written, b"frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN_XKdLCPjaYaY");
+        assert_eq!(Ok(hash), unfolded);
     }
 }
