@@ -31,9 +31,11 @@ flowchart TD
     start["Value bytes"] --> spec["Read a tag-spec: optional FWS, a tag-name, optional FWS, an equals sign, optional FWS, a tag-value, optional FWS"]
     spec --> name{"tag-name: a letter, then letters, digits or underscores"}
     name -->|"no"| bad["Error: the tag-name rule and its offset"]
-    name -->|"yes"| value{"tag-value: runs of VALCHAR with WSP or FWS between them"}
-    value -->|"no"| badv["Error: the tag-value rule and its offset"]
-    value -->|"yes"| dup{"Name seen before in this list"}
+    name -->|"yes"| equals{"Optional FWS, then an equals sign"}
+    equals -->|"no"| bads["Error: the tag-spec rule and its offset"]
+    equals -->|"yes"| value["Read the tag-value: runs of VALCHAR, or of UTF-8 where the source allows it, with WSP or FWS between them"]
+    value -->|"ill-formed UTF-8"| badv["Error: the tag-value rule and its offset"]
+    value -->|"the value ends"| dup{"Name seen before in this list"}
     dup -->|"yes"| badd["Error: the whole list is invalid, and the error names the tag"]
     dup -->|"no"| keep["Keep the name, the value and their byte ranges"]
     keep --> next{"Next byte"}
@@ -44,19 +46,26 @@ flowchart TD
 
 The parser reads left to right without recursion (PAR-005). A semicolon can't occur in a value, so each semicolon ends a tag-spec (RFC 6376 §3.2, draft-09 §8).
 
+The source decides the grammar. DKIM lists follow RFC 6376 §3.2 as erratum 5070 corrects it, and DKIM2 lists follow draft-09 §8. The two differ only in the white space around an empty value. Values hold well-formed UTF-8 only in a DKIM-Signature field of a message with internationalized header fields.
+
 ## Rules
 
 | Rule | Example | Requirements | Scenario |
 |---|---|---|---|
 | A tag-name is a letter followed by letters, digits and underscores | `1a=x` is an error at offset 0 | HDR-006 | TAG-007 |
-| Tag names are case-sensitive | `V=1` is a tag named `V`, not `v` | HDR-006 | TAG-006 |
+| Tag names are case-sensitive | `V=1` is a tag named `V`, not `v` | HDR-006 | TAG-006, TAG-019 |
 | White space around a tag and before the semicolon isn't part of the value, and white space inside it is | ` a = x y ;` gives `x y` | HDR-006 | TAG-002 |
 | The last semicolon is optional | `b=z;` is valid | HDR-006 | TAG-002 |
-| A tag named twice makes the whole list invalid | `a=1; a=2` | HDR-006 | TAG-003 |
+| A tag-spec follows every semicolon but a last one at the end, and a list holds at least one tag-spec | `a=1; ` is an error at offset 5 | HDR-006 | TAG-015 |
+| An equals sign follows the tag name | `a:1` is an error at offset 1 | HDR-006 | TAG-010 |
+| An FWS holds at most one CRLF, and a CRLF folds only before WSP (RFC 6376 §2.8) | `a=1\r\nb=2` is an error at offset 3 | HDR-006 | TAG-014 |
+| One FWS may surround an empty value in DKIM (erratum 5070), and two in DKIM2 (draft-09 §8) | `a=\r\n \r\n ;` | HDR-006 | TAG-011, TAG-012 |
+| Any run of WSP and FWS may separate two tvals, and it stays in the value | `a=x\r\n \r\n y` gives `x\r\n \r\n y` | HDR-006 | TAG-013 |
+| A tag named twice makes the whole list invalid. Reading left to right, the first repeat wins over a later fault | `a=1; a=2` | HDR-006, PAR-005 | TAG-003, TAG-018 |
 | A tag the check doesn't know is ignored | `zz=9` in a DKIM-Signature | HDR-006 | TAG-004 |
 | An empty value differs from an omitted tag | `a=;` | HDR-006 | TAG-005 |
-| A VALCHAR is `%x21-3A / %x3C-7E`. In a DKIM-Signature of an internationalized message, well-formed UTF-8 is allowed too | `d=例え.test` | HDR-006, RFC 3629 §4 | TAG-008 |
-| DKIM2 values stay ASCII | `d=例え.test` in a DKIM2-Signature is a syntax error | HDR-006 | TAG-009 |
+| A VALCHAR is `%x21-3A / %x3C-7E`. In a DKIM-Signature of an internationalized message, well-formed UTF-8 is allowed too | `d=例え.test` | HDR-006, RFC 3629 §4 | TAG-008, TAG-017 |
+| DKIM2 values stay ASCII | `d=例え.test` in a DKIM2-Signature is a syntax error | HDR-006 | TAG-009, TAG-016 |
 
 ## Value decoders
 
