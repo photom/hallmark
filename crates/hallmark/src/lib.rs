@@ -211,6 +211,7 @@ mod snapshot;
 mod spf;
 #[cfg(doc)]
 mod suffix;
+mod tags;
 mod time;
 mod trace;
 
