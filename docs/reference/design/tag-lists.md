@@ -33,7 +33,9 @@ flowchart TD
     name -->|"no"| bad["Error: the tag-name rule and its offset"]
     name -->|"yes"| equals{"Optional FWS, then an equals sign"}
     equals -->|"no"| bads["Error: the tag-spec rule and its offset"]
+    spec -->|"an FWS with more folds than it allows"| bads
     equals -->|"yes"| value["Read the tag-value: runs of VALCHAR, or of UTF-8 where the source allows it, with WSP or FWS between them"]
+    value -->|"an FWS with more folds than it allows"| bads
     value -->|"ill-formed UTF-8"| badv["Error: the tag-value rule and its offset"]
     value -->|"the value ends"| dup{"Name seen before in this list"}
     dup -->|"yes"| badd["Error: the whole list is invalid, and the error names the tag"]
@@ -56,12 +58,12 @@ The source decides the grammar. DKIM lists follow RFC 6376 §3.2 as erratum 5070
 | Tag names are case-sensitive | `V=1` is a tag named `V`, not `v` | HDR-006 | TAG-006, TAG-019 |
 | White space around a tag and before the semicolon isn't part of the value, and white space inside it is | ` a = x y ;` gives `x y` | HDR-006 | TAG-002 |
 | The last semicolon is optional | `b=z;` is valid | HDR-006 | TAG-002 |
-| A tag-spec follows every semicolon but a last one at the end, and a list holds at least one tag-spec | `a=1; ` is an error at offset 5 | HDR-006 | TAG-015 |
+| A tag-spec follows every semicolon but a last one at the end, and a list holds at least one tag-spec. White space after the last semicolon is an error, because ADR 0010 holds the parser to the ABNF | `a=1; ` is an error at offset 5 | HDR-006 | TAG-015 |
 | An equals sign follows the tag name | `a:1` is an error at offset 1 | HDR-006 | TAG-010 |
 | An FWS holds at most one CRLF, and a CRLF folds only before WSP (RFC 6376 §2.8) | `a=1\r\nb=2` is an error at offset 3 | HDR-006 | TAG-014 |
 | One FWS may surround an empty value in DKIM (erratum 5070), and two in DKIM2 (draft-09 §8) | `a=\r\n \r\n ;` | HDR-006 | TAG-011, TAG-012 |
 | Any run of WSP and FWS may separate two tvals, and it stays in the value | `a=x\r\n \r\n y` gives `x\r\n \r\n y` | HDR-006 | TAG-013 |
-| A tag named twice makes the whole list invalid. Reading left to right, the first repeat wins over a later fault | `a=1; a=2` | HDR-006, PAR-005 | TAG-003, TAG-018 |
+| A tag named twice makes the whole list invalid. Reading left to right, the first repeat in a complete tag-spec wins over a later fault | `a=1; a=2` | HDR-006, PAR-005 | TAG-003, TAG-018 |
 | A tag the check doesn't know is ignored | `zz=9` in a DKIM-Signature | HDR-006 | TAG-004 |
 | An empty value differs from an omitted tag | `a=;` | HDR-006 | TAG-005 |
 | A VALCHAR is `%x21-3A / %x3C-7E`. In a DKIM-Signature of an internationalized message, well-formed UTF-8 is allowed too | `d=例え.test` | HDR-006, RFC 3629 §4 | TAG-008, TAG-017 |
