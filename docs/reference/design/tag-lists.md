@@ -96,10 +96,13 @@ A parse error never becomes a returned error. It gives the outcome of the protoc
 | DKIM2 key record | The outcome REC-053 gives | REC-053 |
 | Domain Policy Record | PERMERROR | REC-054 |
 
+A base64 value that doesn't decode (ADR 0066) gives the same outcome as a list that doesn't parse, from the same source. An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
+
 ## Trace
 
 | Step | Records | Requirements |
 |---|---|---|
 | A list that parses | Each tag the check reads, with its byte range in the field or record | PAR-002, TRC-002 |
 | A list that doesn't parse | The rule that failed, the offset and the input, as a data value | PAR-001, TRC-013 |
+| A base64 value that doesn't decode | The rule that failed (the base64string rule, the padding or the pad bits), the offset in the field or record, and the value, as a data value. The offset is the value's start plus the decoder's offset, which for a missing `=` is the end of the value | PAR-001, TRC-013, ADR 0066 |
 | An ignored tag | Its name | HDR-006 |

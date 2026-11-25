@@ -255,7 +255,7 @@ fn utf8(input: &[u8], at: usize) -> Result<usize, TagListError> {
 #[cfg(test)]
 mod tests {
     use super::{Grammar, Rule, TagList, TagListError};
-    use crate::base64::{decode, encode_url_unpadded};
+    use crate::base64::decode;
 
     /// The name and value of each tag of `input`, as text.
     fn pairs(input: &[u8], grammar: Grammar) -> Vec<(&str, &str)> {
@@ -383,10 +383,12 @@ mod tests {
         let tags = pairs(input, Grammar::Dkim);
         let hash = decode(tags[0].1.as_bytes()).unwrap();
         let unfolded = decode(b"frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=");
-        // The 32 octets, written in base64url by the trace encoder.
-        let mut written = Vec::new();
-        encode_url_unpadded(&hash, &mut written);
-        assert_eq!(written, b"frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN_XKdLCPjaYaY");
+        // The SHA-256 hash of CRLF, in two halves.
+        let high = b"\x7e\xb7\x02\x57\x59\x3d\xa0\x6f\x68\x2a\x3d\xdd\xa5\x4a\x9d\x26";
+        let low = b"\x0d\x4f\xc5\x14\xf6\x45\x23\x7f\x5c\xa7\x4b\x08\xf8\xda\x61\xa6";
+        assert_eq!(hash.len(), 32);
+        assert_eq!(&hash[..16], high);
+        assert_eq!(&hash[16..], low);
         assert_eq!(Ok(hash), unfolded);
     }
 }

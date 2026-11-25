@@ -37,12 +37,12 @@ Option (a).
 - This decision covers tag values only. DKIM2 recipe strings (draft-09 §5) follow the same padding rules but allow no FWS, and trace documents write hashes as base64 inside JSON strings (RFC 4648 §4). Their readers decide how they hold these rules when they arrive.
 - hallmark's signer writes padding and zero pad bits, so its output meets RFC 2045 and RFC 4648 alike. The trace format writes data as base64url without padding (RFC 4648 §5, TRC-007), a separate form that this decision doesn't cover.
 
-Draft-09 §2.14 wants padding and zero pad bits so that two base64strings can be compared without decoding them. With one canonical form, two values that decode to the same octets are the same string. A DKIM value that lacks its padding or sets a pad bit can't come from an encoder that follows RFC 2045, so rejecting it follows ADR 0010, under which hallmark never repairs input. Option (c) would give one decoder two rules for the same bytes, and option (b) would let two strings stand for one value.
+Draft-09 §2.14 wants padding and zero pad bits so that two base64strings can be compared without decoding them. With one canonical form, two values that decode to the same octets are the same string once their FWS is removed. A DKIM value that lacks its padding or sets a pad bit matches the ABNF of RFC 6376 §2.10, but no encoder that follows RFC 2045 §6.8 writes it, and rejecting it gives DKIM and DKIM2 one rule. Option (c) would give one decoder two rules for the same bytes, and option (b) would let two strings stand for one value.
 
 ## Consequences
 
 Positive:
-- Each value has one encoding. A trace that records a base64 value shows the bytes that were decoded.
+- Each value has one encoding once its FWS is removed. A trace that records a base64 value shows the bytes that were decoded.
 - DKIM and DKIM2 share one decoder with one rule set, and the rules can be tested and fuzzed together.
 
 Negative:
@@ -55,5 +55,4 @@ Negative:
 - [draft-ietf-dkim-dkim2-dns-03 §4.3](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-dns-03#section-4.3)
 - [RFC 2045 §6.8](https://www.rfc-editor.org/rfc/rfc2045.html#section-6.8)
 - [RFC 4648 §3.2, §3.3, §3.5 and §4](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.5)
-- [ADR 0010](0010-header-parsers-follow-the-abnf-and-never-repair-input.md)
 - [requirements.md: Header parsing](../reference/requirements.md#header-parsing)
