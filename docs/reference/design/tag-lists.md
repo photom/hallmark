@@ -75,7 +75,7 @@ The name of a tag decides how its value decodes (RFC 6376 §3.2).
 
 | Value kind | Tags | Rule | Requirements | Scenario |
 |---|---|---|---|---|
-| base64 | DKIM `b=`, `bh=`, key `p=`, DKIM2 hashes and signatures | Folding white space inside the value is ignored | HDR-007, RFC 6376 §2.10 | TAG-020 |
+| base64 | DKIM `b=`, `bh=`, key `p=`, DKIM2 hashes and signatures | One FWS between two symbols and one before each `=` are ignored. The value is canonical: `=` completes the last group of four symbols, and the pad bits are zero | HDR-007, ADR 0066, RFC 6376 §2.10, draft-09 §2.14, RFC 4648 §3.5 | TAG-020, TAG-031 to TAG-034 |
 | dkim-quoted-printable | DKIM `z=`, `i=` | `=` and two uppercase hex digits. In an internationalized message, well-formed UTF-8 may stay unencoded | HDR-007, RFC 6376 §2.11, RFC 8616 §5 | TAG-021, TAG-022, TAG-024, TAG-025 |
 | Colon-separated names | DKIM `h=` | Header field names, with FWS allowed around each colon | HDR-007, RFC 6376 §3.5 | TAG-023 |
 | Canonicalization pair | DKIM `c=` | One name sets the header algorithm and leaves the body `simple`. A missing `c=` means `simple/simple` | HDR-007 | TAG-026, TAG-027 |
@@ -96,10 +96,13 @@ A parse error never becomes a returned error. It gives the outcome of the protoc
 | DKIM2 key record | The outcome REC-053 gives | REC-053 |
 | Domain Policy Record | PERMERROR | REC-054 |
 
+A base64 value that doesn't decode (ADR 0066) gives the same outcome as a list that doesn't parse, from the same source. An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
+
 ## Trace
 
 | Step | Records | Requirements |
 |---|---|---|
 | A list that parses | Each tag the check reads, with its byte range in the field or record | PAR-002, TRC-002 |
 | A list that doesn't parse | The rule that failed, the offset and the input, as a data value | PAR-001, TRC-013 |
+| A base64 value that doesn't decode | The rule that failed (the base64string rule, the padding or the pad bits), the offset in the field or record, and the value, as a data value. The offset is the value's start plus the decoder's offset, which for a missing `=` is the end of the value | PAR-001, TRC-013, ADR 0066 |
 | An ignored tag | Its name | HDR-006 |

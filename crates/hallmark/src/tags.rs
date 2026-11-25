@@ -255,6 +255,7 @@ fn utf8(input: &[u8], at: usize) -> Result<usize, TagListError> {
 #[cfg(test)]
 mod tests {
     use super::{Grammar, Rule, TagList, TagListError};
+    use crate::base64::decode;
 
     /// The name and value of each tag of `input`, as text.
     fn pairs(input: &[u8], grammar: Grammar) -> Vec<(&str, &str)> {
@@ -374,5 +375,20 @@ mod tests {
     fn tag_019_names_are_case_sensitive() {
         let tags = pairs(b"v=1; V=1", Grammar::Dkim);
         assert_eq!(tags, [("v", "1"), ("V", "1")]);
+    }
+
+    #[test]
+    fn tag_020_a_fold_inside_base64_is_not_part_of_it() {
+        let input = b"bh=frcCV1k9oG9oKj3dpUqdJg1P\r\n xRT2RSN/XKdLCPjaYaY=";
+        let tags = pairs(input, Grammar::Dkim);
+        let hash = decode(tags[0].1.as_bytes()).unwrap();
+        let unfolded = decode(b"frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=");
+        // The SHA-256 hash of CRLF, in two halves.
+        let high = b"\x7e\xb7\x02\x57\x59\x3d\xa0\x6f\x68\x2a\x3d\xdd\xa5\x4a\x9d\x26";
+        let low = b"\x0d\x4f\xc5\x14\xf6\x45\x23\x7f\x5c\xa7\x4b\x08\xf8\xda\x61\xa6";
+        assert_eq!(hash.len(), 32);
+        assert_eq!(&hash[..16], high);
+        assert_eq!(&hash[16..], low);
+        assert_eq!(Ok(hash), unfolded);
     }
 }
