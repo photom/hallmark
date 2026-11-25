@@ -33,8 +33,124 @@ pub(crate) enum Base64Error {
 /// to whole groups of four symbols, with pad bits of zero (ADR 0066). The
 /// decoder checks the symbols and the FWS, then the padding, then the pad
 /// bits, and the first check that fails gives the error.
-pub(crate) fn decode(_input: &[u8]) -> Result<Vec<u8>, Base64Error> {
-    Ok(Vec::new())
+pub(crate) fn decode(input: &[u8]) -> Result<Vec<u8>, Base64Error> {
+    if symbol_at(input, 0).is_none() {
+        return Err(Base64Error::Syntax(0));
+    }
+    let mut octets = Vec::with_capacity(input.len() / 4 * 3 + 2);
+    // The symbols of the group being read, and their bits.
+    let mut filled = 0;
+    let mut bits: u32 = 0;
+    // The offset of the last symbol, which a padding or pad-bit error names.
+    let mut last = 0;
+    // The end of the last symbol or `=`, before the FWS that may follow it.
+    let mut end = 0;
+    let mut at = 0;
+    while let Some(value) = symbol_at(input, at) {
+        bits = (bits << 6) | u32::from(value);
+        filled += 1;
+        if filled == 4 {
+            let [_, first, second, third] = bits.to_be_bytes();
+            octets.extend_from_slice(&[first, second, third]);
+            filled = 0;
+            bits = 0;
+        }
+        last = at;
+        end = at + 1;
+        at = fws(input, end)?;
+    }
+    // RFC 4648 §4: a last group of two symbols ends with two `=`, one of
+    // three symbols with one `=`, and a whole group with none. No padding
+    // completes a group of one symbol.
+    let pads = match filled {
+        0 => Some(0),
+        2 => Some(2),
+        3 => Some(1),
+        _ => None,
+    };
+    // Up to two `=`, with an FWS before each (RFC 6376 §2.10).
+    let mut seen = 0;
+    let mut surplus = None;
+    while let Some(b'=') = input.get(at).copied() {
+        if pads == Some(seen) {
+            surplus = Some(at);
+        }
+        seen += 1;
+        end = at + 1;
+        if seen == 2 {
+            at = end;
+            break;
+        }
+        at = fws(input, end)?;
+    }
+    if at < input.len() {
+        return Err(Base64Error::Syntax(at));
+    }
+    if at != end {
+        // FWS after the last symbol or `=`.
+        return Err(Base64Error::Syntax(end));
+    }
+    let Some(pads) = pads else {
+        return Err(Base64Error::Padding(last));
+    };
+    if let Some(offset) = surplus {
+        return Err(Base64Error::Padding(offset));
+    }
+    if seen < pads {
+        return Err(Base64Error::Padding(at));
+    }
+    // RFC 4648 §3.5: the bits after the last octet are zero.
+    match pads {
+        2 if bits & 0x0F == 0 => {
+            let [_, _, _, octet] = (bits >> 4).to_be_bytes();
+            octets.push(octet);
+        }
+        1 if bits & 0x03 == 0 => {
+            let [_, _, first, second] = (bits >> 2).to_be_bytes();
+            octets.extend_from_slice(&[first, second]);
+        }
+        0 => {}
+        _ => return Err(Base64Error::PadBits(last)),
+    }
+    Ok(octets)
+}
+
+/// The six-bit value of the symbol at `at` in the base64 alphabet (RFC 4648
+/// §4, Table 1), if a symbol is there.
+fn symbol_at(input: &[u8], at: usize) -> Option<u8> {
+    let octet = *input.get(at)?;
+    match octet {
+        b'A'..=b'Z' => Some(octet - b'A'),
+        b'a'..=b'z' => Some(octet - b'a' + 26),
+        b'0'..=b'9' => Some(octet - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
+}
+
+/// Skips the FWS at `at`, if one is there, and returns the offset after it.
+/// An FWS is `[*WSP CRLF] 1*WSP`, RFC 5322's without obs-FWS (RFC 6376
+/// §2.8, draft-09 §2.12), so it holds one CRLF at most, and a CRLF folds
+/// only before WSP.
+fn fws(input: &[u8], at: usize) -> Result<usize, Base64Error> {
+    let end = wsp(input, at);
+    let Some([b'\r', b'\n']) = input.get(end..end + 2) else {
+        return Ok(end);
+    };
+    let after = wsp(input, end + 2);
+    if after == end + 2 {
+        return Err(Base64Error::Syntax(end));
+    }
+    Ok(after)
+}
+
+/// Skips the WSP at `at` and returns the offset after it.
+fn wsp(input: &[u8], mut at: usize) -> usize {
+    while let Some(b' ' | b'\t') = input.get(at).copied() {
+        at += 1;
+    }
+    at
 }
 
 /// Appends `bytes` to `out` in base64url without padding (RFC 4648 §5,
