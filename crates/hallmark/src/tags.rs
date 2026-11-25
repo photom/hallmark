@@ -8,6 +8,9 @@
 
 use core::ops::Range;
 
+/// A run of WSP and FWS with any number of folds.
+const ANY_FOLDS: usize = usize::MAX;
+
 /// The grammar of a tag list, which its source decides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Grammar {
@@ -72,13 +75,180 @@ pub(crate) enum Rule {
 impl TagList {
     /// Parses `input`, the value of a header field after its colon, folds
     /// included, or the strings of a DNS record joined.
-    pub(crate) fn parse(_input: &[u8], _grammar: Grammar) -> Result<Self, TagListError> {
-        Ok(Self { tags: Vec::new() })
+    pub(crate) fn parse(input: &[u8], grammar: Grammar) -> Result<Self, TagListError> {
+        let mut tags = Vec::new();
+        let mut names = Vec::new();
+        let outcome = read(input, grammar, &mut tags, &mut names);
+        // RFC 6376 §3.2, draft-09 §8: a repeated name makes the whole list
+        // invalid. A repeat among the complete tag-specs comes before the
+        // fault that stopped the reading, if any (PAR-005).
+        if let Some(name) = first_repeat(&mut names) {
+            return Err(TagListError::Duplicate(name));
+        }
+        outcome?;
+        Ok(Self { tags })
     }
 
     /// The tags in list order.
     pub(crate) fn tags(&self) -> &[Tag] {
         &self.tags
+    }
+}
+
+/// Reads the tag-specs of `input` into `tags`, and each name with its
+/// offset into `names`, until the list ends or a rule fails.
+fn read<'a>(
+    input: &'a [u8],
+    grammar: Grammar,
+    tags: &mut Vec<Tag>,
+    names: &mut Vec<(&'a [u8], usize)>,
+) -> Result<(), TagListError> {
+    let mut at = 0;
+    loop {
+        let start = white_space(input, at, 1)?;
+        let name = tag_name(input, start)?;
+        let name_end = start + name.len();
+        let equals = white_space(input, name_end, 1)?;
+        if input.get(equals) != Some(&b'=') {
+            return Err(TagListError::Syntax(Rule::Spec, equals));
+        }
+        let (value, end) = tag_value(input, equals + 1, grammar)?;
+        tags.push(Tag {
+            name: start..name_end,
+            value,
+        });
+        names.push((name, start));
+        match input.get(end..) {
+            Some([] | [b';']) => return Ok(()),
+            Some([b';', ..]) => at = end + 1,
+            _ => return Err(TagListError::Syntax(Rule::List, end)),
+        }
+    }
+}
+
+/// The range of the first name, in list order, that an earlier tag-spec
+/// already has. Sorting keeps the search at O(n log n) for n tags, where a
+/// search of the earlier names for each tag would be quadratic.
+fn first_repeat(names: &mut [(&[u8], usize)]) -> Option<Range<usize>> {
+    names.sort_unstable();
+    let mut repeat: Option<Range<usize>> = None;
+    for pair in names.windows(2) {
+        let [(earlier, _), (name, start)] = pair else {
+            continue;
+        };
+        let first = match &repeat {
+            Some(found) => *start < found.start,
+            None => true,
+        };
+        if earlier == name && first {
+            repeat = Some(*start..start + name.len());
+        }
+    }
+    repeat
+}
+
+/// Skips WSP and folds from `at` and returns the end of the run. A CRLF
+/// folds only before WSP (RFC 6376 §2.8). A fold past `folds` breaks the
+/// tag-spec rule at its CR.
+fn white_space(input: &[u8], mut at: usize, folds: usize) -> Result<usize, TagListError> {
+    let mut seen = 0;
+    loop {
+        match input.get(at..) {
+            Some([b' ' | b'\t', ..]) => at += 1,
+            Some([b'\r', b'\n', b' ' | b'\t', ..]) if seen < folds => {
+                seen += 1;
+                at += 2;
+            }
+            Some([b'\r', b'\n', b' ' | b'\t', ..]) => {
+                return Err(TagListError::Syntax(Rule::Spec, at));
+            }
+            _ => return Ok(at),
+        }
+    }
+}
+
+/// Reads the tag-name at `start`: a letter, then letters, digits and
+/// underscores.
+fn tag_name(input: &[u8], start: usize) -> Result<&[u8], TagListError> {
+    let fault = TagListError::Syntax(Rule::Name, start);
+    let Some(rest) = input.get(start..) else {
+        return Err(fault);
+    };
+    let Some(b'a'..=b'z' | b'A'..=b'Z') = rest.first().copied() else {
+        return Err(fault);
+    };
+    let mut length = 1;
+    while let Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') = rest.get(length).copied() {
+        length += 1;
+    }
+    match rest.get(..length) {
+        Some(name) => Ok(name),
+        None => Err(fault),
+    }
+}
+
+/// Reads the tag-value from `start`, just after the equals sign, with the
+/// white space around it. Returns the value's range and the offset after
+/// the white space that follows the value.
+fn tag_value(
+    input: &[u8],
+    start: usize,
+    grammar: Grammar,
+) -> Result<(Range<usize>, usize), TagListError> {
+    let around_empty = match grammar {
+        // RFC 6376 §3.2, erratum 5070: [FWS] "=" [FWS] [tag-value [FWS]]
+        Grammar::Dkim | Grammar::DkimUtf8 => 1,
+        // draft-09 §8: [FWS] "=" [FWS] tag-value [FWS], tag-value optional
+        Grammar::Dkim2 => 2,
+    };
+    let first = white_space(input, start, around_empty)?;
+    let mut end = tval(input, first, grammar)?;
+    if end == first {
+        return Ok((first..first, first));
+    }
+    // One FWS before a value.
+    white_space(input, start, 1)?;
+    loop {
+        let gap = white_space(input, end, ANY_FOLDS)?;
+        let next = tval(input, gap, grammar)?;
+        if next == gap {
+            // One FWS after a value.
+            let after = white_space(input, end, 1)?;
+            return Ok((first..end, after));
+        }
+        end = next;
+    }
+}
+
+/// Reads a tval from `at` and returns its end, which is `at` when no tval
+/// starts there.
+fn tval(input: &[u8], mut at: usize, grammar: Grammar) -> Result<usize, TagListError> {
+    loop {
+        match input.get(at).copied() {
+            Some(0x21..=0x3A | 0x3C..=0x7E) => at += 1,
+            Some(0x80..) if grammar == Grammar::DkimUtf8 => at = utf8(input, at)?,
+            _ => return Ok(at),
+        }
+    }
+}
+
+/// Reads the run of non-ASCII octets at `at`, which must be well-formed
+/// UTF-8 (RFC 3629 §4), and returns its end. An ill-formed sequence breaks
+/// the tag-value rule at its first octet.
+fn utf8(input: &[u8], at: usize) -> Result<usize, TagListError> {
+    let mut end = at;
+    while let Some(0x80..) = input.get(end).copied() {
+        end += 1;
+    }
+    let Some(run) = input.get(at..end) else {
+        return Err(TagListError::Syntax(Rule::Value, at));
+    };
+    match core::str::from_utf8(run) {
+        Ok(_) => Ok(end),
+        Err(error) => {
+            let offset = at + error.valid_up_to();
+            Err(TagListError::Syntax(Rule::Value, offset))
+        }
     }
 }
 
