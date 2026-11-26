@@ -8,6 +8,7 @@
 
 mod canon;
 mod fields;
+mod groups;
 mod number;
 mod qp;
 
