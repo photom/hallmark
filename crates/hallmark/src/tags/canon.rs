@@ -32,9 +32,9 @@ pub(crate) enum CanonError {
     Syntax(usize),
     /// A name other than `simple` and `relaxed`, compared as written
     /// (ADR 0067), as its range: the header name if it is unrecognized, else
-    /// the body name. The value has the right syntax, and RFC 6376 §3.4 has
-    /// the verifier ignore the signature.
-    Unknown(Range<usize>),
+    /// the body name. This is no syntax error: RFC 6376 §3.4 has the verifier
+    /// ignore the signature.
+    Unrecognized(Range<usize>),
 }
 
 /// Decodes `value`, the `c=` value, which is `None` when the signature has no
@@ -105,7 +105,7 @@ fn algorithm(input: &[u8], start: usize, end: usize) -> Result<Algorithm, CanonE
     match input.get(start..end) {
         Some(b"simple") => Ok(Algorithm::Simple),
         Some(b"relaxed") => Ok(Algorithm::Relaxed),
-        _ => Err(CanonError::Unknown(start..end)),
+        _ => Err(CanonError::Unrecognized(start..end)),
     }
 }
 
@@ -136,11 +136,11 @@ mod tests {
         assert_eq!(canonicalization(Some(b"relaxed/relaxed")), Ok(both));
         let mixed = pair(Algorithm::Simple, Algorithm::Relaxed);
         assert_eq!(canonicalization(Some(b"simple/relaxed")), Ok(mixed));
-        let error = CanonError::Unknown(0..7);
+        let error = CanonError::Unrecognized(0..7);
         assert_eq!(canonicalization(Some(b"Relaxed")), Err(error));
-        let error = CanonError::Unknown(7..12);
+        let error = CanonError::Unrecognized(7..12);
         assert_eq!(canonicalization(Some(b"simple/x-new")), Err(error));
-        let error = CanonError::Unknown(0..3);
+        let error = CanonError::Unrecognized(0..3);
         assert_eq!(canonicalization(Some(b"Foo/Bar")), Err(error));
     }
 

@@ -24,7 +24,9 @@ pub(crate) enum Digits {
 
 /// A decimal tag value. `Infinite` is larger than every `Finite` value, and
 /// two `Infinite` values compare equal, so a check that orders two values,
-/// such as `x=` after `t=`, decides that case itself.
+/// such as `x=` after `t=`, decides that case itself. A DKIM2 `i=` or `m=`
+/// that is `Infinite` exceeds the limits of SAF-002 (HDR-013), so the DKIM2
+/// check rejects it before it compares two of them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Number {
     /// A value that fits in 64 bits.
