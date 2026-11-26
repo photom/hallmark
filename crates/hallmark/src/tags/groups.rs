@@ -266,7 +266,7 @@ fn fws(input: &[u8], mut at: usize, count: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::Base64Error::{Padding, Syntax};
+    use super::Base64Error::{PadBits, Padding, Syntax};
     use super::GroupsError::{Algorithm, Colon, Repeat, Selector, Separator, Value};
     use super::{GroupsError, hashes, signatures};
 
@@ -328,12 +328,17 @@ mod tests {
         assert_eq!(hashes(input), Err(Repeat(17..23)));
         let input = b"sha256:AAAA:BBBB|sha256:CCCC:DDDD|x";
         assert_eq!(hashes(input), Err(Repeat(17..23)));
+        let input = b"sha256:AAAA:BBBB,sha256:CCCC:DDDD";
+        assert_eq!(hashes(input), Err(Repeat(17..23)));
         let input = b"sha256:AAAA:BBBB|SHA256:CCCC:DDDD";
         assert_eq!(hash_text(input), "sha256:AAAA:BBBB|SHA256:CCCC:DDDD");
         let input = b"one:rsa-sha256:AAAA|one:ed25519-sha256:BBBB";
         assert_eq!(signatures(input), Err(Repeat(20..23)));
         let input = b"one:rsa-sha256:AAAA|ONE:rsa-sha256:BBBB";
         let expected = "one:rsa-sha256:AAAA|ONE:rsa-sha256:BBBB";
+        assert_eq!(signature_text(input), expected);
+        let input = b"one:rsa-sha256:AAAA,two:rsa-sha256:BBBB";
+        let expected = "one:rsa-sha256:AAAA,two:rsa-sha256:BBBB";
         assert_eq!(signature_text(input), expected);
     }
 
@@ -351,7 +356,7 @@ mod tests {
 
     #[test]
     fn tag_053_an_h_value_follows_hash_any() {
-        let cases: [(&[u8], GroupsError); 11] = [
+        let cases: [(&[u8], GroupsError); 12] = [
             (b"", Algorithm(0)),
             (b"sha256AAAA:BBBB", Colon(15)),
             (b"sha256:AAAA", Colon(11)),
@@ -362,6 +367,7 @@ mod tests {
             (b"sha256:AAAA:BBBB:CCCC", Separator(16)),
             (b"sha256: AAAA:BBBB", Value(Syntax(7))),
             (b"sha256:AAAA:BBB", Value(Padding(15))),
+            (b"sha256:AAAA:AB==", Value(PadBits(13))),
             (b"sha256:AAAA:BBBB\r\n ", Separator(19)),
         ];
         for (input, error) in cases {
