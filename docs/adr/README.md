@@ -70,6 +70,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0064](0064-rust-code-is-procedural-and-lints-types-and-size-limits-keep-it-efficient-and-reviewable.md) | Rust code is procedural, and lints, types and size limits keep it efficient and reviewable | Accepted |
 | [0065](0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md) | The public API follows one set of conventions, and each API checks the limits it takes | Accepted |
 | [0066](0066-base64-values-decode-only-in-their-canonical-form.md) | base64 values decode only in their canonical form | Accepted |
+| [0067](0067-dkim-value-keywords-match-only-as-written.md) | DKIM value keywords match only as written | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
