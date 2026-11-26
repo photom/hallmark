@@ -37,10 +37,76 @@ pub(crate) enum CanonError {
     Unknown(Range<usize>),
 }
 
-/// Decodes `value`, the `c=` value. Not written yet.
+/// Decodes `value`, the `c=` value, which is `None` when the signature has no
+/// `c=` tag: `sig-c-tag-alg ["/" sig-c-tag-alg]`. The decoder checks the
+/// syntax before it reads the names.
 pub(crate) fn canonicalization(value: Option<&[u8]>) -> Result<Canonicalization, CanonError> {
-    let _ = value;
-    Err(CanonError::Syntax(0))
+    let Some(input) = value else {
+        // RFC 6376 §3.5: c= defaults to simple/simple.
+        return Ok(Canonicalization {
+            header: Algorithm::Simple,
+            body: Algorithm::Simple,
+        });
+    };
+    let header_end = word(input, 0)?;
+    let body_word = match input.get(header_end..) {
+        Some([]) => None,
+        Some([b'/', ..]) => Some(last_word(input, header_end + 1)?),
+        _ => return Err(CanonError::Syntax(header_end)),
+    };
+    let header = algorithm(input, 0, header_end)?;
+    let body = match body_word {
+        // RFC 6376 §3.5: one name leaves the body simple.
+        None => Algorithm::Simple,
+        Some((start, end)) => algorithm(input, start, end)?,
+    };
+    Ok(Canonicalization { header, body })
+}
+
+/// Reads the hyphenated-word at `start`, which must end the value, and
+/// returns its range.
+fn last_word(input: &[u8], start: usize) -> Result<(usize, usize), CanonError> {
+    let end = word(input, start)?;
+    if end != input.len() {
+        return Err(CanonError::Syntax(end));
+    }
+    Ok((start, end))
+}
+
+/// Reads the hyphenated-word at `start` and returns its end:
+/// `ALPHA [ *(ALPHA / DIGIT / "-") (ALPHA / DIGIT) ]` (RFC 6376 §2.10).
+fn word(input: &[u8], start: usize) -> Result<usize, CanonError> {
+    let Some(b'a'..=b'z' | b'A'..=b'Z') = input.get(start).copied() else {
+        return Err(CanonError::Syntax(start));
+    };
+    let mut end = start + 1;
+    let mut word_end = end;
+    loop {
+        match input.get(end).copied() {
+            Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9') => {
+                end += 1;
+                word_end = end;
+            }
+            Some(b'-') => end += 1,
+            _ => break,
+        }
+    }
+    // A word ends with a letter or a digit, so one must stand where the
+    // trailing hyphens stop.
+    if word_end != end {
+        return Err(CanonError::Syntax(end));
+    }
+    Ok(end)
+}
+
+/// The algorithm that the name from `start` to `end` gives, compared as
+/// written (ADR 0067).
+fn algorithm(input: &[u8], start: usize, end: usize) -> Result<Algorithm, CanonError> {
+    match input.get(start..end) {
+        Some(b"simple") => Ok(Algorithm::Simple),
+        Some(b"relaxed") => Ok(Algorithm::Relaxed),
+        _ => Err(CanonError::Unknown(start..end)),
+    }
 }
 
 #[cfg(test)]

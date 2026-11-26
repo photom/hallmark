@@ -2,6 +2,13 @@
 
 #![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
 
+/// The most digits of a DKIM `t=` or `x=` that hallmark reads as a value
+/// (RFC 6376 §3.5).
+const TIME_DIGITS: usize = 12;
+
+/// The most digits of a DKIM `l=` (RFC 6376 §3.5).
+const LENGTH_DIGITS: usize = 76;
+
 /// The digits that a numeric tag allows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Digits {
@@ -33,10 +40,37 @@ pub(crate) enum Number {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct NumberError(pub(crate) usize);
 
-/// Reads `input`, the value of a numeric tag. Not written yet.
+/// Reads `input`, the value of a numeric tag whose rule `digits` gives.
 pub(crate) fn decimal(input: &[u8], digits: Digits) -> Result<Number, NumberError> {
-    let _ = (input, digits);
-    Err(NumberError(0))
+    if input.is_empty() {
+        return Err(NumberError(0));
+    }
+    let mut value = Some(0_u64);
+    for (at, octet) in input.iter().enumerate() {
+        if !octet.is_ascii_digit() || (digits == Digits::DkimLength && at == LENGTH_DIGITS) {
+            return Err(NumberError(at));
+        }
+        value = match value {
+            Some(sum) => add_digit(sum, *octet - b'0'),
+            None => None,
+        };
+    }
+    // RFC 6376 §3.5: a t= or x= longer than 12 digits may count as infinite
+    // (HDR-013).
+    if digits == Digits::DkimTime && input.len() > TIME_DIGITS {
+        return Ok(Number::Infinite);
+    }
+    match value {
+        Some(value) => Ok(Number::Finite(value)),
+        // HDR-013: a value too large to hold is larger than what the check
+        // compares it with.
+        None => Ok(Number::Infinite),
+    }
+}
+
+/// `sum` times ten plus `digit`, or `None` when that doesn't fit in 64 bits.
+fn add_digit(sum: u64, digit: u8) -> Option<u64> {
+    sum.checked_mul(10)?.checked_add(u64::from(digit))
 }
 
 #[cfg(test)]
