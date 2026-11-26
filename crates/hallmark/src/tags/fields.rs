@@ -34,21 +34,112 @@ pub(crate) enum FieldsError {
     Value(QpError),
 }
 
+/// What a `|` is where a field name is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bar {
+    /// ftext, as in `h=` (RFC 5322 §3.6.8).
+    Ftext,
+    /// A meta-character that ends the name, as in `z=` (RFC 6376 §3.5).
+    Meta,
+}
+
 impl From<QpError> for FieldsError {
     fn from(error: QpError) -> Self {
         Self::Value(error)
     }
 }
 
-/// The names of an `h=` value, in order. Not written yet.
+/// The names of an `h=` value, in order:
+/// `hdr-name *( [FWS] ":" [FWS] hdr-name )`.
 pub(crate) fn names(input: &[u8]) -> Result<Vec<Range<usize>>, FieldsError> {
-    Err(FieldsError::Name(input.len()))
+    let mut names = Vec::new();
+    let mut at = 0;
+    loop {
+        let name = field_name(input, at, Bar::Ftext)?;
+        let end = name.end;
+        names.push(name);
+        if end == input.len() {
+            return Ok(names);
+        }
+        at = fws(input, end);
+        if input.get(at) != Some(&b':') {
+            return Err(FieldsError::Separator(at));
+        }
+        at = fws(input, at + 1);
+    }
 }
 
-/// The copies of a `z=` value, in order. Not written yet.
+/// The copies of a `z=` value, in order:
+/// `sig-z-tag-copy *( "|" [FWS] sig-z-tag-copy )`, where
+/// `sig-z-tag-copy = hdr-name [FWS] ":" qp-hdr-value`. RFC 6376 §3.5 makes
+/// each `|` in `z=` a meta-character, so a `|` ends a copy, and no name
+/// holds one, although ftext allows it.
 pub(crate) fn copies(input: &[u8], grammar: Grammar) -> Result<Vec<CopiedField>, FieldsError> {
-    token(input, 0, grammar, &mut Vec::new())?;
-    Err(FieldsError::Name(0))
+    let mut copies = Vec::new();
+    let mut at = 0;
+    loop {
+        let name = field_name(input, at, Bar::Meta)?;
+        let colon = fws(input, name.end);
+        if input.get(colon) != Some(&b':') {
+            return Err(FieldsError::Colon(colon));
+        }
+        let (value, end) = hdr_value(input, colon + 1, grammar)?;
+        copies.push(CopiedField { name, value });
+        if end == input.len() {
+            return Ok(copies);
+        }
+        at = fws(input, end + 1);
+    }
+}
+
+/// Reads the field-name at `at`: one or more ftext octets, which are
+/// printable US-ASCII except the colon (RFC 5322 §3.6.8), up to a `|` that
+/// `bar` makes a meta-character.
+fn field_name(input: &[u8], at: usize, bar: Bar) -> Result<Range<usize>, FieldsError> {
+    let mut end = at;
+    loop {
+        match input.get(end).copied() {
+            Some(b'|') if bar == Bar::Meta => break,
+            Some(0x21..=0x39 | 0x3B..=0x7E) => end += 1,
+            _ => break,
+        }
+    }
+    if end == at {
+        return Err(FieldsError::Name(at));
+    }
+    Ok(at..end)
+}
+
+/// Reads the qp-hdr-value at `at` up to the `|` or the end that follows it.
+/// Returns the decoded value and the offset of that `|` or end.
+fn hdr_value(
+    input: &[u8],
+    mut at: usize,
+    grammar: Grammar,
+) -> Result<(Vec<u8>, usize), FieldsError> {
+    let mut value = Vec::new();
+    loop {
+        match input.get(at) {
+            None | Some(b'|') => return Ok((value, at)),
+            Some(_) => at = token(input, at, grammar, &mut value)?,
+        }
+    }
+}
+
+/// Skips one optional FWS at `at` (RFC 6376 §2.8): WSP with at most one
+/// CRLF, which WSP follows. Returns the offset after it.
+fn fws(input: &[u8], mut at: usize) -> usize {
+    let mut folded = false;
+    loop {
+        match input.get(at..) {
+            Some([b' ' | b'\t', ..]) => at += 1,
+            Some([b'\r', b'\n', b' ' | b'\t', ..]) if !folded => {
+                folded = true;
+                at += 3;
+            }
+            _ => return at,
+        }
+    }
 }
 
 #[cfg(test)]
