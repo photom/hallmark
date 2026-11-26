@@ -27,7 +27,7 @@ Option (a).
 - A keyword in a DKIM tag value matches only when its octets equal the keyword as written in RFC 6376 or in an RFC that updates it, unless the tag's description says that the value is case-insensitive. RFC 8463 §4 adds `ed25519` to `sig-a-tag-k` and `key-k-tag-type` as a plain quoted string, so `a=Ed25519-sha256` names no algorithm either.
 - In `c=`, `simple` and `relaxed` are the only names hallmark knows. Any other hyphenated-word, such as `Relaxed` or `x-new`, is an unrecognized algorithm. The decoder reports it with its byte range. §3.4 has the verifier ignore such a signature, and the DKIM check decides how its result reports that.
 - A value that breaks the ABNF, such as `relaxed/` or `relaxed /simple`, is a syntax error under either option. The decoder checks the whole syntax before it reads the names, so a syntax error wins over an unrecognized name.
-- This decision covers DKIM values, from RFC 6376 and the RFCs that update it. DKIM2 needs no decision: draft-09 §2.14 makes values that match textstring, such as the names of hash and signature algorithms, case-sensitive, and §8 makes tag names and values case-sensitive "absent any statement to the contrary".
+- This decision covers DKIM values, from RFC 6376 and the RFCs that update it. DKIM2 needs no decision: draft-09 §2.14 makes values that match textstring, such as the names of hash and signature algorithms, case-sensitive, and §8 says that tag names and values are case-sensitive where the specification doesn't say otherwise ("Absent any statement to the contrary both items are case-sensitive"). Draft-09 does say otherwise in places, such as the domains of `mf=` and `rt=` and the header field names in recipes, which it compares without regard to case.
 
 §3.2 is the rule that DKIM itself states for values, and it names the one way out: a tag description that says otherwise. The case-insensitive reading of quoted strings is a general convention of the ABNF notation. A signer that follows RFC 6376 writes the keywords in lowercase, as the RFC does.
 
@@ -49,7 +49,8 @@ Negative:
 - [RFC 6376 §3.6.1](https://www.rfc-editor.org/rfc/rfc6376.html#section-3.6.1)
 - [RFC 8463 §4](https://www.rfc-editor.org/rfc/rfc8463.html#section-4)
 - [RFC 5234 §2.3](https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3)
-- [draft-ietf-dkim-dkim2-spec-09 §2.14 and §8](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-2.14)
+- [draft-ietf-dkim-dkim2-spec-09 §2.14](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-2.14)
+- [draft-ietf-dkim-dkim2-spec-09 §8](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-09#section-8)
 - [RFC 7405 §2.1](https://www.rfc-editor.org/rfc/rfc7405.html#section-2.1)
 - [ADR 0024](0024-dmarc-tag-names-keep-their-case-white-space-around-a-value-is-not-part-of-it-and-a-repeated-tag-is-invalid.md)
 - [requirements.md: Header parsing](../reference/requirements.md#header-parsing)
