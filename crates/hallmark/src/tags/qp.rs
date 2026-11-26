@@ -111,7 +111,6 @@ mod tests {
         let error = QpError::HexOctet(3);
         let input = b"a=2\r\n 0";
         assert_eq!(decode(input, Grammar::Dkim), Err(error));
-        // A CRLF that no WSP follows is no FWS.
         let error = QpError::Char(1);
         assert_eq!(decode(b"a\r\nb", Grammar::Dkim), Err(error));
     }

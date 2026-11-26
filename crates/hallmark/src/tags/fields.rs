@@ -11,7 +11,8 @@ use super::qp::{QpError, token};
 /// A header field copied into `z=`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CopiedField {
-    /// The field name, a range of the `z=` value, which is never empty.
+    /// The field name, a range of the `z=` value, which is never empty and
+    /// never holds a `|`, a meta-character in `z=` (RFC 6376 §3.5).
     pub(crate) name: Range<usize>,
     /// The field value, decoded.
     pub(crate) value: Vec<u8>,
@@ -218,11 +219,13 @@ mod tests {
 
     #[test]
     fn tag_037_a_name_follows_each_colon_of_h() {
-        let cases: [(&[u8], FieldsError); 5] = [
+        let cases: [(&[u8], FieldsError); 7] = [
             (b"From::To", FieldsError::Name(5)),
             (b"From:", FieldsError::Name(5)),
             (b":To", FieldsError::Name(0)),
+            (b"", FieldsError::Name(0)),
             (b"From To", FieldsError::Separator(5)),
+            (b"A|B C", FieldsError::Separator(4)),
             (b"From\r\n \r\n :To", FieldsError::Separator(7)),
         ];
         for (input, error) in cases {
@@ -232,12 +235,14 @@ mod tests {
 
     #[test]
     fn tag_038_a_copy_has_a_colon_and_follows_each_bar() {
-        let cases: [(&[u8], FieldsError); 5] = [
+        let cases: [(&[u8], FieldsError); 7] = [
             (b"Subject", FieldsError::Colon(7)),
             (b"Subject:a|", FieldsError::Name(10)),
             (b"Subject demo", FieldsError::Colon(8)),
             (b"From:a||To:b", FieldsError::Name(7)),
             (b"Subject\r\n \r\n :a", FieldsError::Colon(10)),
+            (b"", FieldsError::Name(0)),
+            (b"Sub|ject:a", FieldsError::Colon(3)),
         ];
         for (input, error) in cases {
             assert_eq!(copies(input, Grammar::Dkim), Err(error));
