@@ -76,8 +76,9 @@ The name of a tag decides how its value decodes (RFC 6376 §3.2).
 | Value kind | Tags | Rule | Requirements | Scenario |
 |---|---|---|---|---|
 | base64 | DKIM `b=`, `bh=`, key `p=`, DKIM2 hashes and signatures | One FWS between two symbols and one before each `=` are ignored. The value is canonical: `=` completes the last group of four symbols, and the pad bits are zero | HDR-007, ADR 0066, RFC 6376 §2.10, draft-09 §2.14, RFC 4648 §3.5 | TAG-020, TAG-031 to TAG-034 |
-| dkim-quoted-printable | DKIM `z=`, `i=` | `=` and two uppercase hex digits. In an internationalized message, well-formed UTF-8 may stay unencoded | HDR-007, RFC 6376 §2.11, RFC 8616 §5 | TAG-021, TAG-022, TAG-024, TAG-025 |
-| Colon-separated names | DKIM `h=` | Header field names, with FWS allowed around each colon | HDR-007, RFC 6376 §3.5 | TAG-023 |
+| dkim-quoted-printable | DKIM `i=`, and the values of `z=` copies | Each octet is a dkim-safe-char or `=` with two uppercase hex digits. FWS between them isn't part of the value, and FWS between `=` and its digits is an error (ADR 0010). In an internationalized message, well-formed UTF-8 may stay unencoded | HDR-007, RFC 6376 §2.11, RFC 8616 §5 | TAG-021, TAG-022, TAG-024, TAG-025, TAG-036 |
+| Copied header fields | DKIM `z=` | Each copy is a field name, an optional FWS, a colon and a dkim-quoted-printable value with `\|` encoded. A `\|` and an optional FWS separate two copies. A `\|` is a meta-character in `z=`, so no name holds one, although ftext allows it | HDR-007, RFC 6376 §3.5, RFC 5322 §3.6.8 | TAG-021, TAG-035, TAG-038 |
+| Colon-separated names | DKIM `h=` | Header field names (RFC 5322 §3.6.8), with one optional FWS on each side of each colon. A `\|` is ftext here, so a name may hold one | HDR-007, RFC 6376 §3.5, RFC 5322 §3.6.8 | TAG-023, TAG-037 |
 | Canonicalization pair | DKIM `c=` | One name sets the header algorithm and leaves the body `simple`. A missing `c=` means `simple/simple` | HDR-007 | TAG-026, TAG-027 |
 | Number | DKIM `t=`, `x=`, `l=`, DKIM2 `t=`, `m=`, `i=` | Read with overflow checks. A DKIM `t=` or `x=` of more than 12 digits is infinite, and any other value too large to hold is larger than what it is compared with | HDR-013 | TAG-028, TAG-029, TAG-030 |
 | Groups | DKIM2 `s=`, Message-Instance `h=` | `,` binds more tightly than `\|` | HDR-007, draft-09 §9.3, §10.9 | TAG-040, TAG-042 |
@@ -96,7 +97,7 @@ A parse error never becomes a returned error. It gives the outcome of the protoc
 | DKIM2 key record | The outcome REC-053 gives | REC-053 |
 | Domain Policy Record | PERMERROR | REC-054 |
 
-A base64 value that doesn't decode (ADR 0066) gives the same outcome as a list that doesn't parse, from the same source. An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
+A value that doesn't decode, such as base64 that breaks ADR 0066, gives the same outcome as a list that doesn't parse, from the same source. For a DKIM-Signature field, RFC 6376 §6.1.1 gives PERMFAIL (signature syntax error) for any value that breaks its format. An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
 
 ## Trace
 
@@ -104,5 +105,5 @@ A base64 value that doesn't decode (ADR 0066) gives the same outcome as a list t
 |---|---|---|
 | A list that parses | Each tag the check reads, with its byte range in the field or record | PAR-002, TRC-002 |
 | A list that doesn't parse | The rule that failed, the offset and the input, as a data value | PAR-001, TRC-013 |
-| A base64 value that doesn't decode | The rule that failed (the base64string rule, the padding or the pad bits), the offset in the field or record, and the value, as a data value. The offset is the value's start plus the decoder's offset, which for a missing `=` is the end of the value | PAR-001, TRC-013, ADR 0066 |
+| A value that doesn't decode | The rule that failed, the offset in the field or record, and the value, as a data value. The offset is the value's start plus the decoder's offset. A rule that fails because the value ends, such as a missing base64 `=` or a `\|` with no copy after it, gives the end of the value. The rules are the base64string rule, the padding and the pad bits of base64, hex-octet and dkim-quoted-printable, hdr-name of `h=` and `z=`, sig-h-tag of `h=`, and sig-z-tag-copy of `z=` | PAR-001, TRC-013, ADR 0066 |
 | An ignored tag | Its name | HDR-006 |

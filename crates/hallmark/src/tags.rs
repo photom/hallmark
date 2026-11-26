@@ -6,6 +6,9 @@
 // only the tests use this module for now.
 #![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
 
+mod fields;
+mod qp;
+
 use core::ops::Range;
 
 /// A run of WSP and FWS with any number of folds.
@@ -226,29 +229,30 @@ fn tval(input: &[u8], mut at: usize, grammar: Grammar) -> Result<usize, TagListE
     loop {
         match input.get(at).copied() {
             Some(0x21..=0x3A | 0x3C..=0x7E) => at += 1,
-            Some(0x80..) if grammar == Grammar::DkimUtf8 => at = utf8(input, at)?,
+            Some(0x80..) if grammar == Grammar::DkimUtf8 => match utf8(input, at) {
+                Ok(end) => at = end,
+                Err(offset) => return Err(TagListError::Syntax(Rule::Value, offset)),
+            },
             _ => return Ok(at),
         }
     }
 }
 
 /// Reads the run of non-ASCII octets at `at`, which must be well-formed
-/// UTF-8 (RFC 3629 §4), and returns its end. An ill-formed sequence breaks
-/// the tag-value rule at its first octet.
-fn utf8(input: &[u8], at: usize) -> Result<usize, TagListError> {
+/// UTF-8 (RFC 3629 §4), and returns its end, or the offset of the first
+/// octet of an ill-formed sequence. The tag-value rule and the
+/// dkim-quoted-printable decoder share it.
+fn utf8(input: &[u8], at: usize) -> Result<usize, usize> {
     let mut end = at;
     while let Some(0x80..) = input.get(end).copied() {
         end += 1;
     }
     let Some(run) = input.get(at..end) else {
-        return Err(TagListError::Syntax(Rule::Value, at));
+        return Err(at);
     };
     match core::str::from_utf8(run) {
         Ok(_) => Ok(end),
-        Err(error) => {
-            let offset = at + error.valid_up_to();
-            Err(TagListError::Syntax(Rule::Value, offset))
-        }
+        Err(error) => Err(at + error.valid_up_to()),
     }
 }
 
