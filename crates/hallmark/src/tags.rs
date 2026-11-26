@@ -6,6 +6,9 @@
 // only the tests use this module for now.
 #![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
 
+mod fields;
+mod qp;
+
 use core::ops::Range;
 
 /// A run of WSP and FWS with any number of folds.

@@ -278,13 +278,19 @@ mod tests {
 
     #[test]
     fn fld_005_and_006_a_header_section_can_end_with_the_input() {
-        let section = split(b"A: 1\r\nB: 2\r\n");
+        let input = b"A: 1\r\nB: 2\r\n";
+        let section = split(input);
         assert_eq!(section.lines.len(), 2);
+        assert_eq!(name(input, &section.lines[0]), b"A");
+        assert_eq!(name(input, &section.lines[1]), b"B");
         assert!(section.lines[1].line_ending);
         assert_eq!(section.body, None);
         // FLD-006: the last line ends with no CRLF.
         let input = b"A: 1\r\nB: 2";
         let section = split(input);
+        assert_eq!(section.lines.len(), 2);
+        assert_eq!(name(input, &section.lines[0]), b"A");
+        assert_eq!(name(input, &section.lines[1]), b"B");
         assert_eq!(raw(input, &section.lines[1]), b"B: 2");
         assert!(section.lines[0].line_ending);
         assert!(!section.lines[1].line_ending);
@@ -340,6 +346,7 @@ mod tests {
         let input = b"A: 1\nB: 2\r\n\r\n";
         let section = split(input);
         assert_eq!(section.lines.len(), 1);
+        assert_eq!(name(input, &section.lines[0]), b"A");
         assert_eq!(value(input, &section.lines[0]), b" 1\nB: 2");
         let cases: [(&[u8], usize); 3] = [
             (input, 4),
