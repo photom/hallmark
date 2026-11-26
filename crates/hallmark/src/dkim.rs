@@ -148,6 +148,10 @@ pub enum DkimFieldCheck {
     /// `a=` is neither `rsa-sha256` nor `ed25519-sha256` (DKV-002, RFC 8301
     /// §3.1).
     Algorithm,
+    /// `c=` names an algorithm other than `simple` and `relaxed`, compared as
+    /// written: "unsupported canonicalization" (HDR-007, RFC 6376 §3.4,
+    /// ADR 0068).
+    Canonicalization,
     /// The domain of `i=` is neither `d=` nor a subdomain of it: "domain
     /// mismatch" (ADS-013, RFC 6376 §6.1.1).
     DomainMismatch,

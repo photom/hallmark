@@ -54,6 +54,7 @@ The body hash and the header hash come from [Canonicalization](canonicalization.
 | `v`, `a`, `b`, `bh`, `d`, `h` and `s` are present | PERMFAIL, signature missing required tag | RFC 6376 §6.1.1 |
 | `v=1` | PERMFAIL, incompatible version | RFC 6376 §6.1.1 |
 | `a=` is `rsa-sha256` or `ed25519-sha256`. `rsa-sha1` never verifies | PERMFAIL, the algorithm | DKV-002, RFC 8301 §3.1 |
+| Each name in `c=` is `simple` or `relaxed`, as written. A missing `c=` or body name means `simple` | PERMFAIL, unsupported canonicalization | HDR-007, RFC 6376 §3.4, ADR 0068 |
 | The domain of `i=` is `d=` or a subdomain of it | PERMFAIL, domain mismatch | ADS-013, RFC 6376 §6.1.1 |
 | `h=` names From | PERMFAIL, From field not signed | RFC 6376 §6.1.1 |
 | `x=` is later than `t=` | PERMFAIL, the times | TIM-003, RFC 6376 §3.5 |

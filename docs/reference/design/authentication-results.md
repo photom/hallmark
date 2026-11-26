@@ -77,6 +77,7 @@ One result for each DKIM-Signature field, in header order (RFC 8601 §2.7.1). A 
 | `Field` with `MissingTag` | `neutral` | `signature missing required tag` |
 | `Field` with `Version` | `neutral` | `incompatible version` |
 | `Field` with `Algorithm` | `neutral` | `unsupported algorithm` |
+| `Field` with `Canonicalization` | `neutral` | `unsupported canonicalization` |
 | `Field` with `DomainMismatch` | `neutral` | `domain mismatch` |
 | `Field` with `FromNotSigned` | `neutral` | `From field not signed` |
 | `Field` with `TimeOrder` | `neutral` | `expiration not after timestamp` |

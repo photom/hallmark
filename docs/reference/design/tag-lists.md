@@ -97,7 +97,7 @@ A parse error never becomes a returned error. It gives the outcome of the protoc
 | DKIM2 key record | The outcome REC-053 gives | REC-053 |
 | Domain Policy Record | PERMERROR | REC-054 |
 
-A value that doesn't decode, such as base64 that breaks ADR 0066, gives the same outcome as a list that doesn't parse, from the same source. For a DKIM-Signature field, RFC 6376 §6.1.1 gives PERMFAIL (signature syntax error) for any value that breaks its format. An unrecognized `c=` name has the right syntax (ADR 0067). RFC 6376 §3.4 has the verifier ignore such a signature, while §6.1.1 gives PERMFAIL (signature syntax error) for unexpected values. The DKIM check settles which outcome its result reports when it arrives. An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
+A value that doesn't decode, such as base64 that breaks ADR 0066, gives the same outcome as a list that doesn't parse, from the same source. For a DKIM-Signature field, RFC 6376 §6.1.1 gives PERMFAIL (signature syntax error) for any value that breaks its format. An unrecognized `c=` name has the right syntax (ADR 0067). RFC 6376 §3.4 has the verifier ignore such a signature, and the DKIM check reports it as PERMFAIL (unsupported canonicalization), not as a syntax error (ADR 0068). An empty `p=` isn't decoded: it means that the key has been revoked (RFC 6376 §3.6.1, dns-03 §4.3).
 
 ## Trace
 
@@ -106,5 +106,5 @@ A value that doesn't decode, such as base64 that breaks ADR 0066, gives the same
 | A list that parses | Each tag the check reads, with its byte range in the field or record | PAR-002, TRC-002 |
 | A list that doesn't parse | The rule that failed, the offset and the input, as a data value | PAR-001, TRC-013 |
 | A value that doesn't decode | The rule that failed, the offset in the field or record, and the value, as a data value. The offset is the value's start plus the decoder's offset. A rule that fails because the value ends, such as a missing base64 `=` or a `\|` with no copy after it, gives the end of the value. The rules are the base64string rule, the padding and the pad bits of base64, hex-octet and dkim-quoted-printable, hdr-name of `h=` and `z=`, sig-h-tag of `h=`, sig-z-tag-copy of `z=`, sig-c-tag of `c=`, and the rule of each numeric tag, which the caller names from its tag | PAR-001, TRC-013, ADR 0066 |
-| An unrecognized `c=` name | The header name if it is unrecognized, else the body name, with its range in the field: the value's start plus the decoder's range. The value has the right syntax, and RFC 6376 §3.4 has the verifier ignore the signature | PAR-002, TRC-002, ADR 0067, RFC 6376 §3.4 |
+| An unrecognized `c=` name | The header name if it is unrecognized, else the body name, with its range in the field: the value's start plus the decoder's range. The value has the right syntax, and RFC 6376 §3.4 has the verifier ignore the signature | PAR-002, TRC-002, ADR 0067, ADR 0068, RFC 6376 §3.4 |
 | An ignored tag | Its name | HDR-006 |

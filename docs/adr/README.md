@@ -71,6 +71,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0065](0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md) | The public API follows one set of conventions, and each API checks the limits it takes | Accepted |
 | [0066](0066-base64-values-decode-only-in-their-canonical-form.md) | base64 values decode only in their canonical form | Accepted |
 | [0067](0067-dkim-value-keywords-match-only-as-written.md) | DKIM value keywords match only as written | Accepted |
+| [0068](0068-a-dkim-signature-with-an-unrecognized-c-algorithm-gets-permfail-unsupported-canonicalization.md) | A DKIM signature with an unrecognized `c=` algorithm gets PERMFAIL (unsupported canonicalization) | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
