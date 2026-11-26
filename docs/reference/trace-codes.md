@@ -1216,6 +1216,6 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Position | Child 2 + n of `dmarc.alignment`, where the step checked n identifiers |
 | Parameters | `spf`: position, the SPF result for MAIL FROM; `dkim`: position, the aligned DKIM signature that passed |
 | Outcomes | none |
-| Cites | `RFC 7960 §2.2`, `RFC 7960 §3.1.2.1` |
+| Cites | `RFC 7960 §2.2`, `RFC 7960 §3.2.1` |
 | English | "The message may have been forwarded by a mediator that kept the original MAIL FROM: SPF failed, but an aligned DKIM signature passed." |
 | Requirement | DMC-009 |
