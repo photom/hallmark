@@ -448,11 +448,11 @@ flowchart TD
 |---|---|
 | Kind | `fact` |
 | Position | Child 2 of `dkim.signature` |
-| Parameters | `check`: keyword, when the outcome is `permfail`, the check that failed: `missing_tag`, `version`, `algorithm`, `domain_mismatch`, `from_not_signed`, `time_order` or `name`, as `DkimFieldCheck` names them |
+| Parameters | `check`: keyword, when the outcome is `permfail`, the check that failed: `missing_tag`, `version`, `algorithm`, `canonicalization`, `domain_mismatch`, `from_not_signed`, `time_order` or `name`, as `DkimFieldCheck` names them. For `canonicalization`, also `unrecognized`: data, from the sender, the unrecognized name as written; `start` and `end`: counts, its byte range in the raw field, `end` not included (PAR-002) |
 | Outcomes | `passed`, `permfail` |
-| Cites | `RFC 6376 §6.1.1`, and `RFC 8301 §3.1` for `algorithm`, `RFC 6376 §3.5` for `time_order` |
+| Cites | `RFC 6376 §6.1.1`, and `RFC 8301 §3.1` for `algorithm`, `RFC 6376 §3.4` for `canonicalization`, `RFC 6376 §3.5` for `time_order` |
 | English | "The field checks pass." or "The field check {check} fails." |
-| Requirement | DKV-002, ADS-013, TIM-003 |
+| Requirement | DKV-002, HDR-007, ADS-013, TIM-003 |
 
 ### `dkim.expiration` and `dkim.timestamp`
 
@@ -1216,6 +1216,6 @@ A hint is a labeled guess about the cause of a result, and it never changes the 
 | Position | Child 2 + n of `dmarc.alignment`, where the step checked n identifiers |
 | Parameters | `spf`: position, the SPF result for MAIL FROM; `dkim`: position, the aligned DKIM signature that passed |
 | Outcomes | none |
-| Cites | `RFC 7960 §2.2`, `RFC 7960 §3.2.1` |
+| Cites | `RFC 7960 §2.2`, `RFC 7960 §3.1.2.1` |
 | English | "The message may have been forwarded by a mediator that kept the original MAIL FROM: SPF failed, but an aligned DKIM signature passed." |
 | Requirement | DMC-009 |
