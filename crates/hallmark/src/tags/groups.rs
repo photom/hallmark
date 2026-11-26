@@ -6,7 +6,10 @@
 
 use core::ops::Range;
 
-use crate::base64::Base64Error;
+use crate::base64::{self, Base64Error};
+
+/// A textstring's own FWS (draft-09 §2.14) plus the FWS of the rule around it.
+const NAME_FOLDS: usize = 2;
 
 /// One hash-set of `h=`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,16 +50,218 @@ pub(crate) enum GroupsError {
     Repeat(Range<usize>),
 }
 
+/// A set of a group value, and how it is read.
+trait Set: Sized {
+    /// The FWS that may stand before the first set.
+    const FIRST: usize;
+    /// The FWS that may stand after a `,` or `|`.
+    const NEXT: usize;
+    /// Reads the set at `at`, and returns it with its end.
+    fn read(input: &[u8], at: usize) -> Result<(Self, usize), GroupsError>;
+    /// The part that no two sets of a value may share.
+    fn key(&self) -> Range<usize>;
+}
+
+impl Set for HashValues {
+    // A hash-name opens a set, and its textstring's FWS adds to that of `[FWS] "|" [FWS]`.
+    const FIRST: usize = 1;
+    const NEXT: usize = NAME_FOLDS;
+
+    /// `hash-set = hash-name [FWS] ":" header-hash ":" body-hash`.
+    fn read(input: &[u8], at: usize) -> Result<(Self, usize), GroupsError> {
+        let algorithm = text(input, at)?;
+        let header_at = colon(input, fws(input, algorithm.end, NAME_FOLDS))?;
+        let (header, header_end) = value(input, header_at)?;
+        let (body, end) = value(input, colon(input, header_end)?)?;
+        let set = Self {
+            algorithm,
+            header,
+            body,
+        };
+        Ok((set, end))
+    }
+
+    fn key(&self) -> Range<usize> {
+        self.algorithm.clone()
+    }
+}
+
+impl Set for SignatureValue {
+    // A selector opens a set, with no FWS of its own.
+    const FIRST: usize = 0;
+    const NEXT: usize = 1;
+
+    /// `sig-set = selector [FWS] ":" [FWS] sig-name [FWS] ":" message-sig`.
+    fn read(input: &[u8], at: usize) -> Result<(Self, usize), GroupsError> {
+        let selector = selector(input, at)?;
+        let after = colon(input, fws(input, selector.end, 1))?;
+        let algorithm = text(input, fws(input, after, NAME_FOLDS))?;
+        let signature_at = colon(input, fws(input, algorithm.end, NAME_FOLDS))?;
+        let (signature, end) = value(input, signature_at)?;
+        let set = Self {
+            selector,
+            algorithm,
+            signature,
+        };
+        Ok((set, end))
+    }
+
+    fn key(&self) -> Range<usize> {
+        self.selector.clone()
+    }
+}
+
 /// The groups of a Message-Instance `h=` value, `hash-all *( [FWS] "|" [FWS] hash-all )`, in
 /// order. An algorithm named twice makes the value invalid (draft-09 §9.3).
-pub(crate) fn hashes(_input: &[u8]) -> Result<Vec<Vec<HashValues>>, GroupsError> {
-    Err(GroupsError::Algorithm(0))
+pub(crate) fn hashes(input: &[u8]) -> Result<Vec<Vec<HashValues>>, GroupsError> {
+    groups(input)
 }
 
 /// The groups of a DKIM2-Signature `s=` value, `sig-all *( [FWS] "|" [FWS] sig-all )`, in
 /// order. A selector named twice, as written, makes the value invalid (draft-09 §8, §10.9).
-pub(crate) fn signatures(_input: &[u8]) -> Result<Vec<Vec<SignatureValue>>, GroupsError> {
-    Err(GroupsError::Algorithm(0))
+pub(crate) fn signatures(input: &[u8]) -> Result<Vec<Vec<SignatureValue>>, GroupsError> {
+    groups(input)
+}
+
+/// Reads the groups of `input`. A repeat among complete sets comes before a later fault (PAR-005).
+fn groups<S: Set>(input: &[u8]) -> Result<Vec<Vec<S>>, GroupsError> {
+    let mut groups = Vec::new();
+    let mut names = Vec::new();
+    let outcome = read(input, &mut groups, &mut names);
+    if let Some(name) = super::first_repeat(&mut names) {
+        return Err(GroupsError::Repeat(name));
+    }
+    outcome?;
+    Ok(groups)
+}
+
+/// Reads the sets of `input` into `groups`, and each key into `names`, until the end or a fault.
+fn read<'a, S: Set>(
+    input: &'a [u8],
+    groups: &mut Vec<Vec<S>>,
+    names: &mut Vec<(&'a [u8], usize)>,
+) -> Result<(), GroupsError> {
+    let mut group = Vec::new();
+    let mut at = fws(input, 0, S::FIRST);
+    loop {
+        let (set, end) = S::read(input, at)?;
+        let key = set.key();
+        if let Some(name) = input.get(key.clone()) {
+            names.push((name, key.start));
+        }
+        group.push(set);
+        let after = fws(input, end, 1);
+        match input.get(after).copied() {
+            // hash-any and sig-any end with a set, never with FWS.
+            None if after == end => {
+                groups.push(group);
+                return Ok(());
+            }
+            Some(b',') => {}
+            Some(b'|') => groups.push(core::mem::take(&mut group)),
+            _ => return Err(GroupsError::Separator(after)),
+        }
+        at = fws(input, after + 1, S::NEXT);
+    }
+}
+
+/// Reads the colon at `at`, and returns the offset after it.
+fn colon(input: &[u8], at: usize) -> Result<usize, GroupsError> {
+    match input.get(at).copied() {
+        Some(b':') => Ok(at + 1),
+        _ => Err(GroupsError::Colon(at)),
+    }
+}
+
+/// Reads the textstring at `start`, without its FWS: letters, digits, `-` and `_` (draft-09 §2.14).
+fn text(input: &[u8], start: usize) -> Result<Range<usize>, GroupsError> {
+    let mut end = start;
+    while let Some(octet) = input.get(end).copied() {
+        if !octet.is_ascii_alphanumeric() && octet != b'-' && octet != b'_' {
+            break;
+        }
+        end += 1;
+    }
+    if end == start {
+        return Err(GroupsError::Algorithm(start));
+    }
+    Ok(start..end)
+}
+
+/// Reads the selector at `start`, an RFC 5321 Domain (draft-09 §3.6): sub-domains joined by dots,
+/// each of letters, digits and hyphens that starts and ends with a letter or digit (§4.1.2).
+/// The lengths of labels and names are the DKIM2 check's rule (ADS-004).
+fn selector(input: &[u8], start: usize) -> Result<Range<usize>, GroupsError> {
+    let mut at = start;
+    loop {
+        let label = at;
+        while let Some(b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-') = input.get(at).copied() {
+            at += 1;
+        }
+        if at == label || input.get(label) == Some(&b'-') {
+            return Err(GroupsError::Selector(label));
+        }
+        if input.get(at - 1) == Some(&b'-') {
+            return Err(GroupsError::Selector(at));
+        }
+        if input.get(at) != Some(&b'.') {
+            return Ok(start..at);
+        }
+        at += 1;
+    }
+}
+
+/// Decodes the base64string at `start`, which runs to the next `:`, `,`, `|` or the end, less the
+/// white space before it. Returns the octets and the end of the base64string.
+fn value(input: &[u8], start: usize) -> Result<(Vec<u8>, usize), GroupsError> {
+    let mut end = start;
+    while let Some(octet) = input.get(end).copied() {
+        if let b':' | b',' | b'|' = octet {
+            break;
+        }
+        end += 1;
+    }
+    while end > start {
+        let Some(b' ' | b'\t' | b'\r' | b'\n') = input.get(end - 1).copied() else {
+            break;
+        };
+        end -= 1;
+    }
+    let Some(written) = input.get(start..end) else {
+        return Err(GroupsError::Value(Base64Error::Syntax(start)));
+    };
+    match base64::decode(written) {
+        Ok(octets) => Ok((octets, end)),
+        Err(error) => Err(GroupsError::Value(shifted(error, start))),
+    }
+}
+
+/// `error`, with its offset counted from the start of the group value.
+fn shifted(error: Base64Error, start: usize) -> Base64Error {
+    match error {
+        Base64Error::Syntax(at) => Base64Error::Syntax(start + at),
+        Base64Error::Padding(at) => Base64Error::Padding(start + at),
+        Base64Error::PadBits(at) => Base64Error::PadBits(start + at),
+    }
+}
+
+/// Skips `count` optional FWS at `at`: none, or WSP with up to `count` folds. A CRLF folds only
+/// before WSP (draft-09 §2.12).
+fn fws(input: &[u8], mut at: usize, count: usize) -> usize {
+    if count == 0 {
+        return at;
+    }
+    let mut seen = 0;
+    loop {
+        match input.get(at..) {
+            Some([b' ' | b'\t', ..]) => at += 1,
+            Some([b'\r', b'\n', b' ' | b'\t', ..]) if seen < count => {
+                seen += 1;
+                at += 3;
+            }
+            _ => return at,
+        }
+    }
 }
 
 #[cfg(test)]
