@@ -52,7 +52,7 @@ pub(super) fn token(
             value.push(*octet);
             Ok(at + 1)
         }
-        Some([0x80.., ..]) if grammar == Grammar::DkimUtf8 => unencoded(input, at, value),
+        Some([0x80..=0xFF, ..]) if grammar == Grammar::DkimUtf8 => unencoded(input, at, value),
         _ => Err(QpError::Char(at)),
     }
 }
