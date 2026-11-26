@@ -6,7 +6,9 @@
 // only the tests use this module for now.
 #![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
 
+mod canon;
 mod fields;
+mod number;
 mod qp;
 
 use core::ops::Range;
