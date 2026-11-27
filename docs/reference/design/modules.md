@@ -89,7 +89,7 @@ flowchart TB
 |---|---|---|---|---|---|
 | `parse` | Kernel | | Partly | Cursor, `ParseError` with its rule and byte offset, byte ranges, numbers with overflow checks, depth counter | PAR-001 to PAR-005 |
 | `base64` | Kernel | | No | base64 decoder and encoder with the folding white space rules of DKIM and DKIM2 | HDR-007 |
-| `json` | Kernel | | No | JSON reader with size and depth limits, and the writer of the fixed form | HDR-008, TRC-007 |
+| `json` | Kernel | | No | JSON reader with a depth limit, and the writer of the fixed form | HDR-008, TRC-007 |
 | `limits` | Kernel | | Yes | `Limits`, `DocumentLimits`, `Limit`, `LimitsError` | SAF-002, PAR-004 |
 | `time` | Kernel | | Yes | `VerificationTime`, `TimeError` | TIM-001 |
 | `write_once` | Kernel | | No | `WriteOnce<T>`, a slot that takes one value and keeps it ([ADR 0063](../../adr/0063-checks-and-signings-fix-their-evaluations-when-created-and-each-input-once-it-arrives.md)) | CHK-004, INV-003, INV-017 |

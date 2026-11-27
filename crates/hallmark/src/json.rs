@@ -1,5 +1,6 @@
 //! The reader and the writer of the documents that traces, snapshots and demo
 //! cases share (TRC-007): I-JSON texts (RFC 7493), written in one fixed form.
+//! The reader also reads the JSON of DKIM2 recipes (draft-09 §2, §5).
 
 // The trace recorder, which writes these documents, comes in a later change,
 // and only the tests read the offsets of a JsonError, so parts of this module
@@ -75,7 +76,7 @@ pub(crate) fn is_noncharacter(character: char) -> bool {
     (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
 }
 
-/// A JSON value (RFC 8259 §3) that [`read`] took from a document.
+/// A JSON value (RFC 8259 §3) that [`read_as`] took from a document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Json {
     /// `null`.
@@ -90,16 +91,29 @@ pub(crate) enum Json {
     /// An array, its values in document order.
     Array(Vec<Json>),
     /// An object, its members in document order, no two with the same name
-    /// (RFC 7493 §2.3).
+    /// (RFC 7493 §2.3, draft-09 §5).
     Object(Vec<(String, Json)>),
 }
 
-/// Why [`read`] refused a document. Each offset counts bytes from the start
+/// The JSON that [`read_as`] accepts. Both read UTF-8 text with no lone
+/// surrogate and no name twice in an object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Dialect {
+    /// I-JSON (RFC 7493), whose strings hold no noncharacter: traces,
+    /// snapshots and demo cases (TRC-007).
+    IJson,
+    /// RFC 8259, as DKIM2 recipes use it (draft-09 §2), with the unique
+    /// names and UTF-8 strings of draft-09 §5, which plain RFC 8259 leaves
+    /// open (RFC 8259 §4, §8.2).
+    Recipe,
+}
+
+/// Why [`read_as`] refused a document. Each offset counts bytes from the start
 /// of the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum JsonError {
-    /// The document isn't one I-JSON text: the byte at this offset breaks
-    /// RFC 8259 or RFC 7493 §2.
+    /// The document isn't one JSON text of its dialect: the byte at this
+    /// offset breaks RFC 8259, RFC 7493 §2 or draft-09 §5.
     Malformed { offset: usize },
     /// The array or object that opens at this offset is nested deeper than
     /// the limit (PAR-005).
@@ -107,10 +121,16 @@ pub(crate) enum JsonError {
 }
 
 /// Reads one I-JSON text (RFC 7493) from `bytes`, with arrays and objects
+/// nested at most `depth_limit` levels, as [`read_as`] does.
+pub(crate) fn read(bytes: &[u8], depth_limit: u32) -> Result<Json, JsonError> {
+    read_as(bytes, depth_limit, Dialect::IJson)
+}
+
+/// Reads one JSON text of `dialect` from `bytes`, with arrays and objects
 /// nested at most `depth_limit` levels. It reads left to right with a stack
 /// of the open arrays and objects, and never recurses (PAR-005).
-pub(crate) fn read(bytes: &[u8], depth_limit: u32) -> Result<Json, JsonError> {
-    // RFC 7493 §2.1: an I-JSON text is UTF-8.
+pub(crate) fn read_as(bytes: &[u8], depth_limit: u32, dialect: Dialect) -> Result<Json, JsonError> {
+    // RFC 7493 §2.1 and RFC 8259 §8.1: the text is UTF-8.
     let text = match core::str::from_utf8(bytes) {
         Ok(text) => text,
         Err(error) => {
@@ -123,6 +143,7 @@ pub(crate) fn read(bytes: &[u8], depth_limit: u32) -> Result<Json, JsonError> {
         at: 0,
         open: Vec::new(),
         depth_limit,
+        dialect,
     };
     loop {
         if let Some(value) = reader.value()?
@@ -145,13 +166,14 @@ enum Open {
     },
 }
 
-/// The state of [`read`]: the text, the offset of the next byte, and the
+/// The state of [`read_as`]: the text, the offset of the next byte, and the
 /// open arrays and objects, innermost last.
 struct Reader<'a> {
     text: &'a str,
     at: usize,
     open: Vec<Open>,
     depth_limit: u32,
+    dialect: Dialect,
 }
 
 impl Reader<'_> {
@@ -294,7 +316,7 @@ impl Reader<'_> {
     }
 
     /// Reads a member name and the colon after it. The name differs from the
-    /// names before it in its object (RFC 7493 §2.3).
+    /// names before it in its object (RFC 7493 §2.3, draft-09 §5).
     fn name(&mut self, names: &mut BTreeSet<String>) -> Result<String, JsonError> {
         self.skip_space();
         let start = self.at;
@@ -314,7 +336,8 @@ impl Reader<'_> {
     }
 
     /// Reads the string whose opening quote is at the cursor (RFC 8259 §7),
-    /// which holds no surrogate or noncharacter (RFC 7493 §2.1).
+    /// which holds no surrogate, nor in I-JSON a noncharacter (RFC 7493
+    /// §2.1).
     fn string(&mut self) -> Result<String, JsonError> {
         self.at += 1;
         let mut out = String::new();
@@ -329,7 +352,7 @@ impl Reader<'_> {
                 Some(0x20..=0xFF) => self.character()?,
                 _ => return Err(self.malformed()),
             };
-            if is_noncharacter(character) {
+            if self.dialect == Dialect::IJson && is_noncharacter(character) {
                 return Err(JsonError::Malformed { offset: start });
             }
             out.push(character);
@@ -371,7 +394,8 @@ impl Reader<'_> {
 
     /// Reads the four hex digits of a six-character escape, and the escape
     /// of the low surrogate after them when they give a high surrogate. A
-    /// surrogate that isn't half of such a pair breaks RFC 7493 §2.1.
+    /// surrogate that isn't half of such a pair breaks RFC 7493 §2.1 and
+    /// draft-09 §5.
     fn unicode_escape(&mut self, start: usize) -> Result<char, JsonError> {
         self.at += 1;
         let first = self.code_unit()?;
@@ -481,9 +505,9 @@ impl Reader<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Json, JsonError, read};
+    use super::{Dialect, Json, JsonError, read, read_as};
 
-    /// Reads `bytes` with the default `document_depth`, 16.
+    /// Reads `bytes` as I-JSON with the default `document_depth`, 16.
     fn read_text(bytes: &[u8]) -> Result<Json, JsonError> {
         read(bytes, 16)
     }
@@ -575,5 +599,25 @@ mod tests {
         let too_deep = Err(JsonError::TooDeep { offset: 16 });
         assert_eq!(read_text(&nested(17)), too_deep);
         assert_eq!(read_text(&nested(100_000)), too_deep);
+    }
+
+    #[test]
+    fn prs_013_recipe_json_may_hold_noncharacters() {
+        // U+FFFF and U+FDD0 in UTF-8.
+        let ffff = String::from_utf8(vec![0xEF, 0xBF, 0xBF]).unwrap();
+        let fdd0 = String::from_utf8(vec![0xEF, 0xB7, 0x90]).unwrap();
+        let cases: [(&[u8], String); 3] = [
+            (b"\"\x5cuffff\"", ffff.clone()),
+            (b"\"\xef\xbf\xbf\"", ffff),
+            (b"\"\x5cufdd0\"", fdd0),
+        ];
+        for (text, expected) in cases {
+            let found = read_as(text, 16, Dialect::Recipe);
+            assert_eq!(found, Ok(Json::String(expected)));
+        }
+        let surrogate = read_as(b"\"\x5cudead\"", 16, Dialect::Recipe);
+        assert_eq!(surrogate, malformed(1));
+        let repeat = read_as(b"{\"a\":1,\"a\":2}", 16, Dialect::Recipe);
+        assert_eq!(repeat, malformed(7));
     }
 }
