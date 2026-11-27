@@ -6,7 +6,7 @@
 #[cfg(doc)]
 use crate::{AuthenticationResults, Check, CheckOptions, Signing, SigningOptions, SigningOutcome};
 
-mod section;
+pub(crate) mod section;
 
 /// The form of the header field values that [`Check::header_field`] and
 /// [`Signing::header_field`] take, and that hallmark generates (STR-008,
