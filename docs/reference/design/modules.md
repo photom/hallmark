@@ -118,7 +118,7 @@ flowchart TB
 | `snapshot` | Adapters | Exchange | Yes | `Snapshot`, `SnapshotResolver`, `PastedRecords`, `DocumentError`, extraction from a trace, demo cases | DNS-004, DNS-010, DEM-004 |
 | `keys` | Adapters | Exchange | Yes | `MemorySigner`, `RandomSource`, `RandomFailure` and `KeyError`. The private key types inside the signer are crate-private | SGN-005, SEC-001 to SEC-003 |
 
-"Results" means that only the module's result and reason types are public. "Partly" means that the listed types are public and the parsers are crate-private. `lib.rs` re-exports every public type at the crate root, except those of the public module `io`, so no other module shows in a public path.
+"Results" means that only the module's result and reason types are public. "Partly" means that the listed types are public and the parsers are crate-private. `lib.rs` re-exports every public type at the crate root, except those of the public module `io`, so no other module shows in a public path. The one exception is the hidden `fuzz` module of the `fuzzing` feature, which only the fuzz targets use.
 
 ## Inside the check
 
