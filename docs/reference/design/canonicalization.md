@@ -85,6 +85,7 @@ stateDiagram-v2
 | CR held | A flag | A CR at the end of a chunk, which an LF in the next chunk makes a line ending | CAN-082, CAN-089 |
 | Content written | A flag | Whether the body has content, which decides the CRLF at the end in `relaxed` | CAN-020, CAN-025 |
 | Octets written | A count | The canonical length, for `l=` and the places | CAN-120 |
+| Output waiting for room | Counts and flags | Line endings, an SP, one octet and the CRLF at the end, which the caller's output had no room for, and whether a CRLF is half written. The next call writes them before it reads more input | CAN-090 |
 
 | Event | Writes | Requirements |
 |---|---|---|
@@ -92,7 +93,7 @@ stateDiagram-v2
 | A line ending | Nothing: the count goes up, and `relaxed` drops the held WSP | RFC 6376 §3.4.4 |
 | The end of the body | One CRLF, unless `relaxed` wrote no content. The held line endings and WSP are dropped | RFC 6376 §3.4.3, §3.4.4 |
 
-The canonicalizer holds no input octet between calls, so its memory doesn't grow with the body (STR-001, STR-007, CAN-306), and the output doesn't depend on where the chunks are cut (STR-005, CAN-086).
+Octets past the `l=` cut need no room, because they're only counted. The canonicalizer holds no input octet between calls, so its memory doesn't grow with the body (STR-001, STR-007, CAN-306), and the output doesn't depend on where the chunks are cut (STR-005, CAN-086).
 
 ## The `l=` cut
 
