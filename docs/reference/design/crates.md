@@ -60,6 +60,7 @@ The caller extends the core through these traits without changing it. The core c
 | Feature | Default | Turns on | Requirements |
 |---|---|---|---|
 | `unstable-dkim2` | Off | DKIM2 verification and signing, ML-DSA-44 and SHA-512, the DKIM2 kinds of check, the DKIM2 mode of the canonicalizer, and the `dkim2` method of Authentication-Results | DK2-001, DK2-005 |
+| `fuzzing` | Off | The hidden entry points that the fuzz targets in `fuzz/` call. No caller uses it, and it stays out of the documentation and the semantic versioning promise ([ADR 0069](../../adr/0069-fuzz-targets-run-with-cargo-fuzz-and-reach-the-internal-parsers-through-a-hidden-fuzzing-feature.md)) | SAF-003, TST-005 |
 
 hallmark has no other feature. It needs `std`, which `wasm32-unknown-unknown` provides.
 

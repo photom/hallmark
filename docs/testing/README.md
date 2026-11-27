@@ -78,7 +78,7 @@ These requirements govern the repository, CI, the dependencies or how the code i
 | [TST-001](../reference/requirements.md#quality-and-process) | Review of each scenario and each test |
 | [TST-002](../reference/requirements.md#quality-and-process) | Review, and the table in [Third-party test data](#third-party-test-data) |
 | [TST-004](../reference/requirements.md#quality-and-process) | Review of each test |
-| [TST-005](../reference/requirements.md#quality-and-process) | A CI job that comes with the first fuzz target |
+| [TST-005](../reference/requirements.md#quality-and-process) | The Fuzz workflow, which runs every target in `fuzz/` on each change and for longer every week ([ADR 0069](../adr/0069-fuzz-targets-run-with-cargo-fuzz-and-reach-the-internal-parsers-through-a-hidden-fuzzing-feature.md)) |
 | [TST-006](../reference/requirements.md#quality-and-process) | Review of the code |
 | [TST-007](../reference/requirements.md#quality-and-process) | The test job, whose matrix holds both systems |
 | [WSM-001](../reference/requirements.md#webassembly) | The WebAssembly build job |

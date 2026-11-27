@@ -278,7 +278,7 @@ Review checks each `use crate::` path against these rules, and once the modules 
 
 ## Features in the modules
 
-`unstable-dkim2` turns on the `dkim2` module and the DKIM2 fields of `Evaluations` and `Signings`. [Crates](crates.md#features) gives what the feature offers a caller.
+`unstable-dkim2` turns on the `dkim2` module and the DKIM2 fields of `Evaluations` and `Signings`. [Crates](crates.md#features) gives what the feature offers a caller. `fuzzing` builds `fuzz`, a hidden module outside the layers, whose entry points run the parsers of one area each for the fuzz targets. It may use any module, and no module uses it ([ADR 0069](../../adr/0069-fuzz-targets-run-with-cargo-fuzz-and-reach-the-internal-parsers-through-a-hidden-fuzzing-feature.md)).
 
 ## Outside crates in the modules
 
