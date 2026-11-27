@@ -30,16 +30,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The workspace's deny.toml covers the fuzz crate too (ADR 0049).
+      # cargo-deny reads deny.toml from the root, where the action runs, so
+      # the workspace's rules cover the fuzz crate too (ADR 0049).
       - uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2.1.3
         with:
           manifest-path: fuzz/Cargo.toml
           command: check
-          command-arguments: --config deny.toml
 
   fuzz:
     name: Fuzz
     runs-on: ubuntu-latest
+    # The weekly run takes 600 seconds a target, plus the builds.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,10 +67,15 @@ jobs:
       - name: Run every target
         env:
           SECONDS_PER_TARGET: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '600' || '60' }}
+        # An input that takes over 10 seconds fails as a timeout. Each corpus is
+        # minimized before the cache keeps it.
         run: |
-          for target in $(cargo +nightly fuzz list); do
+          targets=$(cargo +nightly fuzz list)
+          test -n "$targets"
+          for target in $targets; do
             echo "Fuzzing $target for $SECONDS_PER_TARGET seconds"
-            cargo +nightly fuzz run "$target" -- -max_total_time="$SECONDS_PER_TARGET"
+            cargo +nightly fuzz run "$target" -- -max_total_time="$SECONDS_PER_TARGET" -timeout=10
+            cargo +nightly fuzz cmin "$target"
           done
       # The inputs that made a target fail, to reproduce the fault.
       - if: failure()

@@ -231,8 +231,8 @@ fn signatures(input: &[u8]) -> bool {
     }
 }
 
-/// The recipes of DKIM2 `r=` within `limits` (draft-09 §9.2). Offsets into the decoded JSON lie
-/// within it, and it is shorter than `input`.
+/// The recipes of DKIM2 `r=` within `limits` (draft-09 §9.2). The decoded JSON is shorter than
+/// `input`, so each offset into it and its size must lie within the length of `input`.
 fn recipes(input: &[u8], limits: &Limits) -> bool {
     match recipe::recipes(input, limits) {
         Ok(members) => members.len() <= input.len(),
