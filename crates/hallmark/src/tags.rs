@@ -11,6 +11,7 @@ mod fields;
 mod groups;
 mod number;
 mod qp;
+mod recipe;
 
 use core::ops::Range;
 
