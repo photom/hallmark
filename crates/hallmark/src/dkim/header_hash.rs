@@ -126,6 +126,10 @@ fn emptied_field(input: &[u8], line: &HeaderLine, b: &Tag) -> Option<Vec<u8>> {
         return None;
     };
     let field_value = input.get(value.clone())?;
+    // The ranges come from parsing this value, folds included, so the name reads `b`.
+    if field_value.get(b.name.clone())? != b"b" {
+        return None;
+    }
     // Only FWS comes between the tag name and the equals sign (RFC 6376 §3.2).
     let mut start = b.name.end;
     while *field_value.get(start)? != b'=' {
@@ -287,6 +291,22 @@ mod tests {
         let start = "fROM: a@void.test\r\nDKIM-Signature: v=1;";
         assert!(bytes.starts_with(start));
         assert_eq!(picks, [Field(1)]);
+    }
+
+    #[test]
+    fn can_188_simple_keeps_the_white_space_before_the_equals_sign() {
+        let field = concat!(
+            "DKIM-Signature: v=1; a=ed25519-sha256; d=void.test; s=s; h=From;\r\n",
+            " bh=frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=; b =\r\n AAAA ",
+        );
+        let expected = concat!(
+            "From: a@void.test\r\nDKIM-Signature: v=1; a=ed25519-sha256; d=void.test; s=s; ",
+            "h=From;\r\n bh=frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=; b =",
+        );
+        let input = [REST, field].concat();
+        let (bytes, picks) = text(input.as_bytes(), 3);
+        assert_eq!(bytes, expected);
+        assert_eq!(picks, [Field(0)]);
     }
 
     #[test]
