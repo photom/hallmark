@@ -5,8 +5,8 @@
 #![cfg_attr(not(test), expect(dead_code, reason = "DKIM2 comes later"))]
 
 use crate::Limits;
-use crate::base64::Base64Error;
-use crate::json::Json;
+use crate::base64::{self, Base64Error};
+use crate::json::{self, Dialect, Json, JsonError};
 
 /// Why an `r=` value doesn't decode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,8 +30,34 @@ pub(crate) enum RecipeError {
 /// The members of the JSON object that the `r=` value `input` encodes, in
 /// order. The size is checked before the JSON is read, so no text over
 /// `recipe_size` reaches the reader.
-pub(crate) fn recipes(_input: &[u8], _limits: &Limits) -> Result<Vec<(String, Json)>, RecipeError> {
-    Err(RecipeError::Size(0))
+pub(crate) fn recipes(input: &[u8], limits: &Limits) -> Result<Vec<(String, Json)>, RecipeError> {
+    let octets = match base64::decode(input) {
+        Ok(octets) => octets,
+        Err(error) => return Err(RecipeError::Value(error)),
+    };
+    let within = match u32::try_from(octets.len()) {
+        Ok(size) => size <= limits.recipe_size,
+        Err(_) => false,
+    };
+    if !within {
+        return Err(RecipeError::Size(octets.len()));
+    }
+    match json::read_as(&octets, limits.recipe_depth, Dialect::Rfc8259) {
+        Ok(Json::Object(members)) => Ok(members),
+        Ok(_) => Err(RecipeError::Object(value_start(&octets))),
+        Err(JsonError::Malformed { offset }) => Err(RecipeError::Json(offset)),
+        Err(JsonError::TooDeep { offset }) => Err(RecipeError::Depth(offset)),
+    }
+}
+
+/// The offset of the JSON value in `octets`, after the white space before it
+/// (RFC 8259 §2).
+fn value_start(octets: &[u8]) -> usize {
+    let mut at = 0;
+    while let Some(b' ' | b'\t' | b'\r' | b'\n') = octets.get(at).copied() {
+        at += 1;
+    }
+    at
 }
 
 #[cfg(test)]
