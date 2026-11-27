@@ -1,6 +1,9 @@
 //! Decimal tag values, read with overflow checks (HDR-013).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM and DKIM2 come later")
+)]
 
 /// The most digits of a DKIM `t=` or `x=` that hallmark reads as a value
 /// (RFC 6376 §3.5).

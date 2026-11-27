@@ -1,7 +1,10 @@
 //! The header field names of DKIM `h=` and the copied header fields of DKIM
 //! `z=` (RFC 6376 §3.5, HDR-007).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM comes later"))]
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM comes later")
+)]
 
 use core::ops::Range;
 

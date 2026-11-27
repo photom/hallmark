@@ -2,7 +2,10 @@
 //! unencoded UTF-8 that RFC 8616 §5 allows in a message with
 //! internationalized header fields.
 
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM comes later"))]
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM comes later")
+)]
 
 use super::{Grammar, utf8};
 
