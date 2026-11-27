@@ -8,7 +8,7 @@
     expect(dead_code, reason = "the checks and signings come later")
 )]
 
-use crate::header::section::HeaderLine;
+use crate::header::section::{HeaderLine, LineKind};
 
 /// A header field form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,8 +30,57 @@ pub(crate) fn write_field(
     mode: HeaderMode,
     output: &mut Vec<u8>,
 ) -> bool {
-    let _ = (input, line, mode, output);
-    false
+    let LineKind::Field { name, value } = &line.kind else {
+        return false;
+    };
+    let (Some(raw), Some(name), Some(value)) = (
+        input.get(line.raw.clone()),
+        input.get(name.clone()),
+        input.get(value.clone()),
+    ) else {
+        return false;
+    };
+    if mode == HeaderMode::Simple {
+        output.extend_from_slice(raw);
+        if !line.line_ending {
+            output.extend_from_slice(b"\r\n");
+        }
+        return true;
+    }
+    for byte in name {
+        output.push(byte.to_ascii_lowercase());
+    }
+    output.push(b':');
+    write_value(value, mode == HeaderMode::Relaxed, output);
+    output.extend_from_slice(b"\r\n");
+    true
+}
+
+/// Appends `value` unfolded, with no WSP at its start or end. Inside it, each run of WSP
+/// becomes one SP when `relaxed` holds, and goes otherwise (RFC 6376 §3.4.2, draft-09 §12.8).
+/// Each CRLF in a value is a fold, because a field goes on only over lines that start with
+/// WSP. A bare CR or LF is an octet and not WSP (HDR-012).
+fn write_value(value: &[u8], relaxed: bool, output: &mut Vec<u8>) {
+    let mut rest = value;
+    let mut wsp = false;
+    let mut content = false;
+    while let Some((&byte, after)) = rest.split_first() {
+        rest = after;
+        if byte == b'\r'
+            && let Some(unfolded) = after.strip_prefix(b"\n")
+        {
+            rest = unfolded;
+        } else if matches!(byte, b' ' | b'\t') {
+            wsp = true;
+        } else {
+            if wsp && content && relaxed {
+                output.push(b' ');
+            }
+            wsp = false;
+            content = true;
+            output.push(byte);
+        }
+    }
 }
 
 #[cfg(test)]
