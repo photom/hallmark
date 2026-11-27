@@ -17,6 +17,9 @@ workspace = true
 # DKIM2 targets IETF drafts, and its API can change in any release (DK2-001,
 # DK2-005).
 unstable-dkim2 = []
+# Entry points for the fuzz targets in fuzz/, for those targets alone. No
+# caller uses this feature, and it isn't part of the API (ADR 0069).
+fuzzing = []
 
 [package.metadata.docs.rs]
 all-features = true
