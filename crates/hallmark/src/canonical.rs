@@ -3,3 +3,4 @@
 //! (STR-001).
 
 pub(crate) mod body;
+pub(crate) mod header;
