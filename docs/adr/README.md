@@ -72,6 +72,7 @@ Decisions that shape hallmark's design and specification, with their context and
 | [0066](0066-base64-values-decode-only-in-their-canonical-form.md) | base64 values decode only in their canonical form | Accepted |
 | [0067](0067-dkim-value-keywords-match-only-as-written.md) | DKIM value keywords match only as written | Accepted |
 | [0068](0068-a-dkim-signature-with-an-unrecognized-c-algorithm-gets-permfail-unsupported-canonicalization.md) | A DKIM signature with an unrecognized `c=` algorithm gets PERMFAIL (unsupported canonicalization) | Accepted |
+| [0069](0069-fuzz-targets-run-with-cargo-fuzz-and-reach-the-internal-parsers-through-a-hidden-fuzzing-feature.md) | Fuzz targets run with cargo-fuzz and reach the internal parsers through a hidden `fuzzing` feature | Accepted |
 
 Conventions:
 - One file per decision, named `NNNN-short-title.md`, numbered in order.
