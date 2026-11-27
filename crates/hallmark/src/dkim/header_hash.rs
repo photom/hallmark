@@ -10,6 +10,7 @@
 use crate::canonical::header::{HeaderMode, write_field};
 use crate::header::section::{HeaderLine, LineKind, split};
 use crate::tags::Tag;
+use crate::tags::canon::Algorithm;
 
 /// The DKIM-Signature field whose header hash input is built.
 #[derive(Debug, Clone, Copy)]
@@ -20,8 +21,8 @@ pub(crate) struct Signature<'a> {
     pub(crate) names: &'a [&'a [u8]],
     /// Its `b=` tag, as ranges into the field value, from the tag-list parser (HDR-006).
     pub(crate) b: &'a Tag,
-    /// The header canonicalization of its `c=` tag.
-    pub(crate) mode: HeaderMode,
+    /// The header canonicalization of its `c=` tag (RFC 6376 §3.4).
+    pub(crate) header: Algorithm,
 }
 
 /// What a name in `h=` selected (DKV-011).
@@ -37,24 +38,20 @@ pub(crate) enum Pick {
 
 /// Appends the header hash input of `signature` to `output`, and gives what each name in
 /// `h=` selected, in `h=` order. `lines` come from splitting `input`. Gives `None` and appends
-/// nothing when the signature's line is no header field or its `b=` tag lies outside it.
+/// nothing when the signature's line is no header field, its `b=` tag lies outside it, or a
+/// selected line lies outside `input`.
 pub(crate) fn hash_input(
     input: &[u8],
     lines: &[HeaderLine],
     signature: &Signature<'_>,
     output: &mut Vec<u8>,
 ) -> Option<Vec<Pick>> {
-    // The signature field comes last, but it is built first, so a failure appends nothing.
-    let emptied = emptied_field(input, lines.get(signature.line)?, signature.b)?;
-    let emptied_lines = split(&emptied).lines;
-    let mut signature_form = Vec::new();
-    let first = emptied_lines.first()?;
-    if !write_field(&emptied, first, signature.mode, &mut signature_form) {
-        return None;
-    }
-    // RFC 6376 §3.7: the signature field goes in without a trailing CRLF.
-    let keep = signature_form.len().saturating_sub(2);
-    signature_form.truncate(keep);
+    let mode = match signature.header {
+        Algorithm::Simple => HeaderMode::Simple,
+        Algorithm::Relaxed => HeaderMode::Relaxed,
+    };
+    // The input is built apart and appended at the end, so a failure appends nothing.
+    let mut hashed = Vec::new();
     let mut taken = vec![false; lines.len()];
     let mut picks = Vec::with_capacity(signature.names.len());
     for name in signature.names {
@@ -63,12 +60,22 @@ pub(crate) fn hash_input(
             Some(index) => Pick::Field(index),
             None => Pick::NoneLeft,
         };
-        if let Some(line) = picked_line(lines, signature.line, pick) {
-            write_field(input, line, signature.mode, output);
+        if let Some(line) = picked_line(lines, signature.line, pick)
+            && !write_field(input, line, mode, &mut hashed)
+        {
+            return None;
         }
         picks.push(pick);
     }
-    output.extend_from_slice(&signature_form);
+    let emptied = emptied_field(input, lines.get(signature.line)?, signature.b)?;
+    let emptied_lines = split(&emptied).lines;
+    if !write_field(&emptied, emptied_lines.first()?, mode, &mut hashed) {
+        return None;
+    }
+    // RFC 6376 §3.7: the signature field goes in without a trailing CRLF.
+    let keep = hashed.len().saturating_sub(2);
+    hashed.truncate(keep);
+    output.extend_from_slice(&hashed);
     Some(picks)
 }
 
@@ -101,7 +108,8 @@ fn picked_line(lines: &[HeaderLine], own: usize, pick: Pick) -> Option<&HeaderLi
 
 /// The raw bytes of the signature field `line` with the value of its `b=` tag and the white
 /// space around that value deleted (RFC 6376 §3.7). The deletion runs from the octet after the
-/// equals sign to the semicolon after the value, or to the end of the field value.
+/// equals sign over the value and the FWS after it, up to the semicolon or the end of the field
+/// value. A bare CR or LF is no white space (HDR-012), so it stays.
 fn emptied_field(input: &[u8], line: &HeaderLine, b: &Tag) -> Option<Vec<u8>> {
     let LineKind::Field { value, .. } = &line.kind else {
         return None;
@@ -114,8 +122,12 @@ fn emptied_field(input: &[u8], line: &HeaderLine, b: &Tag) -> Option<Vec<u8>> {
     }
     start += 1;
     let mut end = b.value.end;
-    while let Some(b' ' | b'\t' | b'\r' | b'\n') = field_value.get(end) {
-        end += 1;
+    loop {
+        match field_value.get(end..) {
+            Some([b' ' | b'\t', ..]) => end += 1,
+            Some([b'\r', b'\n', b' ' | b'\t', ..]) => end += 3,
+            _ => break,
+        }
     }
     let mut emptied = Vec::new();
     emptied.extend_from_slice(input.get(line.raw.start..value.start + start)?);
@@ -127,9 +139,8 @@ fn emptied_field(input: &[u8], line: &HeaderLine, b: &Tag) -> Option<Vec<u8>> {
 mod tests {
     use super::Pick::{Field, NoneLeft, OwnField};
     use super::{Pick, Signature, hash_input};
-    use crate::canonical::header::HeaderMode::{Relaxed, Simple};
     use crate::header::section::{LineKind, split};
-    use crate::tags::canon::{Algorithm, canonicalization};
+    use crate::tags::canon::canonicalization;
     use crate::tags::fields::names;
     use crate::tags::{Grammar, TagList};
 
@@ -193,15 +204,11 @@ mod tests {
         for range in names(h).unwrap() {
             selected.push(&h[range]);
         }
-        let mode = match canonicalization(c).unwrap().header {
-            Algorithm::Simple => Simple,
-            Algorithm::Relaxed => Relaxed,
-        };
         let signature = Signature {
             line: own,
             names: &selected,
             b: b.unwrap(),
-            mode,
+            header: canonicalization(c).unwrap().header,
         };
         let mut output = Vec::new();
         let picks = hash_input(input, &lines, &signature, &mut output).unwrap();
