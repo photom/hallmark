@@ -7,8 +7,8 @@
     expect(dead_code, reason = "verification and signing come later")
 )]
 
-use crate::canonical::header::HeaderMode;
-use crate::header::section::HeaderLine;
+use crate::canonical::header::{HeaderMode, write_field};
+use crate::header::section::{HeaderLine, LineKind, split};
 use crate::tags::Tag;
 
 /// The DKIM-Signature field whose header hash input is built.
@@ -44,8 +44,83 @@ pub(crate) fn hash_input(
     signature: &Signature<'_>,
     output: &mut Vec<u8>,
 ) -> Option<Vec<Pick>> {
-    let _ = (input, lines, signature, output);
+    // The signature field comes last, but it is built first, so a failure appends nothing.
+    let emptied = emptied_field(input, lines.get(signature.line)?, signature.b)?;
+    let emptied_lines = split(&emptied).lines;
+    let mut signature_form = Vec::new();
+    let first = emptied_lines.first()?;
+    if !write_field(&emptied, first, signature.mode, &mut signature_form) {
+        return None;
+    }
+    // RFC 6376 §3.7: the signature field goes in without a trailing CRLF.
+    let keep = signature_form.len().saturating_sub(2);
+    signature_form.truncate(keep);
+    let mut taken = vec![false; lines.len()];
+    let mut picks = Vec::with_capacity(signature.names.len());
+    for name in signature.names {
+        let pick = match take_lowest(input, lines, &mut taken, name) {
+            Some(index) if index == signature.line => Pick::OwnField,
+            Some(index) => Pick::Field(index),
+            None => Pick::NoneLeft,
+        };
+        if let Some(line) = picked_line(lines, signature.line, pick) {
+            write_field(input, line, signature.mode, output);
+        }
+        picks.push(pick);
+    }
+    output.extend_from_slice(&signature_form);
+    Some(picks)
+}
+
+/// Marks the lowest field named `name` that isn't taken yet, and gives its index (RFC 6376
+/// §5.4). Names compare without regard to case (HDR-002). A malformed line has no name, so no
+/// name takes it (HCN-006).
+fn take_lowest(
+    input: &[u8],
+    lines: &[HeaderLine],
+    taken: &mut [bool],
+    name: &[u8],
+) -> Option<usize> {
+    for (index, (line, used)) in lines.iter().zip(taken.iter_mut()).enumerate().rev() {
+        if !*used && line.has_name(input, name) {
+            *used = true;
+            return Some(index);
+        }
+    }
     None
+}
+
+/// The line that `pick` selected, the signature's own line being `own`.
+fn picked_line(lines: &[HeaderLine], own: usize, pick: Pick) -> Option<&HeaderLine> {
+    match pick {
+        Pick::Field(index) => lines.get(index),
+        Pick::OwnField => lines.get(own),
+        Pick::NoneLeft => None,
+    }
+}
+
+/// The raw bytes of the signature field `line` with the value of its `b=` tag and the white
+/// space around that value deleted (RFC 6376 §3.7). The deletion runs from the octet after the
+/// equals sign to the semicolon after the value, or to the end of the field value.
+fn emptied_field(input: &[u8], line: &HeaderLine, b: &Tag) -> Option<Vec<u8>> {
+    let LineKind::Field { value, .. } = &line.kind else {
+        return None;
+    };
+    let field_value = input.get(value.clone())?;
+    // Only FWS comes between the tag name and the equals sign (RFC 6376 §3.2).
+    let mut start = b.name.end;
+    while *field_value.get(start)? != b'=' {
+        start += 1;
+    }
+    start += 1;
+    let mut end = b.value.end;
+    while let Some(b' ' | b'\t' | b'\r' | b'\n') = field_value.get(end) {
+        end += 1;
+    }
+    let mut emptied = Vec::new();
+    emptied.extend_from_slice(input.get(line.raw.start..value.start + start)?);
+    emptied.extend_from_slice(input.get(value.start + end..line.raw.end)?);
+    Some(emptied)
 }
 
 #[cfg(test)]
