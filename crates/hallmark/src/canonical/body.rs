@@ -192,7 +192,23 @@ impl BodyCanonicalizer {
     /// Reads one octet while nothing waits, and returns whether it used the octet. A held CR
     /// that another octet follows is written first, and the octet waits for the next step.
     fn step(&mut self, octet: u8) -> bool {
-        self.commit(octet);
+        if self.held_cr {
+            self.held_cr = false;
+            if octet == LF {
+                self.held_line_endings += 1;
+                // RFC 6376 §3.4.4: WSP at the end of a line is removed.
+                self.held_space = false;
+                return true;
+            }
+            // STR-011: a bare CR is an octet of the body.
+            self.commit(CR);
+            return false;
+        }
+        match octet {
+            CR => self.held_cr = true,
+            SP | HTAB if self.mode == BodyMode::Relaxed => self.held_space = true,
+            _ => self.commit(octet),
+        }
         true
     }
 
