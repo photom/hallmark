@@ -48,7 +48,7 @@ The caller sets these in `Limits`, part of the options of each check and each si
 | `dkim2_signatures` | 32 | 1 to 1,000 | DKIM2-Signature fields | DKIM2 | PERMERROR | Each hop adds one | SAF-002 |
 | `message_instances` | 32 | 1 to 1,000 | Message-Instance fields | DKIM2 | PERMERROR | Each hop that changes the message adds one | SAF-002 |
 | `recipe_steps` | 10,000 | 1 to 1,000,000 | Steps in one recipe | Recipe parser | PERMERROR for the signatures that depend on the recipe | Draft-09 §14.2 lets a verifier refuse recipes that are too complex | SAF-002, DK2-007 |
-| `recipe_size` | 65,536 | 1 to 16,777,216 | Octets of one recipe's decoded JSON | JSON reader | As `recipe_steps` | A recipe in a field within `header_field_size` stays under it | SAF-002 |
+| `recipe_size` | 65,536 | 1 to 16,777,216 | Octets of one recipe's decoded JSON | `r=` decoder, before the JSON reader | As `recipe_steps` | A recipe in a field within `header_field_size` stays under it | SAF-002 |
 | `recipe_depth` | 8 | 1 to 64 | Levels of nesting in recipe JSON | JSON reader | As `recipe_steps` | The recipe schema of draft-09 §5 nests five levels | PAR-005, PRS-005 |
 | `spf_void_lookups` | 2 | 0 to 10 | Void lookups in one SPF evaluation | SPF | `permerror` | RFC 7208 §4.6.4 | SPF-006 |
 | `trace_size` | 1,048,576 | 1,024 to 268,435,456 | Octets of trace events written, read or not | Recorder | The trace is cut short, and the root event says so. Results stay the same | Holds the header hash inputs of every signature within the other limits (HCN-009) | TRC-005 |
