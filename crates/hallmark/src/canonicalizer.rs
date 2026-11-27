@@ -18,7 +18,7 @@ use crate::{Limit, Limits, LimitsError, ParseError};
 ///
 /// | Rule | Requirements |
 /// |---|---|
-/// | Between calls, the canonicalizer holds counts and flags of fixed size and no input octet | STR-001, STR-007 |
+/// | Between calls, the canonicalizer holds counts, flags and at most one octet of output, all of fixed size, and no reference to an input chunk | STR-001, STR-007 |
 /// | The output doesn't depend on where the chunks are cut | STR-005 |
 /// | A bare CR or LF is an octet of the body | STR-011 |
 /// | A call that returns an error changes nothing. A canonicalizer that has reported a recipe error gives that error from then on | DK2-007 |

@@ -176,6 +176,7 @@ mod address;
 #[cfg(doc)]
 mod authres;
 mod base64;
+mod canonical;
 #[cfg(doc)]
 mod canonicalizer;
 #[cfg(doc)]
