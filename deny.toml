@@ -1,5 +1,6 @@
 # cargo-deny configuration: known vulnerabilities, licenses, banned crates,
-# and allowed sources. CI runs `cargo deny --all-features check`.
+# and allowed sources. CI runs `cargo deny --all-features check`, and runs it
+# on the fuzz crate in fuzz/ too.
 
 [graph]
 all-features = true
@@ -22,11 +23,16 @@ allow = [
     "Zlib",
 ]
 confidence-threshold = 0.93
+# libfuzzer-sys holds LLVM's libFuzzer under the NCSA license. Only the fuzz
+# crate uses it, and that crate is never published or shipped (ADR 0069).
+exceptions = [
+    { allow = ["NCSA"], crate = "libfuzzer-sys" },
+]
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# hallmark-wasm depends on hallmark by path.
+# hallmark-wasm and the fuzz crate depend on hallmark by path.
 allow-wildcard-paths = true
 
 [sources]
