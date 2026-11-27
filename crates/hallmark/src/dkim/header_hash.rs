@@ -7,6 +7,8 @@
     expect(dead_code, reason = "verification and signing come later")
 )]
 
+use std::collections::BTreeMap;
+
 use crate::canonical::header::{HeaderMode, write_field};
 use crate::header::section::{HeaderLine, LineKind, split};
 use crate::tags::Tag;
@@ -38,8 +40,8 @@ pub(crate) enum Pick {
 
 /// Appends the header hash input of `signature` to `output`, and gives what each name in
 /// `h=` selected, in `h=` order. `lines` come from splitting `input`. Gives `None` and appends
-/// nothing when the signature's line is no header field, its `b=` tag lies outside it, or a
-/// selected line lies outside `input`.
+/// nothing when the input can't be built: a line lies outside `input`, the signature's line is
+/// no header field, or its `b=` tag doesn't fit its value.
 pub(crate) fn hash_input(
     input: &[u8],
     lines: &[HeaderLine],
@@ -52,10 +54,15 @@ pub(crate) fn hash_input(
     };
     // The input is built apart and appended at the end, so a failure appends nothing.
     let mut hashed = Vec::new();
-    let mut taken = vec![false; lines.len()];
+    let mut fields = fields_by_name(input, lines);
     let mut picks = Vec::with_capacity(signature.names.len());
     for name in signature.names {
-        let pick = match take_lowest(input, lines, &mut taken, name) {
+        // RFC 6376 §5.4: each name takes the lowest field of that name not yet taken.
+        let lowest = match fields.get_mut(name.to_ascii_lowercase().as_slice()) {
+            Some(indices) => indices.pop(),
+            None => None,
+        };
+        let pick = match lowest {
             Some(index) if index == signature.line => Pick::OwnField,
             Some(index) => Pick::Field(index),
             None => Pick::NoneLeft,
@@ -69,32 +76,36 @@ pub(crate) fn hash_input(
     }
     let emptied = emptied_field(input, lines.get(signature.line)?, signature.b)?;
     let emptied_lines = split(&emptied).lines;
-    if !write_field(&emptied, emptied_lines.first()?, mode, &mut hashed) {
+    let mut signature_form = Vec::new();
+    if !write_field(&emptied, emptied_lines.first()?, mode, &mut signature_form) {
         return None;
     }
     // RFC 6376 §3.7: the signature field goes in without a trailing CRLF.
-    let keep = hashed.len().saturating_sub(2);
-    hashed.truncate(keep);
+    hashed.extend_from_slice(signature_form.strip_suffix(b"\r\n")?);
     output.extend_from_slice(&hashed);
     Some(picks)
 }
 
-/// Marks the lowest field named `name` that isn't taken yet, and gives its index (RFC 6376
-/// §5.4). Names compare without regard to case (HDR-002). A malformed line has no name, so no
-/// name takes it (HCN-006).
-fn take_lowest(
-    input: &[u8],
-    lines: &[HeaderLine],
-    taken: &mut [bool],
-    name: &[u8],
-) -> Option<usize> {
-    for (index, (line, used)) in lines.iter().zip(taken.iter_mut()).enumerate().rev() {
-        if !*used && line.has_name(input, name) {
-            *used = true;
-            return Some(index);
+/// The lines of each field name, lowercased (HDR-002), in header order, so the last index of a
+/// name is its lowest field. A malformed line has no name, so it is in no list (HCN-006).
+fn fields_by_name(input: &[u8], lines: &[HeaderLine]) -> BTreeMap<Vec<u8>, Vec<usize>> {
+    let mut fields: BTreeMap<Vec<u8>, Vec<usize>> = BTreeMap::new();
+    for (index, line) in lines.iter().enumerate() {
+        let LineKind::Field { name, .. } = &line.kind else {
+            continue;
+        };
+        let Some(name) = input.get(name.clone()) else {
+            continue;
+        };
+        let key = name.to_ascii_lowercase();
+        match fields.get_mut(&key) {
+            Some(indices) => indices.push(index),
+            None => {
+                fields.insert(key, vec![index]);
+            }
         }
     }
-    None
+    fields
 }
 
 /// The line that `pick` selected, the signature's own line being `own`.
@@ -266,6 +277,7 @@ mod tests {
         let (bytes, picks) = text(&s("relaxed", "From:Received:Received", "", received), 0);
         let start = "from:a@void.test\r\nreceived:<C>\r\nreceived:<B>\r\n";
         assert!(bytes.starts_with(start));
+        assert!(!bytes.contains("<A>"));
         assert_eq!(picks, [Field(4), Field(3), Field(2)]);
     }
 
