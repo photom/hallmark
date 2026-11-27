@@ -24,6 +24,8 @@ pub(crate) enum HeaderMode {
 /// Appends the form `mode` of the field `line` of `input` to `output`, ending in CRLF, and
 /// gives `true`. A last line with no line ending gets the CRLF too (HCN-008). Gives `false`
 /// and appends nothing for a malformed line, which has no name to select it by (HCN-006).
+/// `line` comes from splitting `input`. For a line from another input, whose ranges can fall
+/// outside `input`, it gives `false` too.
 pub(crate) fn write_field(
     input: &[u8],
     line: &HeaderLine,
@@ -167,6 +169,8 @@ mod tests {
         forms(input, mode).pop().unwrap()
     }
 
+    /// The bytes of CAN-263, CAN-265 and CAN-268. The trace parts of CAN-263 come with the header
+    /// hash steps.
     #[test]
     fn can_263_265_268_a_last_line_with_no_line_ending_gets_a_crlf() {
         let input = b"From: a@void.test\r\nSubject: Hi";
