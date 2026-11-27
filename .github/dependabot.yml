@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # The fuzz crate is outside the workspace (ADR 0069).
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
   - package-ecosystem: github-actions
     directory: /
     schedule:

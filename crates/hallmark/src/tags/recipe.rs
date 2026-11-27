@@ -2,7 +2,10 @@
 //! of a JSON object (§5), read within `recipe_size` and `recipe_depth`
 //! (SAF-002). The DKIM2 check reads its keys and steps.
 
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM2 comes later"))]
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM2 comes later")
+)]
 
 use crate::Limits;
 use crate::base64::{self, Base64Error};

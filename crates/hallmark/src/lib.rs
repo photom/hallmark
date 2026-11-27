@@ -190,6 +190,9 @@ mod dmarc;
 mod dns;
 #[cfg(doc)]
 mod driver;
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzz;
 mod header;
 #[cfg(doc)]
 pub mod io;

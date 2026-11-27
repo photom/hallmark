@@ -35,7 +35,7 @@ Fuzz targets (SAF-003) live in `fuzz/`, outside the workspace members, as `cargo
 | Part | Where a caller finds it | Rule | Requirement or ADR |
 |---|---|---|---|
 | Entry types | `Check` with `CheckOptions` and `CheckResults` for a verifying caller, and `Signing` with `SigningOptions` and `SigningResults` for a signing caller | Each type takes only its own settings and input, hands out only its own requests, and has its own errors | CHK-006, [ADR 0062](../../adr/0062-verification-and-signing-have-separate-entry-types.md) |
-| Public types and functions | At the crate root, except the blocking adapters in `io`, the only public module. No other module shows in a path | The conventions of ADR 0065: how a caller builds and reads values, which enums are `#[non_exhaustive]`, and what a doc comment holds | [ADR 0065](../../adr/0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md), [ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md) |
+| Public types and functions | At the crate root, except the blocking adapters in `io`, the only public module. No other module shows in a path, apart from the hidden `fuzz` module that the `fuzzing` feature builds for the fuzz targets alone | The conventions of ADR 0065: how a caller builds and reads values, which enums are `#[non_exhaustive]`, and what a doc comment holds | [ADR 0065](../../adr/0065-the-public-api-follows-one-set-of-conventions-and-each-api-checks-the-limits-it-takes.md), [ADR 0059](../../adr/0059-the-modules-of-the-hallmark-crate-are-bounded-contexts-in-five-layers.md) |
 | The API reference | The rustdoc on GitHub Pages, with the validation rules and error codes of each method | Every link from the documents to it is checked against the rustdoc that CI builds | REP-004, [ADR 0052](../../adr/0052-the-api-reference-is-rustdoc-published-on-github-pages.md) |
 | Error codes | The error table of the crate's front page, with one prefix for each error type | A code keeps its meaning within a major version, and a minor version can add codes | STB-001 |
 | The trace format | [Trace format](../trace-format.md) and [Trace codes](../trace-codes.md) | It has a major and a minor version of its own, separate from the crate's | TRC-007, STB-001 |
@@ -60,6 +60,7 @@ The caller extends the core through these traits without changing it. The core c
 | Feature | Default | Turns on | Requirements |
 |---|---|---|---|
 | `unstable-dkim2` | Off | DKIM2 verification and signing, ML-DSA-44 and SHA-512, the DKIM2 kinds of check, the DKIM2 mode of the canonicalizer, and the `dkim2` method of Authentication-Results | DK2-001, DK2-005 |
+| `fuzzing` | Off | The hidden entry points that the fuzz targets in `fuzz/` call. No caller uses it, and it stays out of the documentation and the semantic versioning promise ([ADR 0069](../../adr/0069-fuzz-targets-run-with-cargo-fuzz-and-reach-the-internal-parsers-through-a-hidden-fuzzing-feature.md)) | SAF-003, TST-005 |
 
 hallmark has no other feature. It needs `std`, which `wasm32-unknown-unknown` provides.
 

@@ -2,7 +2,10 @@
 //! (draft-09 §9.3) and the signatures of a DKIM2-Signature field (§10.9). Sets joined by `,`
 //! form a group, and `|` separates two groups.
 
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM2 comes later"))]
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM2 comes later")
+)]
 
 use core::ops::Range;
 

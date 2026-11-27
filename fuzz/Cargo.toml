@@ -1,0 +1,26 @@
+# The fuzz targets of hallmark (SAF-003, TST-005, ADR 0069), laid out as
+# cargo-fuzz expects. This crate isn't a member of the hallmark workspace, and
+# it is never published.
+[package]
+name = "hallmark-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hallmark = { path = "../crates/hallmark", features = ["fuzzing", "unstable-dkim2"] }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "tags"
+path = "fuzz_targets/tags.rs"
+test = false
+doc = false
+bench = false
