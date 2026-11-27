@@ -3,15 +3,18 @@
 //! (PAR-002), and the value decoders read the values.
 
 // DKIM and DKIM2, which read their tag lists here, come in later changes, so
-// only the tests use this module for now.
-#![cfg_attr(not(test), expect(dead_code, reason = "DKIM and DKIM2 come later"))]
+// only the tests and the fuzz entry points use this module for now.
+#![cfg_attr(
+    not(any(test, feature = "fuzzing")),
+    expect(dead_code, reason = "DKIM and DKIM2 come later")
+)]
 
-mod canon;
-mod fields;
-mod groups;
-mod number;
-mod qp;
-mod recipe;
+pub(crate) mod canon;
+pub(crate) mod fields;
+pub(crate) mod groups;
+pub(crate) mod number;
+pub(crate) mod qp;
+pub(crate) mod recipe;
 
 use core::ops::Range;
 
