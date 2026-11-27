@@ -76,7 +76,7 @@ pub(crate) fn is_noncharacter(character: char) -> bool {
     (0xFDD0..=0xFDEF).contains(&value) || (value & 0xFFFE) == 0xFFFE
 }
 
-/// A JSON value (RFC 8259 §3) that [`read`] took from a document.
+/// A JSON value (RFC 8259 §3) that [`read_as`] took from a document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Json {
     /// `null`.
@@ -103,11 +103,12 @@ pub(crate) enum Dialect {
     /// snapshots and demo cases (TRC-007).
     IJson,
     /// RFC 8259, as DKIM2 recipes use it (draft-09 §2), with the unique
-    /// names and UTF-8 strings of draft-09 §5.
-    Rfc8259,
+    /// names and UTF-8 strings of draft-09 §5, which plain RFC 8259 leaves
+    /// open (RFC 8259 §4, §8.2).
+    Recipe,
 }
 
-/// Why [`read`] refused a document. Each offset counts bytes from the start
+/// Why [`read_as`] refused a document. Each offset counts bytes from the start
 /// of the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum JsonError {
@@ -165,7 +166,7 @@ enum Open {
     },
 }
 
-/// The state of [`read`]: the text, the offset of the next byte, and the
+/// The state of [`read_as`]: the text, the offset of the next byte, and the
 /// open arrays and objects, innermost last.
 struct Reader<'a> {
     text: &'a str,
@@ -601,7 +602,7 @@ mod tests {
     }
 
     #[test]
-    fn prs_013_rfc_8259_text_may_hold_noncharacters() {
+    fn prs_013_recipe_json_may_hold_noncharacters() {
         // U+FFFF and U+FDD0 in UTF-8.
         let ffff = String::from_utf8(vec![0xEF, 0xBF, 0xBF]).unwrap();
         let fdd0 = String::from_utf8(vec![0xEF, 0xB7, 0x90]).unwrap();
@@ -611,12 +612,12 @@ mod tests {
             (b"\"\x5cufdd0\"", fdd0),
         ];
         for (text, expected) in cases {
-            let found = read_as(text, 16, Dialect::Rfc8259);
+            let found = read_as(text, 16, Dialect::Recipe);
             assert_eq!(found, Ok(Json::String(expected)));
         }
-        let surrogate = read_as(b"\"\x5cudead\"", 16, Dialect::Rfc8259);
+        let surrogate = read_as(b"\"\x5cudead\"", 16, Dialect::Recipe);
         assert_eq!(surrogate, malformed(1));
-        let repeat = read_as(b"{\"a\":1,\"a\":2}", 16, Dialect::Rfc8259);
+        let repeat = read_as(b"{\"a\":1,\"a\":2}", 16, Dialect::Recipe);
         assert_eq!(repeat, malformed(7));
     }
 }

@@ -42,7 +42,7 @@ pub(crate) fn recipes(input: &[u8], limits: &Limits) -> Result<Vec<(String, Json
     if !within {
         return Err(RecipeError::Size(octets.len()));
     }
-    match json::read_as(&octets, limits.recipe_depth, Dialect::Rfc8259) {
+    match json::read_as(&octets, limits.recipe_depth, Dialect::Recipe) {
         Ok(Json::Object(members)) => Ok(members),
         Ok(_) => Err(RecipeError::Object(value_start(&octets))),
         Err(JsonError::Malformed { offset }) => Err(RecipeError::Json(offset)),
@@ -96,11 +96,14 @@ mod tests {
             ..Limits::default()
         };
         assert_eq!(recipes(b"e30=", &small), Err(RecipeError::Size(2)));
+        assert_eq!(recipes(b"eyI=", &small), Err(RecipeError::Size(2)));
         let shallow = Limits {
             recipe_depth: 2,
             ..Limits::default()
         };
         let found = recipes(b"eyJiIjpbW11dfQ==", &shallow);
+        assert_eq!(found, Err(RecipeError::Depth(6)));
+        let found = recipes(b"eyJiIjpbWw==", &shallow);
         assert_eq!(found, Err(RecipeError::Depth(6)));
     }
 }
