@@ -1,6 +1,6 @@
 //! The body state machine (RFC 6376 §3.4.3, §3.4.4, draft-09 §6.1) and the `l=` cut (§3.5).
-//! The caller pushes input chunks and pulls output (STR-003). Between calls the canonicalizer
-//! holds counts and flags and no input octet (STR-007), so its memory doesn't grow.
+//! The caller pushes input chunks and pulls output (STR-003). Between calls it holds counts,
+//! flags and at most one octet of output, and no reference to a chunk (STR-007).
 
 #![cfg_attr(
     not(test),
@@ -101,19 +101,19 @@ impl Writer {
     /// Octets past the cut need no room. Returns where the written octets end.
     fn drain(&mut self, output: &mut [u8], mut at: usize) -> usize {
         loop {
-            if self.within() {
-                let Some(slot) = output.get_mut(at) else {
-                    return at;
-                };
-                match self.take() {
-                    Some(octet) => *slot = octet,
-                    None => return at,
-                }
-                at += 1;
-            } else if self.take().is_none() {
+            let within = self.within();
+            if within && at >= output.len() {
                 return at;
             }
+            let octet = match self.take() {
+                Some(octet) => octet,
+                None => return at,
+            };
             self.canonical += 1;
+            if let (true, Some(slot)) = (within, output.get_mut(at)) {
+                *slot = octet;
+                at += 1;
+            }
         }
     }
 }
@@ -159,6 +159,8 @@ impl BodyCanonicalizer {
 
     /// Reads `chunk` and writes canonical octets to `output`. It stops when the chunk is read,
     /// or when `output` is full and output waits. The caller passes the unread rest again.
+    /// `output` holds at least one octet. Output that waits goes out first in the next call or
+    /// in the tail, so once the chunk is read, the caller can pass the next one or finish.
     pub(crate) fn update(&mut self, chunk: &[u8], output: &mut [u8]) -> Moved {
         let mut read = 0;
         let mut written = 0;
@@ -266,14 +268,13 @@ mod tests {
         let mut body = Vec::new();
         for chunk in chunks {
             let mut rest: &[u8] = chunk;
-            loop {
+            let mut full = true;
+            while !rest.is_empty() || full {
                 let moved = canonicalizer.update(rest, &mut output);
                 body.extend_from_slice(&output[..moved.written]);
                 rest = &rest[moved.read..];
-                if rest.is_empty() && moved.written < room {
-                    break;
-                }
-                assert!(moved.read > 0 || moved.written > 0, "no progress");
+                full = moved.written == room;
+                assert!(moved.read > 0 || moved.written > 0 || rest.is_empty());
             }
         }
         let mut tail = canonicalizer.finish();
@@ -286,9 +287,8 @@ mod tests {
         }
     }
 
-    /// Checks `input` in one chunk, in two chunks split at each point, and one octet per
-    /// chunk, each with every room: the output is `expected`, and the canonical length `len`
-    /// (STR-005).
+    /// Checks `input` in one chunk, in two split at each point and one octet per chunk, with
+    /// each room: the output is `expected`, and the canonical length `len` (STR-005).
     fn check_cut(mode: BodyMode, length: Option<u64>, input: &[u8], expected: &[u8], len: u64) {
         let mut splits = vec![vec![input]];
         for at in 0..=input.len() {
@@ -305,7 +305,6 @@ mod tests {
         }
     }
 
-    /// [`check_cut`] with no `l=`.
     fn check(mode: BodyMode, input: &[u8], expected: &[u8]) {
         let len = u64::try_from(expected.len()).unwrap();
         check_cut(mode, None, input, expected, len);
@@ -342,12 +341,18 @@ mod tests {
         check(Simple, b"A\n", b"A\n\r\n");
     }
 
-    /// `check` splits each body at every point and runs it with room for one octet, so the
-    /// tests above also cover CAN-082, CAN-084, CAN-085, CAN-087, CAN-089 and CAN-090.
     #[test]
-    fn can_080_081_083_088_chunk_boundaries() {
+    fn can_085_090_the_example_one_octet_per_chunk_and_with_room_for_one() {
+        check(Simple, EXAMPLE, b" C \r\nD \t E\r\n");
+        check(Relaxed, EXAMPLE, b" C\r\nD E\r\n");
+    }
+
+    /// `check` splits at every point, so the tests above cover CAN-084, 087 and 089.
+    #[test]
+    fn can_080_to_083_088_chunk_boundaries() {
         check(Relaxed, b"Hello   \r\nWorld\r\n", b"Hello\r\nWorld\r\n");
         check(Relaxed, b"Hello   World\r\n", b"Hello World\r\n");
+        check(Simple, b"A\r\nB\r\n", b"A\r\nB\r\n");
         check(Simple, b"A\r\n\r\n\r\nB\r\n", b"A\r\n\r\n\r\nB\r\n");
         check(Simple, b"AB", b"AB\r\n");
         check(Relaxed, b"AB", b"AB\r\n");
