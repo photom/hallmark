@@ -1,12 +1,17 @@
 //! The results of DKIM verification. DKIM-Signature fields, key records,
 //! verification and signing stay crate-private.
 
+pub(crate) mod header_hash;
+
+// The public items wait for verification and stay in the docs until then.
+#[cfg(doc)]
 use crate::{CheckResults, Data, Domain, Limit, Position};
 
 /// The results of DKIM verification (DKV-001).
 ///
 /// [`CheckResults::dkim`] holds them. hallmark builds them, and the verifying
 /// caller reads their fields.
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DkimResults {
@@ -21,6 +26,7 @@ pub struct DkimResults {
 ///
 /// `domain`, `selector` and `algorithm` are optional, because a field that
 /// lacks them still gets PERMFAIL (RFC 6376 §6.1.1).
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DkimResult {
@@ -60,6 +66,7 @@ pub struct DkimResult {
 /// A selector can publish several records. The signature passes if any of
 /// them verifies it, and [`DkimResult::key_records`] lists each one with its
 /// own reason.
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DkimKeyRecord {
@@ -77,6 +84,7 @@ pub struct DkimKeyRecord {
 }
 
 /// The result of one DKIM signature, RFC 6376 §3.9.
+#[cfg(doc)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DkimOutcome {
     /// SUCCESS.
@@ -88,6 +96,7 @@ pub enum DkimOutcome {
 }
 
 /// Why a DKIM signature got its outcome (GEN-004).
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DkimReason {
@@ -134,6 +143,7 @@ pub enum DkimReason {
 ///
 /// [Field checks](https://github.com/photom/hallmark/blob/main/docs/reference/design/dkim.md#field-checks)
 /// lists them in the order hallmark runs them.
+#[cfg(doc)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DkimFieldCheck {
@@ -172,6 +182,7 @@ pub enum DkimFieldCheck {
 ///
 /// [Key checks](https://github.com/photom/hallmark/blob/main/docs/reference/design/dkim.md#key-checks)
 /// lists them.
+#[cfg(doc)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DkimKeyCheck {

@@ -67,12 +67,12 @@ pub(crate) enum Malformed {
 impl HeaderLine {
     /// Whether the line is a field named `name`, compared without regard to
     /// ASCII case (HDR-002).
-    pub(crate) fn has_name(&self, input: &[u8], name: &str) -> bool {
+    pub(crate) fn has_name(&self, input: &[u8], name: &[u8]) -> bool {
         let LineKind::Field { name: range, .. } = &self.kind else {
             return false;
         };
         match input.get(range.clone()) {
-            Some(bytes) => bytes.eq_ignore_ascii_case(name.as_bytes()),
+            Some(bytes) => bytes.eq_ignore_ascii_case(name),
             None => false,
         }
     }
@@ -260,7 +260,7 @@ mod tests {
     fn fld_003_names_compare_without_regard_to_case() {
         let input = b"SUBJect: AbC\r\n\r\n";
         let line = &split(input).lines[0];
-        assert!(line.has_name(input, "subject"));
+        assert!(line.has_name(input, b"subject"));
         assert_eq!(name(input, line), b"SUBJect");
     }
 
@@ -271,7 +271,7 @@ mod tests {
         let expected: [&[u8]; 3] = [b" <A>", b" <B>", b" <C>"];
         assert_eq!(section.lines.len(), 3);
         for (line, expected) in section.lines.iter().zip(expected) {
-            assert!(line.has_name(input, "received"));
+            assert!(line.has_name(input, b"received"));
             assert_eq!(value(input, line), expected);
         }
     }
