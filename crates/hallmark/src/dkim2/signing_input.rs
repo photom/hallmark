@@ -8,8 +8,10 @@
     expect(dead_code, reason = "verification and signing come later")
 )]
 
-use crate::header::section::HeaderLine;
+use crate::canonical::header::{HeaderMode, write_field};
+use crate::header::section::{HeaderLine, LineKind, split};
 use crate::tags::Tag;
+use crate::tags::groups::signatures;
 
 /// The DKIM2-Signature field whose signing input is built: a field of the header section when
 /// a verifier checks it, or the field that a signer is creating (draft-09 §12.8).
@@ -35,8 +37,61 @@ pub(crate) fn signing_input(
     own: &OwnField<'_>,
     output: &mut Vec<u8>,
 ) -> bool {
-    let _ = (input, lines, instances, signatures, own, output);
-    false
+    // A failure cuts `output` back to this length, so it appends nothing.
+    let start = output.len();
+    for index in instances.iter().chain(signatures) {
+        let written = match lines.get(*index) {
+            Some(line) => write_field(input, line, HeaderMode::Dkim2Signing, output),
+            None => false,
+        };
+        if !written {
+            output.truncate(start);
+            return false;
+        }
+    }
+    let written = match emptied_field(own) {
+        Some(emptied) => write_own(&emptied, output),
+        None => false,
+    };
+    if !written {
+        output.truncate(start);
+    }
+    written
+}
+
+/// Appends the form of the signing input of the field `raw`, which ends in CRLF (§12.8).
+fn write_own(raw: &[u8], output: &mut Vec<u8>) -> bool {
+    match split(raw).lines.first() {
+        Some(line) => write_field(raw, line, HeaderMode::Dkim2Signing, output),
+        None => false,
+    }
+}
+
+/// The raw bytes of the own field with each message-sig of its `s=` tag deleted. The
+/// selectors, the algorithm names and the `:`, `,` and `|` between them stay (§12.8, §14.6).
+/// The WSP around a deleted value goes with the other WSP when the field is put in form.
+fn emptied_field(own: &OwnField<'_>) -> Option<Vec<u8>> {
+    let lines = split(own.raw).lines;
+    let LineKind::Field { value, .. } = &lines.first()?.kind else {
+        return None;
+    };
+    let field_value = own.raw.get(value.clone())?;
+    // The ranges come from parsing this value, folds included, so the name reads `s`.
+    if field_value.get(own.s.name.clone())? != b"s" {
+        return None;
+    }
+    let groups = signatures(field_value.get(own.s.value.clone())?).ok()?;
+    let offset = value.start + own.s.value.start;
+    let mut emptied = Vec::with_capacity(own.raw.len());
+    let mut kept = 0;
+    for group in &groups {
+        for set in group {
+            emptied.extend_from_slice(own.raw.get(kept..offset + set.written.start)?);
+            kept = offset + set.written.end;
+        }
+    }
+    emptied.extend_from_slice(own.raw.get(kept..)?);
+    Some(emptied)
 }
 
 #[cfg(test)]
