@@ -40,9 +40,9 @@ pub(crate) enum Pick {
 
 /// Appends the header hash input of `signature` to `output`, and gives what each name in
 /// `h=` selected, in `h=` order. `lines` come from splitting `input`. Gives `None` and appends
-/// nothing when the input can't be built: the name of a field, or a field it selects, lies
-/// outside `input`, the signature's line is no header field, or its `b=` tag doesn't fit its
-/// value.
+/// nothing when the input can't be built: the name of any field, or any part of a field that
+/// `h=` selects, lies outside `input`, the signature's line is no header field, or its `b=` tag
+/// doesn't fit its value.
 pub(crate) fn hash_input(
     input: &[u8],
     lines: &[HeaderLine],
@@ -318,7 +318,7 @@ mod tests {
     /// output keeps what it held.
     #[test]
     fn can_189_a_name_outside_the_input_gives_nothing() {
-        let input = s("relaxed", "From:Subject", "", REST);
+        let input = s("relaxed", "From", "", REST);
         let cut = input.len() - "ject: Hi\r\n".len();
         let mut output = b"kept".to_vec();
         assert_eq!(run(&input, 0, cut, &mut output), None);
