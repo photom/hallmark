@@ -163,6 +163,7 @@ mod tests {
         "Return-Path: <a@void.test>\r\nAuthentication-Results: mx.void.test; none\r\n",
         "DKIM-Signature: v=1\r\nARC-Seal: i=1\r\nDelivered-To: b@void.test\r\n",
         "X400-Received: r\r\nX400-Trace: t\r\nX400-Other: k\r\n",
+        "MESSAGE-INSTANCE: m=1\r\ndkim2-SIGNATURE: i=1\r\n",
     );
 
     /// The DKIM2 header hash input of `header` as text, the fields it took, and the lines it
@@ -196,9 +197,9 @@ mod tests {
         assert_eq!(left, expected);
     }
 
-    /// Draft-09 §4.1.
+    /// Draft-09 §4.1 and §6.2.
     #[test]
-    fn can_221_the_list_of_section_4_1_matches_without_case() {
+    fn can_221_the_lists_of_sections_4_1_and_6_2_match_without_case() {
         let (bytes, taken, left) = text(CAN_221);
         assert_eq!(bytes, "receivedby:k\r\nx400-other:k\r\n");
         assert_eq!(taken, [2, 12]);
@@ -206,6 +207,8 @@ mod tests {
         for line in [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11] {
             expected.push(left_out(line, Unsigned));
         }
+        expected.push(left_out(13, Dkim2Field));
+        expected.push(left_out(14, Dkim2Field));
         assert_eq!(left, expected);
     }
 
