@@ -199,6 +199,14 @@ mod tests {
 
     /// The header hash input of the signature on line `own` of `input` as text, and the picks.
     fn text(input: &[u8], own: usize) -> (String, Vec<Pick>) {
+        let mut output = Vec::new();
+        let picks = run(input, own, input.len(), &mut output).unwrap();
+        (String::from_utf8(output).unwrap(), picks)
+    }
+
+    /// Runs `hash_input` for the signature on line `own` of `input`, with the lines of `input`
+    /// and only its first `cut` octets.
+    fn run(input: &[u8], own: usize, cut: usize, output: &mut Vec<u8>) -> Option<Vec<Pick>> {
         let lines = split(input).lines;
         let LineKind::Field { value, .. } = &lines[own].kind else {
             panic!("line {own} is malformed");
@@ -225,9 +233,7 @@ mod tests {
             b: b.unwrap(),
             header: canonicalization(c).unwrap().header,
         };
-        let mut output = Vec::new();
-        let picks = hash_input(input, &lines, &signature, &mut output).unwrap();
-        (String::from_utf8(output).unwrap(), picks)
+        hash_input(&input[..cut], &lines, &signature, output)
     }
 
     #[test]
@@ -307,6 +313,17 @@ mod tests {
         let (bytes, picks) = text(input.as_bytes(), 3);
         assert_eq!(bytes, expected);
         assert_eq!(picks, [Field(0)]);
+    }
+
+    /// RFC 6376 §3.7 (HCN-003) and ADR 0004. A name outside the input gives `None`, and the
+    /// output keeps what it held.
+    #[test]
+    fn can_189_a_name_outside_the_input_gives_nothing() {
+        let input = s("relaxed", "From:Subject", "", REST);
+        let cut = input.len() - "ject: Hi\r\n".len();
+        let mut output = b"kept".to_vec();
+        assert_eq!(run(&input, 0, cut, &mut output), None);
+        assert_eq!(output, b"kept");
     }
 
     #[test]
