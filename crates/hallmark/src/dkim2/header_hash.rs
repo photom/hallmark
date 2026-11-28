@@ -41,7 +41,7 @@ pub(crate) enum Rule {
     Unsigned,
     /// A Message-Instance or DKIM2-Signature field (draft-09 §6.2).
     Dkim2Field,
-    /// A line that isn't a header field (HCN-006, draft-09 §2.7).
+    /// A line that isn't a header field (HCN-006, draft-09 §2.7 and §6.2).
     NotAField,
 }
 
@@ -164,6 +164,9 @@ mod tests {
         "DKIM-Signature: v=1\r\nARC-Seal: i=1\r\nDelivered-To: b@void.test\r\n",
         "X400-Received: r\r\nX400-Trace: t\r\nX400-Other: k\r\n",
         "MESSAGE-INSTANCE: m=1\r\ndkim2-SIGNATURE: i=1\r\n",
+        "Apparently-To: c@void.test\r\nARC-Authentication-Results: i=1\r\n",
+        "ARC-Message-Signature: i=1\r\nDL-Expansion-History: h\r\n",
+        "Original-Recipient: o\r\nSIO-Label-History: s\r\n",
     );
 
     /// The DKIM2 header hash input of `header` as text, the fields it took, and the lines it
@@ -209,6 +212,9 @@ mod tests {
         }
         expected.push(left_out(13, Dkim2Field));
         expected.push(left_out(14, Dkim2Field));
+        for line in 15..21 {
+            expected.push(left_out(line, Unsigned));
+        }
         assert_eq!(left, expected);
     }
 
