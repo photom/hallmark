@@ -3,6 +3,7 @@
 //! module exists only with the `unstable-dkim2` feature.
 
 pub(crate) mod header_hash;
+pub(crate) mod signing_input;
 
 // The public items wait for verification and stay in the docs until then.
 #[cfg(doc)]
