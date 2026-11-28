@@ -69,7 +69,8 @@ pub(crate) struct Selection {
 
 /// Appends the DKIM2 header hash input of the header section `input` to `output`, and gives
 /// which lines it took and left out. `lines` come from splitting `input`. Gives `None` and
-/// appends nothing when a line lies outside `input`.
+/// appends nothing when the name of a field, or a field it takes, lies outside `input`. It
+/// reads no more of a line that it leaves out.
 pub(crate) fn hash_input(
     input: &[u8],
     lines: &[HeaderLine],
