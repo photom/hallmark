@@ -32,6 +32,9 @@ pub(crate) struct SignatureValue {
     pub(crate) selector: Range<usize>,
     /// The sig-name, a range of the value, matched as written (draft-09 §2.14).
     pub(crate) algorithm: Range<usize>,
+    /// The message-sig as written, folds included, a range of the value that the signing input
+    /// empties (HCN-007).
+    pub(crate) written: Range<usize>,
     /// The signature, decoded.
     pub(crate) signature: Vec<u8>,
 }
@@ -104,6 +107,7 @@ impl Set for SignatureValue {
         let set = Self {
             selector,
             algorithm,
+            written: signature_at..end,
             signature,
         };
         Ok((set, end))

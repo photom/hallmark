@@ -183,10 +183,11 @@ fn signature_set_within(set: SignatureValue, input: &[u8]) -> bool {
     let SignatureValue {
         selector,
         algorithm,
+        written,
         signature,
     } = set;
-    let ranges = range_within(&selector, input) && range_within(&algorithm, input);
-    ranges && signature.len() <= input.len()
+    let names = range_within(&selector, input) && range_within(&algorithm, input);
+    names && range_within(&written, input) && signature.len() <= input.len()
 }
 
 /// Whether a DKIM2 group error lies within `input`.
