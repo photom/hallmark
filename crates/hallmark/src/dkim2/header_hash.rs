@@ -57,7 +57,8 @@ pub(crate) struct LeftOut {
 /// Which lines a DKIM2 header hash input took and which it left out, for the trace (HCN-009).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Selection {
-    /// The indices of the fields it took, in the order of the input.
+    /// The indices of the fields it took, in the order they enter the hash: by lowercased name,
+    /// and fields of one name from the bottom up.
     pub(crate) taken: Vec<usize>,
     /// The lines it left out, in header order.
     pub(crate) left_out: Vec<LeftOut>,
@@ -80,14 +81,18 @@ pub(crate) fn hash_input(
             taken.push(*index);
         }
     }
-    // The input is built apart and appended at the end, so a failure appends nothing.
-    let mut hashed = Vec::new();
+    // A failure cuts `output` back to this length, so it appends nothing.
+    let start = output.len();
     for index in &taken {
-        if !write_field(input, lines.get(*index)?, HeaderMode::Relaxed, &mut hashed) {
+        let written = match lines.get(*index) {
+            Some(line) => write_field(input, line, HeaderMode::Relaxed, output),
+            None => false,
+        };
+        if !written {
+            output.truncate(start);
             return None;
         }
     }
-    output.extend_from_slice(&hashed);
     Some(Selection { taken, left_out })
 }
 
@@ -174,6 +179,8 @@ mod tests {
         LeftOut { line, rule }
     }
 
+    /// The SHA-256 and SHA-512 hashes of CAN-220 wait for the hash functions, and its trace
+    /// for the trace of HCN-009. This test checks the input and the lines behind the trace.
     #[test]
     fn can_220_dkim2_fields_and_trace_fields_stay_out() {
         let (bytes, taken, left) = text(CAN_220);
@@ -227,6 +234,7 @@ mod tests {
         assert_eq!(text(header).0, expected);
     }
 
+    /// The SHA-256 hash of CAN-225 waits for the hash functions.
     #[test]
     fn can_225_only_fields_left_out_give_an_empty_input() {
         let (bytes, taken, left) = text("Received: x\r\nX-Spam: y\r\n");
@@ -235,6 +243,7 @@ mod tests {
         assert_eq!(left, [left_out(0, Unsigned), left_out(1, Unsigned)]);
     }
 
+    /// The caution of CAN-260 waits for the trace. This test checks the rule behind it.
     #[test]
     fn can_260_a_line_that_is_no_field_stays_out() {
         let header = "Subject: Hi\r\nnot a field\r\nFrom: a@void.test\r\n";
