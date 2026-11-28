@@ -34,6 +34,9 @@ const UNSIGNED: [&[u8]; 14] = [
 /// `Received-*` and `X-*` of draft-09 §4.1: every name that begins with one of these.
 const UNSIGNED_PREFIXES: [&[u8]; 2] = [b"received-", b"x-"];
 
+/// The fields that draft-09 §6.2 leaves out, lowercased.
+const DKIM2_FIELDS: [&[u8]; 2] = [b"message-instance", b"dkim2-signature"];
+
 /// Why a line of the header section stays out of the DKIM2 header hash (HCN-009).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Rule {
@@ -110,11 +113,13 @@ fn fields_by_name(
             left_out.push(LeftOut { line: index, rule });
             continue;
         };
-        let key = input.get(name.clone())?.to_ascii_lowercase();
-        if let Some(rule) = rule_for(&key) {
+        let name = input.get(name.clone())?;
+        if let Some(rule) = rule_for(name) {
             left_out.push(LeftOut { line: index, rule });
             continue;
         }
+        // Only a field that the hash takes gets a lowercased copy of its name.
+        let key = name.to_ascii_lowercase();
         match fields.get_mut(&key) {
             Some(indices) => indices.push(index),
             None => {
@@ -125,18 +130,23 @@ fn fields_by_name(
     Some(fields)
 }
 
-/// The rule that leaves out a field with the lowercased name `name`, or `None` when the hash
-/// takes it. Because `name` is lowercased, it matches the lists without regard to case
-/// (HCN-005).
+/// The rule that leaves out a field named `name`, or `None` when the hash takes it. `name`
+/// matches the lists without regard to case (HCN-005).
 fn rule_for(name: &[u8]) -> Option<Rule> {
-    if name == b"message-instance" || name == b"dkim2-signature" {
-        return Some(Rule::Dkim2Field);
+    for field in DKIM2_FIELDS {
+        if name.eq_ignore_ascii_case(field) {
+            return Some(Rule::Dkim2Field);
+        }
     }
-    if UNSIGNED.contains(&name) {
-        return Some(Rule::Unsigned);
+    for field in UNSIGNED {
+        if name.eq_ignore_ascii_case(field) {
+            return Some(Rule::Unsigned);
+        }
     }
     for prefix in UNSIGNED_PREFIXES {
-        if name.starts_with(prefix) {
+        if let Some(start) = name.get(..prefix.len())
+            && start.eq_ignore_ascii_case(prefix)
+        {
             return Some(Rule::Unsigned);
         }
     }
@@ -255,6 +265,17 @@ mod tests {
         assert_eq!(bytes, "");
         assert!(taken.is_empty());
         assert_eq!(left, [left_out(0, Unsigned), left_out(1, Unsigned)]);
+    }
+
+    /// Draft-09 §6.2 (HCN-005) and ADR 0004. A line from another input gives `None`, and the
+    /// output keeps what it held.
+    #[test]
+    fn can_228_lines_from_another_input_give_nothing() {
+        let long = b"A: 1\r\nB: 22222\r\n";
+        let lines = split(long).lines;
+        let mut output = b"kept".to_vec();
+        assert_eq!(hash_input(&long[..10], &lines, &mut output), None);
+        assert_eq!(output, b"kept");
     }
 
     /// Draft-09 §2.7 and §6.2 (HCN-006). The caution of CAN-260 waits for the trace. This test
