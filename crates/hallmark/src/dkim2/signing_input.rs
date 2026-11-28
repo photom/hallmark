@@ -219,4 +219,16 @@ mod tests {
         assert!(!build([&[3, 9], &[]], &own, &mut output));
         assert_eq!(output, b"kept");
     }
+
+    /// Draft-09 §10.9 and §14.2, and ADR 0004. A checked field whose `s=` doesn't decode gives
+    /// `false`, and the output keeps what it held.
+    #[test]
+    fn can_248_an_s_value_that_does_not_decode_gives_nothing() {
+        let raw = b"DKIM2-Signature: i=1; m=1; d=void.test; s=sel1:ed25519-sha256:C!CC\r\n";
+        let s = s_tag(raw);
+        let own = OwnField::Checked { raw, s: &s };
+        let mut output = b"kept".to_vec();
+        assert!(!build([&[3], &[]], &own, &mut output));
+        assert_eq!(output, b"kept");
+    }
 }
