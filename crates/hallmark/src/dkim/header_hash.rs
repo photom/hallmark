@@ -40,8 +40,9 @@ pub(crate) enum Pick {
 
 /// Appends the header hash input of `signature` to `output`, and gives what each name in
 /// `h=` selected, in `h=` order. `lines` come from splitting `input`. Gives `None` and appends
-/// nothing when the input can't be built: a line lies outside `input`, the signature's line is
-/// no header field, or its `b=` tag doesn't fit its value.
+/// nothing when the input can't be built: the name of any field, or any part of a field that
+/// `h=` selects, lies outside `input`, the signature's line is no header field, or its `b=` tag
+/// doesn't fit its value.
 pub(crate) fn hash_input(
     input: &[u8],
     lines: &[HeaderLine],
@@ -54,7 +55,7 @@ pub(crate) fn hash_input(
     };
     // The input is built apart and appended at the end, so a failure appends nothing.
     let mut hashed = Vec::new();
-    let mut fields = fields_by_name(input, lines);
+    let mut fields = fields_by_name(input, lines)?;
     let mut picks = Vec::with_capacity(signature.names.len());
     for name in signature.names {
         // RFC 6376 §5.4: each name takes the lowest field of that name not yet taken.
@@ -88,16 +89,14 @@ pub(crate) fn hash_input(
 
 /// The lines of each field name, lowercased (HDR-002), in header order, so the last index of a
 /// name is its lowest field. A malformed line has no name, so it is in no list (HCN-006).
-fn fields_by_name(input: &[u8], lines: &[HeaderLine]) -> BTreeMap<Vec<u8>, Vec<usize>> {
+/// `None` when a name lies outside `input`, because a name in `h=` could select that field.
+fn fields_by_name(input: &[u8], lines: &[HeaderLine]) -> Option<BTreeMap<Vec<u8>, Vec<usize>>> {
     let mut fields: BTreeMap<Vec<u8>, Vec<usize>> = BTreeMap::new();
     for (index, line) in lines.iter().enumerate() {
         let LineKind::Field { name, .. } = &line.kind else {
             continue;
         };
-        let Some(name) = input.get(name.clone()) else {
-            continue;
-        };
-        let key = name.to_ascii_lowercase();
+        let key = input.get(name.clone())?.to_ascii_lowercase();
         match fields.get_mut(&key) {
             Some(indices) => indices.push(index),
             None => {
@@ -105,7 +104,7 @@ fn fields_by_name(input: &[u8], lines: &[HeaderLine]) -> BTreeMap<Vec<u8>, Vec<u
             }
         }
     }
-    fields
+    Some(fields)
 }
 
 /// The line that `pick` selected, the signature's own line being `own`.
@@ -199,6 +198,14 @@ mod tests {
 
     /// The header hash input of the signature on line `own` of `input` as text, and the picks.
     fn text(input: &[u8], own: usize) -> (String, Vec<Pick>) {
+        let mut output = Vec::new();
+        let picks = run(input, own, input.len(), &mut output).unwrap();
+        (String::from_utf8(output).unwrap(), picks)
+    }
+
+    /// Runs `hash_input` for the signature on line `own` of `input`, with the lines of `input`
+    /// and only its first `cut` octets.
+    fn run(input: &[u8], own: usize, cut: usize, output: &mut Vec<u8>) -> Option<Vec<Pick>> {
         let lines = split(input).lines;
         let LineKind::Field { value, .. } = &lines[own].kind else {
             panic!("line {own} is malformed");
@@ -225,9 +232,7 @@ mod tests {
             b: b.unwrap(),
             header: canonicalization(c).unwrap().header,
         };
-        let mut output = Vec::new();
-        let picks = hash_input(input, &lines, &signature, &mut output).unwrap();
-        (String::from_utf8(output).unwrap(), picks)
+        hash_input(&input[..cut], &lines, &signature, output)
     }
 
     #[test]
@@ -307,6 +312,17 @@ mod tests {
         let (bytes, picks) = text(input.as_bytes(), 3);
         assert_eq!(bytes, expected);
         assert_eq!(picks, [Field(0)]);
+    }
+
+    /// RFC 6376 §3.7 (HCN-003) and ADR 0004. A name outside the input gives `None`, and the
+    /// output keeps what it held.
+    #[test]
+    fn can_189_a_name_outside_the_input_gives_nothing() {
+        let input = s("relaxed", "From", "", REST);
+        let cut = input.len() - "ject: Hi\r\n".len();
+        let mut output = b"kept".to_vec();
+        assert_eq!(run(&input, 0, cut, &mut output), None);
+        assert_eq!(output, b"kept");
     }
 
     #[test]
