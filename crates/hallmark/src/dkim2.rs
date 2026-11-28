@@ -2,6 +2,10 @@
 //! records, verification, signing and revisions stay crate-private. The whole
 //! module exists only with the `unstable-dkim2` feature.
 
+pub(crate) mod header_hash;
+
+// The public items wait for verification and stay in the docs until then.
+#[cfg(doc)]
 use crate::{CheckResults, Data, Limit, Position};
 
 /// The result of DKIM2 verification (DK2-013). Available with the
@@ -9,6 +13,7 @@ use crate::{CheckResults, Data, Limit, Position};
 ///
 /// [`CheckResults::dkim2`] holds it. hallmark builds it, and the verifying
 /// caller reads its fields.
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Dkim2Result {
@@ -30,6 +35,7 @@ pub struct Dkim2Result {
 
 /// The output state of DKIM2, draft-09 §14.1 (DK2-013). Available with the
 /// `unstable-dkim2` feature.
+#[cfg(doc)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Dkim2State {
     /// NONE.
@@ -50,6 +56,7 @@ pub enum Dkim2State {
 /// Each step variant names one step of
 /// [DKIM2](https://github.com/photom/hallmark/blob/main/docs/reference/design/dkim2.md#steps)
 /// and carries `step`, the trace step that decided the state.
+#[cfg(doc)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Dkim2Reason {
