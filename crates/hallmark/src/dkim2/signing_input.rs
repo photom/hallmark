@@ -18,8 +18,9 @@ use crate::tags::groups;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum OwnField<'a> {
     /// A field of the header section that a verifier checks, whose signature values the input
-    /// empties (§14.6), with its `s=` tag as ranges into the field value, from the tag-list
-    /// parser (HDR-006). A field whose `s=` doesn't decode is invalid (§14.2) and has no input.
+    /// empties (§14.6), with its `s=` tag as ranges into the value of this same field, from the
+    /// tag-list parser (HDR-006). A field whose `s=` doesn't decode is invalid (§14.2) and has
+    /// no input.
     Checked { raw: &'a [u8], s: &'a Tag },
     /// The field that a signer is creating, whose signature values are still null (§12.8). A
     /// null value is no base64string (§10.9), so the input takes the field as it stands.
@@ -31,8 +32,8 @@ pub(crate) enum OwnField<'a> {
 /// `signatures` the lines of the DKIM2-Signature fields with `i=` below that of the own field,
 /// in ascending `i=` order (§14.6). The caller picks these lines, so the step checks only that
 /// each is a header field. `lines` come from splitting `input`. Gives `false` and appends
-/// nothing when a line isn't a header field or lies outside `input`, or when the `s=` tag of a
-/// checked field doesn't fit it or doesn't decode.
+/// nothing when a line or the own field isn't a header field, when a line lies outside
+/// `input`, or when the `s=` tag of a checked field doesn't fit it or doesn't decode.
 pub(crate) fn signing_input(
     input: &[u8],
     lines: &[HeaderLine],
@@ -230,5 +231,14 @@ mod tests {
         let mut output = b"kept".to_vec();
         assert!(!build([&[3], &[]], &own, &mut output));
         assert_eq!(output, b"kept");
+    }
+
+    /// Draft-09 §10.9 and §14.6. The whole message-sig goes, the fold inside it included.
+    #[test]
+    fn can_249_a_folded_signature_value_goes_whole() {
+        let own = b"DKIM2-Signature: i=1; m=1; d=void.test; s=sel1:ed25519-sha256:CC\r\n CC\r\n";
+        let input = text(&[3], &[], own);
+        let end = "s=sel1:ed25519-sha256:\r\n";
+        assert!(input.ends_with(end), "{input}");
     }
 }
