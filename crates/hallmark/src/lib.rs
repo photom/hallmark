@@ -182,7 +182,7 @@ mod canonicalizer;
 #[cfg(doc)]
 mod check;
 mod dkim;
-#[cfg(all(doc, feature = "unstable-dkim2"))]
+#[cfg(feature = "unstable-dkim2")]
 mod dkim2;
 #[cfg(doc)]
 mod dmarc;
