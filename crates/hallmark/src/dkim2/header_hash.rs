@@ -8,7 +8,31 @@
     expect(dead_code, reason = "verification and signing come later")
 )]
 
-use crate::header::section::HeaderLine;
+use std::collections::BTreeMap;
+
+use crate::canonical::header::{HeaderMode, write_field};
+use crate::header::section::{HeaderLine, LineKind};
+
+/// The fields that draft-09 §4.1 lists as not signed, lowercased, apart from the two prefixes.
+const UNSIGNED: [&[u8]; 14] = [
+    b"apparently-to",
+    b"arc-authentication-results",
+    b"arc-message-signature",
+    b"arc-seal",
+    b"authentication-results",
+    b"delivered-to",
+    b"dkim-signature",
+    b"dl-expansion-history",
+    b"original-recipient",
+    b"received",
+    b"return-path",
+    b"sio-label-history",
+    b"x400-received",
+    b"x400-trace",
+];
+
+/// `Received-*` and `X-*` of draft-09 §4.1: every name that begins with one of these.
+const UNSIGNED_PREFIXES: [&[u8]; 2] = [b"received-", b"x-"];
 
 /// Why a line of the header section stays out of the DKIM2 header hash (HCN-009).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,7 +71,70 @@ pub(crate) fn hash_input(
     lines: &[HeaderLine],
     output: &mut Vec<u8>,
 ) -> Option<Selection> {
-    let _ = (input, lines, output);
+    let mut left_out = Vec::new();
+    let fields = fields_by_name(input, lines, &mut left_out)?;
+    // §6.2: ascending octets of the lowercased names, and fields of one name bottom up (§5.1).
+    let mut taken = Vec::new();
+    for indices in fields.values() {
+        for index in indices.iter().rev() {
+            taken.push(*index);
+        }
+    }
+    // The input is built apart and appended at the end, so a failure appends nothing.
+    let mut hashed = Vec::new();
+    for index in &taken {
+        if !write_field(input, lines.get(*index)?, HeaderMode::Relaxed, &mut hashed) {
+            return None;
+        }
+    }
+    output.extend_from_slice(&hashed);
+    Some(Selection { taken, left_out })
+}
+
+/// The lines of each lowercased field name that the hash takes, in header order. Pushes the
+/// lines it leaves out to `left_out`, in header order. `None` when a name lies outside `input`.
+fn fields_by_name(
+    input: &[u8],
+    lines: &[HeaderLine],
+    left_out: &mut Vec<LeftOut>,
+) -> Option<BTreeMap<Vec<u8>, Vec<usize>>> {
+    let mut fields: BTreeMap<Vec<u8>, Vec<usize>> = BTreeMap::new();
+    for (index, line) in lines.iter().enumerate() {
+        let LineKind::Field { name, .. } = &line.kind else {
+            let rule = Rule::NotAField;
+            left_out.push(LeftOut { line: index, rule });
+            continue;
+        };
+        let key = input.get(name.clone())?.to_ascii_lowercase();
+        if let Some(rule) = rule_for(&key) {
+            left_out.push(LeftOut { line: index, rule });
+            continue;
+        }
+        match fields.get_mut(&key) {
+            Some(indices) => indices.push(index),
+            None => {
+                fields.insert(key, vec![index]);
+            }
+        }
+    }
+    Some(fields)
+}
+
+/// The rule that leaves out a field with the lowercased name `name`, or `None` when the hash
+/// takes it. Because `name` is lowercased, it matches the lists without regard to case
+/// (HCN-005).
+fn rule_for(name: &[u8]) -> Option<Rule> {
+    if name == b"message-instance" || name == b"dkim2-signature" {
+        return Some(Rule::Dkim2Field);
+    }
+    if UNSIGNED.contains(&name) {
+        return Some(Rule::Unsigned);
+    }
+    for prefix in UNSIGNED_PREFIXES {
+        if name.starts_with(prefix) {
+            return Some(Rule::Unsigned);
+        }
+    }
     None
 }
 
