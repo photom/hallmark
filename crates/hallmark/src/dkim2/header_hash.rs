@@ -179,8 +179,9 @@ mod tests {
         LeftOut { line, rule }
     }
 
-    /// The SHA-256 and SHA-512 hashes of CAN-220 wait for the hash functions, and its trace
-    /// for the trace of HCN-009. This test checks the input and the lines behind the trace.
+    /// Draft-09 §4.1 and §6.2. The SHA-256 and SHA-512 hashes of CAN-220 wait for the hash
+    /// functions, and its trace for the trace of HCN-009. This test checks the input and the
+    /// lines behind the trace.
     #[test]
     fn can_220_dkim2_fields_and_trace_fields_stay_out() {
         let (bytes, taken, left) = text(CAN_220);
@@ -195,6 +196,7 @@ mod tests {
         assert_eq!(left, expected);
     }
 
+    /// Draft-09 §4.1.
     #[test]
     fn can_221_the_list_of_section_4_1_matches_without_case() {
         let (bytes, taken, left) = text(CAN_221);
@@ -207,6 +209,7 @@ mod tests {
         assert_eq!(left, expected);
     }
 
+    /// Draft-09 §5.1 and §6.2.
     #[test]
     fn can_222_fields_with_one_name_go_from_the_bottom_up() {
         let (bytes, taken, _) = text("Comments: 1\r\nCOMMENTS: 2\r\n");
@@ -214,6 +217,7 @@ mod tests {
         assert_eq!(taken, [1, 0]);
     }
 
+    /// Draft-09 §6.2.
     #[test]
     fn can_223_names_compare_octet_by_octet() {
         let header = concat!(
@@ -227,6 +231,7 @@ mod tests {
         assert_eq!(text(header).0, expected);
     }
 
+    /// Draft-09 §6.2, with the `relaxed` form of HCN-002.
     #[test]
     fn can_224_each_field_gets_the_relaxed_form() {
         let header = "SUBJect:  A \t B \r\nTo: a@void.test,\r\n\tb@void.test\r\n";
@@ -234,7 +239,7 @@ mod tests {
         assert_eq!(text(header).0, expected);
     }
 
-    /// The SHA-256 hash of CAN-225 waits for the hash functions.
+    /// Draft-09 §6.2. The SHA-256 hash of CAN-225 waits for the hash functions.
     #[test]
     fn can_225_only_fields_left_out_give_an_empty_input() {
         let (bytes, taken, left) = text("Received: x\r\nX-Spam: y\r\n");
@@ -243,7 +248,8 @@ mod tests {
         assert_eq!(left, [left_out(0, Unsigned), left_out(1, Unsigned)]);
     }
 
-    /// The caution of CAN-260 waits for the trace. This test checks the rule behind it.
+    /// Draft-09 §2.7 and §6.2 (HCN-006). The caution of CAN-260 waits for the trace. This test
+    /// checks the rule behind it.
     #[test]
     fn can_260_a_line_that_is_no_field_stays_out() {
         let header = "Subject: Hi\r\nnot a field\r\nFrom: a@void.test\r\n";
